@@ -913,63 +913,55 @@ export default class NodeGraphEditor {
     // 绘制网格
     drawGrid(ctx, width = this.canvas.width, height = this.canvas.height, 
              minX = 0, minY = 0, maxX = width, maxY = height) {
-        const gridSize = 20;
         
         ctx.save();
         
-        // 计算可见网格范围
-        const startX = Math.floor(minX / gridSize) * gridSize;
-        const startY = Math.floor(minY / gridSize) * gridSize;
-        const endX = Math.ceil(maxX / gridSize) * gridSize;
-        const endY = Math.ceil(maxY / gridSize) * gridSize;
-        
+        const canvasWidth = this.canvas.width;
+        const canvasHeight = this.canvas.height;
+
+        // 以 world-space 网格为准，gridSize 为世界单位
+        var gridSize = 20;
+
+        // 计算可见世界坐标范围（多加一个格子缓冲，避免边缘空白）
+        const visibleLeft = -this.pan.x/this.zoom - gridSize;
+        const visibleTop = -this.pan.y/this.zoom - gridSize;
+        const visibleRight = (canvasWidth - this.pan.x)/this.zoom + gridSize;
+        const visibleBottom = (canvasHeight - this.pan.y)/this.zoom + gridSize;
+
+        // 起止（以 gridSize 对齐）
+        const startX = Math.floor(visibleLeft / gridSize) * gridSize;
+        const endX = Math.ceil(visibleRight / gridSize) * gridSize;
+        const startY = Math.floor(visibleTop / gridSize) * gridSize;
+        const endY = Math.ceil(visibleBottom / gridSize) * gridSize;
+
         // 绘制主网格线
         ctx.strokeStyle = isLightMode() ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)';
         ctx.lineWidth = 1;
         
         // 水平线
+        ctx.beginPath();
         for (let y = startY; y <= endY; y += gridSize) {
             const screenY = this.worldToScreen(0, y).y;
-            ctx.beginPath();
             ctx.moveTo(0, screenY);
             ctx.lineTo(width, screenY);
-            ctx.stroke();
         }
-        
         // 垂直线
         for (let x = startX; x <= endX; x += gridSize) {
             const screenX = this.worldToScreen(x, 0).x;
-            ctx.beginPath();
             ctx.moveTo(screenX, 0);
             ctx.lineTo(screenX, height);
-            ctx.stroke();
         }
-        
+        ctx.stroke();
+
         // 绘制较粗的网格线
-        ctx.strokeStyle = isLightMode() ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 1.5;
-        
-        // 水平线
-        for (let y = startY; y <= endY; y += gridSize * 5) {
-            const screenY = this.worldToScreen(0, y).y;
-            ctx.beginPath();
-            ctx.moveTo(0, screenY);
-            ctx.lineTo(width, screenY);
-            ctx.stroke();
-        }
-        
-        // 垂直线
-        for (let x = startX; x <= endX; x += gridSize * 5) {
-            const screenX = this.worldToScreen(x, 0).x;
-            ctx.beginPath();
-            ctx.moveTo(screenX, 0);
-            ctx.lineTo(screenX, height);
-            ctx.stroke();
-        }
-        
+        // ctx.strokeStyle = isLightMode() ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+        // ctx.lineWidth = 1.5;
+        // gridSize = 200;
+
         ctx.restore();
     }
     
+
     // 绘制节点
     drawNode(ctx, node) {
         const screenPos = this.worldToScreen(node.x, node.y);
@@ -1148,7 +1140,7 @@ export default class NodeGraphEditor {
         
         // 绘制网格
         this.drawGrid(this.ctx);
-        
+
         // 绘制连线
         this.drawConnections(this.ctx);
         

@@ -9,6 +9,6 @@ timeout /t 2 /nobreak >nul
 echo 正在打开浏览器...
 start http://localhost:8000/public
 
-echo 操作完成！服务器运行在 http://localhost:8000
+echo 操作完成！服务器运行在 http://localhost:8000/public
 echo 按 Ctrl+C 可停止服务器
 pause >nul
