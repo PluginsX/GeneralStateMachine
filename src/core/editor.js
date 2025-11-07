@@ -49,6 +49,10 @@ export default class NodeGraphEditor {
         this.lastRenderTime = 0;
         this.renderDelay = 16; // ~60FPS
         
+        // 绑定事件处理函数（用于正确移除事件监听器）
+        this.boundHandleGlobalMouseMove = this.handleGlobalMouseMove.bind(this);
+        this.boundHandleGlobalMouseUp = this.handleGlobalMouseUp.bind(this);
+        
         // 初始化
         this.init();
     }
@@ -97,6 +101,9 @@ export default class NodeGraphEditor {
         this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
         this.canvas.addEventListener('mouseup', e => this.handleMouseUp(e));
         this.canvas.addEventListener('wheel', e => this.handleWheel(e));
+        
+        // 全局鼠标松开事件（处理在画布外松开鼠标的情况）
+        document.addEventListener('mouseup', e => this.handleGlobalMouseUpForPanning(e));
         
         // 拖放事件
         this.canvas.addEventListener('dragover', e => e.preventDefault());
@@ -259,6 +266,60 @@ export default class NodeGraphEditor {
         this.zoomLevelDisplay.textContent = `${Math.round(this.zoom * 100)}%`;
     }
     
+    // 重置视图（缩放和移动画布，让所有节点整体居中显示）
+    resetView() {
+        if (this.nodes.length === 0) {
+            // 如果没有节点，重置到默认视图
+            this.zoom = 1.0;
+            this.pan = { x: 0, y: 0 };
+            this.updateZoomDisplay();
+            this.scheduleRender();
+            return;
+        }
+        
+        // 计算所有节点的边界框
+        let minX = Infinity, minY = Infinity;
+        let maxX = -Infinity, maxY = -Infinity;
+        
+        this.nodes.forEach(node => {
+            minX = Math.min(minX, node.x);
+            minY = Math.min(minY, node.y);
+            maxX = Math.max(maxX, node.x + node.width);
+            maxY = Math.max(maxY, node.y + node.height);
+        });
+        
+        // 添加边距
+        const padding = 50;
+        minX -= padding;
+        minY -= padding;
+        maxX += padding;
+        maxY += padding;
+        
+        // 计算内容尺寸
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+        
+        // 计算画布尺寸
+        const canvasWidth = this.canvas.width;
+        const canvasHeight = this.canvas.height;
+        
+        // 计算合适的缩放比例（留出一些边距）
+        const scaleX = (canvasWidth * 0.9) / contentWidth;
+        const scaleY = (canvasHeight * 0.9) / contentHeight;
+        this.zoom = Math.min(scaleX, scaleY, 1.0); // 不放大超过1.0
+        
+        // 计算中心点
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        
+        // 设置平移，使内容居中
+        this.pan.x = canvasWidth / 2 - centerX * this.zoom;
+        this.pan.y = canvasHeight / 2 - centerY * this.zoom;
+        
+        this.updateZoomDisplay();
+        this.scheduleRender();
+    }
+    
     // 处理鼠标按下事件
     handleMouseDown(e) {
         const rect = this.canvas.getBoundingClientRect();
@@ -270,12 +331,13 @@ export default class NodeGraphEditor {
         
         // 右键菜单处理
         if (e.button === 2) {
-            this.handleRightClick(worldPos, x, y);
+            this.handleRightClick(worldPos, x, y, e.clientX, e.clientY);
             return;
         }
         
         // 中键平移
         if (e.button === 1) {
+            e.preventDefault(); // 防止中键的默认行为（如打开链接、滚动等）
             this.startPanning(x, y);
             return;
         }
@@ -304,13 +366,9 @@ export default class NodeGraphEditor {
                 return;
             }
             
-            // 如果没有点击任何元素，开始框选或平移
-            if (e.ctrlKey || e.metaKey) {
-                this.startSelection(x, y);
-            } else {
-                this.startPanning(x, y);
-                this.deselectAll();
-            }
+            // 如果没有点击任何元素，开始框选
+            this.startSelection(x, y);
+            this.deselectAll();
         }
     }
     
@@ -338,8 +396,8 @@ export default class NodeGraphEditor {
         this.selectionRectangle.classList.remove('hidden');
         
         // 添加全局事件监听
-        document.addEventListener('mousemove', this.handleGlobalMouseMove.bind(this));
-        document.addEventListener('mouseup', this.handleGlobalMouseUp.bind(this));
+        document.addEventListener('mousemove', this.boundHandleGlobalMouseMove);
+        document.addEventListener('mouseup', this.boundHandleGlobalMouseUp);
     }
     
     // 处理节点点击
@@ -399,8 +457,8 @@ export default class NodeGraphEditor {
         this.lastMouseY = e.clientY;
         const worldPos = this.screenToWorld(x, y);
         
-        // 平移处理
-        if (this.isPanning) {
+        // 平移处理（确保不在框选状态下）
+        if (this.isPanning && !this.isSelecting) {
             this.pan.x += x - this.panStart.x;
             this.pan.y += y - this.panStart.y;
             this.panStart.x = x;
@@ -421,6 +479,38 @@ export default class NodeGraphEditor {
         if (this.creatingConnection) {
             this.scheduleRender();
         }
+    }
+    
+    // 处理鼠标松开事件
+    handleMouseUp(e) {
+        // 只处理左键和中键的松开事件（右键用于上下文菜单）
+        if (e.button === 0 || e.button === 1) {
+            this.stopPanningAndDragging();
+        }
+    }
+    
+    // 处理全局鼠标松开事件（用于在画布外松开鼠标时停止平移）
+    handleGlobalMouseUpForPanning(e) {
+        // 只处理左键和中键的松开事件，且不在框选状态下
+        if ((e.button === 0 || e.button === 1) && !this.isSelecting) {
+            this.stopPanningAndDragging();
+        }
+    }
+    
+    // 停止平移和拖动
+    stopPanningAndDragging() {
+        // 停止平移
+        if (this.isPanning) {
+            this.isPanning = false;
+            this.canvas.style.cursor = 'default';
+        }
+        
+        // 停止拖动节点
+        if (this.draggingElement) {
+            this.draggingElement = null;
+        }
+        
+        this.scheduleRender();
     }
     
     // 处理全局鼠标移动（框选）
@@ -450,8 +540,8 @@ export default class NodeGraphEditor {
         if (!this.isSelecting) return;
         
         // 移除全局事件监听
-        document.removeEventListener('mousemove', this.handleGlobalMouseMove.bind(this));
-        document.removeEventListener('mouseup', this.handleGlobalMouseUp.bind(this));
+        document.removeEventListener('mousemove', this.boundHandleGlobalMouseMove);
+        document.removeEventListener('mouseup', this.boundHandleGlobalMouseUp);
         
         // 处理框选完成逻辑
         this.isSelecting = false;
@@ -473,9 +563,8 @@ export default class NodeGraphEditor {
         // 处理选择
         this.processSelection(selectionMinX, selectionMinY, selectionMaxX, selectionMaxY);
         
-        this.draggingElement = null;
-        this.isPanning = false;
-        this.scheduleRender();
+        // 停止平移和拖动
+        this.stopPanningAndDragging();
     }
     
     // 处理鼠标离开事件
@@ -484,9 +573,7 @@ export default class NodeGraphEditor {
         if (this.isSelecting) return;
         
         // 结束拖动和平移
-        this.draggingElement = null;
-        this.isPanning = false;
-        this.canvas.style.cursor = 'default';
+        this.stopPanningAndDragging();
     }
     
     // 处理滚轮事件（缩放）
@@ -570,7 +657,7 @@ export default class NodeGraphEditor {
     }
     
     // 处理右键点击
-    handleRightClick(worldPos, screenX, screenY) {
+    handleRightClick(worldPos, screenX, screenY, clientX, clientY) {
         // 检查是否点击了节点
         const clickedNode = this.nodes.find(node => 
             isPointInRect(worldPos.x, worldPos.y, {
@@ -584,10 +671,19 @@ export default class NodeGraphEditor {
         // 检查是否点击了连线
         const clickedConnection = this.getConnectionAtPosition(worldPos);
         
-        // 显示上下文菜单
-        if (clickedNode || clickedConnection) {
-            showContextMenu(screenX, screenY, clickedNode || clickedConnection, this);
-        }
+        // 显示上下文菜单（无论是否点击到元素都显示）
+        // 使用 clientX, clientY 作为页面坐标（相对于视口）
+        const element = clickedNode || clickedConnection || null;
+        showContextMenu(clientX, clientY, element, this, worldPos);
+    }
+    
+    // 检测点是否在三角形内（用于箭头点击检测）
+    _isPointInTriangle(px, py, x1, y1, x2, y2, x3, y3) {
+        // 使用叉积判断点是否在三角形内
+        const d1 = (px - x2) * (y1 - y2) - (x1 - x2) * (py - y2);
+        const d2 = (px - x3) * (y2 - y3) - (x2 - x3) * (py - y3);
+        const d3 = (px - x1) * (y3 - y1) - (x3 - x1) * (py - y1);
+        return (d1 >= 0 && d2 >= 0 && d3 >= 0) || (d1 <= 0 && d2 <= 0 && d3 <= 0);
     }
     
     // 获取指定位置的连线
@@ -604,9 +700,22 @@ export default class NodeGraphEditor {
             const endX = targetNode.x + targetNode.width / 2;
             const endY = targetNode.y + targetNode.height / 2;
             
-            // 简单的连线点击检测
+            // 检测是否点击了连线
             if (isPointNearLine(pos.x, pos.y, startX, startY, endX, endY, 5 / this.zoom)) {
                 return connection;
+            }
+            
+            // 检测是否点击了中点箭头（如果箭头坐标已保存）
+            if (connection._arrowPoints) {
+                const arrow = connection._arrowPoints;
+                if (this._isPointInTriangle(
+                    pos.x, pos.y,
+                    arrow.tip.x, arrow.tip.y,
+                    arrow.base1.x, arrow.base1.y,
+                    arrow.base2.x, arrow.base2.y
+                )) {
+                    return connection;
+                }
             }
         }
         return null;
@@ -675,6 +784,10 @@ export default class NodeGraphEditor {
     
     // 添加节点
     addNode(node) {
+        // 确保节点使用正确的默认尺寸（强制设置，防止被其他地方修改）
+        node.width = 150;
+        node.height = 50;
+        node.autoSize = false; // 确保不是自适应尺寸
         this.nodes.push(node);
         this.historyManager.addHistory('add-node', node.clone());
         this.selectedElements = [node];
@@ -995,25 +1108,82 @@ export default class NodeGraphEditor {
         ctx.fill();
         ctx.stroke();
         
+        // 计算字体大小（相对于节点尺寸，保持比例）
+        // 基础字体大小相对于节点高度，假设节点高度50时字体大小为14
+        const baseFontSize = 14;
+        const baseNodeHeight = 50;
+        const fontSize = (node.height / baseNodeHeight) * baseFontSize * this.zoom;
+        
         // 绘制节点名称
-        ctx.font = 'bold 14px Arial';
+        ctx.font = `bold ${fontSize}px Arial`;
         ctx.fillStyle = isSelected ? '#ffffff' : isLightMode() ? '#333333' : '#e0e0e0';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(node.name, screenPos.x + width / 2, screenPos.y + height / 3);
         
-        // 绘制节点描述
+        // 处理节点名称文本（当没有启用自适应尺寸时，如果名称过长则截断）
+        let displayName = node.name;
+        if (!node.autoSize) {
+            // 计算可显示的字符数
+            const maxWidth = node.width * this.zoom * 0.9; // 留10%边距
+            ctx.font = `bold ${fontSize}px Arial`;
+            const metrics = ctx.measureText(displayName);
+            
+            if (metrics.width > maxWidth) {
+                // 文本过长，需要截断
+                let truncated = '';
+                for (let i = 0; i < displayName.length; i++) {
+                    const testText = displayName.substring(0, i + 1) + '...';
+                    const testMetrics = ctx.measureText(testText);
+                    if (testMetrics.width > maxWidth) {
+                        truncated = displayName.substring(0, i) + '...';
+                        break;
+                    }
+                }
+                if (truncated) {
+                    displayName = truncated;
+                }
+            }
+        }
+        
+        // 计算文本位置（如果有描述，名称稍微上移，描述在下方）
+        let nameY = screenPos.y + height / 2;
         if (node.description) {
-            ctx.font = '10px Arial';
+            nameY = screenPos.y + height / 2 - fontSize * 0.3;
+        }
+        
+        // 绘制节点名称（居中显示）
+        ctx.fillText(displayName, screenPos.x + width / 2, nameY);
+        
+        // 绘制节点描述（如果有描述，显示在名称下方）
+        if (node.description) {
+            const descFontSize = fontSize * 0.7; // 描述字体稍小
+            ctx.font = `${descFontSize}px Arial`;
             ctx.fillStyle = isSelected ? 'rgba(255, 255, 255, 0.8)' : isLightMode() ? '#666666' : '#969696';
             
             // 截断长描述
             let displayText = node.description;
-            if (displayText.length > 30) {
-                displayText = displayText.substring(0, 30) + '...';
+            const maxDescWidth = node.width * this.zoom * 0.9; // 留10%边距
+            const descMetrics = ctx.measureText(displayText);
+            
+            if (descMetrics.width > maxDescWidth) {
+                // 文本过长，需要截断
+                let truncated = '';
+                for (let i = 0; i < displayText.length; i++) {
+                    const testText = displayText.substring(0, i + 1) + '...';
+                    const testMetrics = ctx.measureText(testText);
+                    if (testMetrics.width > maxDescWidth) {
+                        truncated = displayText.substring(0, i) + '...';
+                        break;
+                    }
+                }
+                if (truncated) {
+                    displayText = truncated;
+                }
             }
             
-            ctx.fillText(displayText, screenPos.x + width / 2, screenPos.y + height * 2 / 3);
+            // 描述文本显示在名称下方
+            const descY = screenPos.y + height / 2 + fontSize * 0.4;
+            ctx.fillText(displayText, screenPos.x + width / 2, descY);
         }
         
         ctx.restore();
@@ -1047,37 +1217,89 @@ export default class NodeGraphEditor {
             ctx.lineWidth = isSelected ? 2 : 1.5;
             ctx.setLineDash([]);
             
+            // 绘制直线连线
             ctx.beginPath();
             ctx.moveTo(screenStart.x, screenStart.y);
-            
-            // 计算控制点，使连线有一个弧度
-            const controlX = (screenStart.x + screenEnd.x) / 2;
-            ctx.quadraticCurveTo(controlX, screenStart.y, screenEnd.x, screenEnd.y);
-            
+            ctx.lineTo(screenEnd.x, screenEnd.y);
             ctx.stroke();
             
-            // 绘制箭头
-            const arrowSize = 6;
+            // 计算连线角度
             const angle = Math.atan2(screenEnd.y - screenStart.y, screenEnd.x - screenStart.x);
             
+            // 计算连线中点（屏幕坐标）
+            const midScreenX = (screenStart.x + screenEnd.x) / 2;
+            const midScreenY = (screenStart.y + screenEnd.y) / 2;
+            
+            // 计算连线中点（世界坐标，用于点击检测）
+            const midWorldX = (startX + endX) / 2;
+            const midWorldY = (startY + endY) / 2;
+            
+            // 绘制中点方向箭头（稍大一些，更明显）
+            const midArrowSize = 15;
+            
+            // 箭头顶点（指向目标节点，屏幕坐标）
+            const arrowTipScreenX = midScreenX;
+            const arrowTipScreenY = midScreenY;
+            
+            // 箭头底部的两个点（屏幕坐标）
+            const arrowBase1ScreenX = arrowTipScreenX - midArrowSize * Math.cos(angle - Math.PI / 6);
+            const arrowBase1ScreenY = arrowTipScreenY - midArrowSize * Math.sin(angle - Math.PI / 6);
+            const arrowBase2ScreenX = arrowTipScreenX - midArrowSize * Math.cos(angle + Math.PI / 6);
+            const arrowBase2ScreenY = arrowTipScreenY - midArrowSize * Math.sin(angle + Math.PI / 6);
+            
+            // 箭头颜色（与连线颜色有少许差异）
+            let arrowColor;
+            if (isSelected) {
+                arrowColor = '#0099ff'; // 选中时稍亮一些
+            } else if (isLightMode()) {
+                arrowColor = '#888888'; // 浅色模式下稍深一些
+            } else {
+                arrowColor = '#aaaaaa'; // 深色模式下稍亮一些
+            }
+            
+            // 绘制中点箭头（在连线上层）
+            ctx.fillStyle = arrowColor;
+            ctx.beginPath();
+            ctx.moveTo(arrowTipScreenX, arrowTipScreenY);
+            ctx.lineTo(arrowBase1ScreenX, arrowBase1ScreenY);
+            ctx.lineTo(arrowBase2ScreenX, arrowBase2ScreenY);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 将箭头坐标转换为世界坐标并保存（用于点击检测）
+            const arrowTipWorld = this.screenToWorld(arrowTipScreenX, arrowTipScreenY);
+            const arrowBase1World = this.screenToWorld(arrowBase1ScreenX, arrowBase1ScreenY);
+            const arrowBase2World = this.screenToWorld(arrowBase2ScreenX, arrowBase2ScreenY);
+            
+            connection._arrowPoints = {
+                tip: { x: arrowTipWorld.x, y: arrowTipWorld.y },
+                base1: { x: arrowBase1World.x, y: arrowBase1World.y },
+                base2: { x: arrowBase2World.x, y: arrowBase2World.y }
+            };
+            
+            // 绘制终点箭头（保留原有的终点箭头）
+            const endArrowSize = 6;
             ctx.fillStyle = ctx.strokeStyle;
             ctx.beginPath();
             ctx.moveTo(screenEnd.x, screenEnd.y);
             ctx.lineTo(
-                screenEnd.x - arrowSize * Math.cos(angle - Math.PI / 6),
-                screenEnd.y - arrowSize * Math.sin(angle - Math.PI / 6)
+                screenEnd.x - endArrowSize * Math.cos(angle - Math.PI / 6),
+                screenEnd.y - endArrowSize * Math.sin(angle - Math.PI / 6)
             );
             ctx.lineTo(
-                screenEnd.x - arrowSize * Math.cos(angle + Math.PI / 6),
-                screenEnd.y - arrowSize * Math.sin(angle + Math.PI / 6)
+                screenEnd.x - endArrowSize * Math.cos(angle + Math.PI / 6),
+                screenEnd.y - endArrowSize * Math.sin(angle + Math.PI / 6)
             );
             ctx.closePath();
             ctx.fill();
             
-            // 如果有条件，在连线中间绘制一个标记
+            // 如果有条件，在连线中点箭头旁边绘制一个标记（稍微偏移，避免与箭头重叠）
             if (connection.conditions.length > 0) {
-                const midX = (screenStart.x + screenEnd.x) / 2;
-                const midY = (screenStart.y + screenEnd.y) / 2 - 10;
+                // 计算垂直于连线的方向
+                const perpAngle = angle + Math.PI / 2;
+                const offset = 15; // 偏移距离
+                const midX = midScreenX + offset * Math.cos(perpAngle);
+                const midY = midScreenY + offset * Math.sin(perpAngle);
                 
                 ctx.fillStyle = isLightMode() ? '#ffffff' : '#2d2d30';
                 ctx.strokeStyle = ctx.strokeStyle;

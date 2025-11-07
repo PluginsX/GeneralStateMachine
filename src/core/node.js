@@ -9,11 +9,11 @@ export default class Node {
         this.y = y;
         
         // 尺寸属性
-        this.width = 120;
-        this.height = 80;
+        this.width = 150;
+        this.height = 50;
         this.autoSize = false; // 是否自适应尺寸
-        this.minWidth = 80;    // 最小宽度
-        this.minHeight = 60;   // 最小高度
+        this.minWidth = 50;    // 最小宽度
+        this.minHeight = 50;   // 最小高度
         this.padding = 20;     // 内边距
     }
     

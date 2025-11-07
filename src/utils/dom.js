@@ -1,4 +1,6 @@
 // DOM操作工具函数
+import Node from '../core/node.js';
+
 export const createConditionElement = (condition, index, editor) => {
     const conditionItem = document.createElement('div');
     conditionItem.className = 'condition-item';
@@ -94,44 +96,123 @@ export const removeContextMenu = () => {
     if (existingMenu) {
         existingMenu.remove();
     }
+    // 清理事件监听器
+    if (currentMenuCloseHandlers) {
+        document.removeEventListener('click', currentMenuCloseHandlers.closeMenu);
+        document.removeEventListener('mousedown', currentMenuCloseHandlers.closeOnMouseDown);
+        currentMenuCloseHandlers = null;
+    }
 };
 
-export const showContextMenu = (x, y, element, editor) => {
-    // 清除现有菜单
+// 保存当前菜单的事件监听器引用，以便正确清理
+let currentMenuCloseHandlers = null;
+
+export const showContextMenu = (x, y, element, editor, worldPos = null) => {
+    // 清除现有菜单和事件监听器
     removeContextMenu();
+    
+    // 清理旧的事件监听器
+    if (currentMenuCloseHandlers) {
+        document.removeEventListener('click', currentMenuCloseHandlers.closeMenu);
+        document.removeEventListener('mousedown', currentMenuCloseHandlers.closeOnMouseDown);
+        currentMenuCloseHandlers = null;
+    }
     
     // 创建新菜单
     const menu = document.createElement('div');
     menu.className = 'context-menu';
-    menu.style.left = x + 'px';
-    menu.style.top = y + 'px';
+    // x, y 是 clientX, clientY（相对于视口的坐标）
+    // 需要加上滚动偏移，转换为相对于文档的坐标
+    menu.style.left = (x + window.scrollX) + 'px';
+    menu.style.top = (y + window.scrollY) + 'px';
     document.body.appendChild(menu);
     
+    // 保存 worldPos 到菜单元素上，以便在点击时使用
+    menu.dataset.worldPosX = worldPos ? worldPos.x : '';
+    menu.dataset.worldPosY = worldPos ? worldPos.y : '';
+    
     // 添加菜单项
-    if (element.type === 'node') {
+    if (!element) {
+        // 空白区域的菜单
+        const createNodeItem = document.createElement('div');
+        createNodeItem.className = 'context-menu-item';
+        createNodeItem.textContent = '创建节点';
+        createNodeItem.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            e.stopImmediatePropagation(); // 阻止同一元素上的其他监听器
+        }, true); // 使用捕获阶段，确保在 closeOnMouseDown 之前执行
+        createNodeItem.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            e.stopImmediatePropagation(); // 阻止同一元素上的其他监听器
+            e.preventDefault(); // 防止默认行为
+            // 从菜单元素获取 worldPos
+            const posX = parseFloat(menu.dataset.worldPosX);
+            const posY = parseFloat(menu.dataset.worldPosY);
+            if (!isNaN(posX) && !isNaN(posY)) {
+                // 使用 editor 的 addNode 方法创建节点
+                editor.addNode(new Node('新节点', posX, posY));
+            }
+            // 然后关闭菜单
+            removeContextMenu();
+            // 清理事件监听器
+            if (currentMenuCloseHandlers) {
+                document.removeEventListener('click', currentMenuCloseHandlers.closeMenu);
+                document.removeEventListener('mousedown', currentMenuCloseHandlers.closeOnMouseDown);
+                currentMenuCloseHandlers = null;
+            }
+        }, true); // 使用捕获阶段，确保在其他监听器之前执行
+        menu.appendChild(createNodeItem);
+        
+        const resetViewItem = document.createElement('div');
+        resetViewItem.className = 'context-menu-item';
+        resetViewItem.textContent = '重置视图';
+        resetViewItem.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+        });
+        resetViewItem.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            editor.resetView();
+            removeContextMenu();
+        });
+        menu.appendChild(resetViewItem);
+    } else if (element.type === 'node') {
+        // 节点上的菜单
+        const connectItem = document.createElement('div');
+        connectItem.className = 'context-menu-item';
+        connectItem.textContent = '创建连接';
+        connectItem.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+        });
+        connectItem.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            editor.startConnectionCreation(element.id);
+            removeContextMenu();
+        });
+        menu.appendChild(connectItem);
+        
         const deleteItem = document.createElement('div');
         deleteItem.className = 'context-menu-item';
         deleteItem.textContent = '删除节点';
-        deleteItem.addEventListener('click', () => {
+        deleteItem.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+        });
+        deleteItem.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
             editor.selectedElements = [element];
             editor.deleteSelectedNodes();
             removeContextMenu();
         });
         menu.appendChild(deleteItem);
-        
-        const connectItem = document.createElement('div');
-        connectItem.className = 'context-menu-item';
-        connectItem.textContent = '创建连线';
-        connectItem.addEventListener('click', () => {
-            editor.startConnectionCreation(element.id);
-            removeContextMenu();
-        });
-        menu.appendChild(connectItem);
     } else if (element.type === 'connection') {
+        // 连线上的菜单
         const deleteItem = document.createElement('div');
         deleteItem.className = 'context-menu-item';
         deleteItem.textContent = '删除连线';
-        deleteItem.addEventListener('click', () => {
+        deleteItem.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+        });
+        deleteItem.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
             editor.selectedElements = [element];
             editor.deleteSelectedConnections();
             removeContextMenu();
@@ -140,12 +221,67 @@ export const showContextMenu = (x, y, element, editor) => {
     }
     
     // 点击其他地方关闭菜单
-    const closeMenu = () => {
+    const closeMenu = (e) => {
+        // 如果菜单已经被移除，不处理
+        if (!document.body.contains(menu)) {
+            return;
+        }
+        // 如果点击的是菜单本身或其子元素，不关闭
+        if (e && e.target && (menu === e.target || menu.contains(e.target))) {
+            return;
+        }
+        
+        // 如果是右键按下，不在这里关闭（handleRightClick 会处理）
+        if (e && e.button === 2) {
+            return;
+        }
+        
         removeContextMenu();
-        document.removeEventListener('click', closeMenu);
+        // 清理事件监听器
+        if (currentMenuCloseHandlers) {
+            document.removeEventListener('click', currentMenuCloseHandlers.closeMenu);
+            document.removeEventListener('mousedown', currentMenuCloseHandlers.closeOnMouseDown);
+            currentMenuCloseHandlers = null;
+        }
     };
     
+    // 监听鼠标按下事件（左键、中键）关闭菜单，但需要更严格的检查
+    const closeOnMouseDown = (e) => {
+        // 如果菜单已经被移除，不处理
+        if (!document.body.contains(menu)) {
+            return;
+        }
+        // 如果点击的是菜单本身或其子元素，不关闭
+        if (e.target && (menu === e.target || menu.contains(e.target))) {
+            return;
+        }
+        // 如果是右键，不关闭
+        if (e.button === 2) {
+            return;
+        }
+        // 如果是左键或中键，且不在菜单上，关闭菜单
+        if (e.button === 0 || e.button === 1) {
+            removeContextMenu();
+            // 清理事件监听器
+            if (currentMenuCloseHandlers) {
+                document.removeEventListener('click', currentMenuCloseHandlers.closeMenu);
+                document.removeEventListener('mousedown', currentMenuCloseHandlers.closeOnMouseDown);
+                currentMenuCloseHandlers = null;
+            }
+        }
+    };
+    
+    // 保存事件监听器引用，以便后续清理
+    currentMenuCloseHandlers = {
+        closeMenu: closeMenu,
+        closeOnMouseDown: closeOnMouseDown
+    };
+    
+    // 延迟添加事件监听，避免立即触发
     setTimeout(() => {
-        document.addEventListener('click', closeMenu);
+        // 监听左键点击关闭菜单（使用捕获阶段，但优先级低于菜单项）
+        document.addEventListener('click', closeMenu, true);
+        // 监听鼠标按下事件（左键、中键）关闭菜单（使用捕获阶段，但优先级低于菜单项）
+        document.addEventListener('mousedown', closeOnMouseDown, true);
     }, 100);
 };
