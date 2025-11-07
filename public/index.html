@@ -13,6 +13,7 @@
     <div class="menu-bar">
         <div class="menu-group">
             <button id="new-project">新建</button>
+            <button id="open-project">打开</button>
             <button id="import-md">导入Markdown</button>
             <div class="export-submenu">
                 <button id="export-menu">导出</button>
@@ -65,6 +66,12 @@
                     <label for="node-description">节点描述</label>
                     <textarea id="node-description"></textarea>
                 </div>
+                
+                <div class="form-group">
+                    <label for="node-color">节点颜色</label>
+                    <input type="color" id="node-color" value="#ffffff">
+                    <button id="node-color-reset" class="btn-small">重置为默认</button>
+                </div>
 
                 <div class="form-group">
                     <label>尺寸设置</label>
@@ -87,10 +94,58 @@
 
                 <button id="update-node" class="btn">更新节点</button>
                 <button id="delete-node" class="btn btn-danger">删除节点</button>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <h4>连线信息</h4>
+                    <div class="connection-list-section">
+                        <div class="connection-list-group">
+                            <label>出发的连线</label>
+                            <div id="outgoing-connections" class="connection-list"></div>
+                        </div>
+                        <div class="connection-list-group">
+                            <label>到达的连线</label>
+                            <div id="incoming-connections" class="connection-list"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="connection-properties" class="property-section hidden">
-                <h3>连线条件</h3>
+                <h3>连线属性</h3>
+                
+                <div class="form-group">
+                    <label for="connection-color">连线颜色</label>
+                    <input type="color" id="connection-color" value="#666666">
+                    <button id="connection-color-reset" class="btn-small">重置为默认</button>
+                </div>
+                
+                <div class="form-group">
+                    <label for="connection-line-width">连线粗细</label>
+                    <input type="number" id="connection-line-width" min="0.5" max="10" step="0.5" value="1.5">
+                    <button id="connection-line-width-reset" class="btn-small">重置为默认</button>
+                </div>
+                
+                <div class="form-group">
+                    <label for="connection-line-type">连线类型</label>
+                    <select id="connection-line-type">
+                        <option value="solid">连续线</option>
+                        <option value="dashed">间隔线</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="connection-arrow-size">箭头尺寸</label>
+                    <input type="number" id="connection-arrow-size" min="5" max="30" step="1" value="15">
+                    <button id="connection-arrow-size-reset" class="btn-small">重置为默认</button>
+                </div>
+                
+                <div class="form-group">
+                    <label for="connection-arrow-color">箭头颜色</label>
+                    <input type="color" id="connection-arrow-color" value="#888888">
+                    <button id="connection-arrow-color-reset" class="btn-small">重置为默认</button>
+                </div>
+                
+                <h4 style="margin-top: 20px;">连线条件</h4>
                 <div id="conditions-list">
                     <!-- 条件项将通过JavaScript动态添加 -->
                 </div>
@@ -117,6 +172,8 @@
 
     <!-- 隐藏的文件输入，用于导入Markdown -->
     <input type="file" id="file-input" accept=".md" style="display: none;">
+    <!-- 隐藏的文件输入，用于打开工程文件 -->
+    <input type="file" id="project-input" accept=".json" style="display: none;">
 
     <script type="module" src="../src/main.js"></script>
 </body>

@@ -150,6 +150,10 @@ export const exportAsImage = (editor) => {
 // 保存项目
 export const saveProject = (editor) => {
     const projectData = {
+        // 项目文件识别字段
+        version: '1.0',
+        type: 'node-graph-editor-project',
+        // 项目数据
         nodes: editor.nodes.map(node => ({
             id: node.id,
             name: node.name,
@@ -158,7 +162,8 @@ export const saveProject = (editor) => {
             y: node.y,
             width: node.width,
             height: node.height,
-            autoSize: node.autoSize
+            autoSize: node.autoSize,
+            color: node.color || null
         })),
         connections: editor.connections.map(conn => ({
             id: conn.id,
@@ -169,7 +174,12 @@ export const saveProject = (editor) => {
                 key: cond.key,
                 operator: cond.operator,
                 value: cond.value
-            }))
+            })),
+            color: conn.color || null,
+            lineWidth: conn.lineWidth || null,
+            lineType: conn.lineType || 'solid',
+            arrowSize: conn.arrowSize || null,
+            arrowColor: conn.arrowColor || null
         }))
     };
     

@@ -1,6 +1,6 @@
 import { HistoryManager } from '../history/history.js';
 import { exportAsImage, exportMarkdown, saveProject } from '../io/export.js';
-import { handleFileSelect } from '../io/import.js';
+import { handleFileSelect, openProject, handleProjectFileSelect } from '../io/import.js';
 import { showConnectionProperties, updatePropertyPanel } from '../ui/panel.js';
 import { isLightMode, toggleTheme } from '../ui/theme.js';
 import { deepClone } from '../utils/common.js';
@@ -9,6 +9,16 @@ import { doRectsOverlap, isPointInRect, isPointNearLine } from '../utils/math.js
 import Condition from './condition.js';
 import Connection from './connection.js';
 import Node from './node.js';
+
+// 辅助函数：将十六进制颜色转换为RGB
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : null;
+}
 
 // 编辑器主类
 export default class NodeGraphEditor {
@@ -111,12 +121,16 @@ export default class NodeGraphEditor {
 
         // 鼠标离开事件
         this.canvas.addEventListener('mouseleave', e => this.handleMouseLeave(e));
+        
+        // 键盘事件
+        document.addEventListener('keydown', e => this.handleKeyDown(e));
     }
     
     // 设置UI元素监听器
     setupUIListeners() {
         // 菜单按钮
         document.getElementById('new-project').addEventListener('click', () => this.newProject());
+        document.getElementById('open-project').addEventListener('click', () => openProject(this));
         document.getElementById('import-md').addEventListener('click', () => 
             document.getElementById('file-input').click());
         document.getElementById('export-md').addEventListener('click', () => exportMarkdown(this));
@@ -154,6 +168,7 @@ export default class NodeGraphEditor {
         
         // 文件输入
         document.getElementById('file-input').addEventListener('change', e => handleFileSelect(e, this));
+        document.getElementById('project-input').addEventListener('change', e => handleProjectFileSelect(e, this));
         
         // 工具栏拖拽
         document.querySelectorAll('.tool-item').forEach(item => {
@@ -408,6 +423,12 @@ export default class NodeGraphEditor {
             return;
         }
         
+        // 根据筛选器判断是否可以选择节点
+        if (this.selectionFilter === 'connections') {
+            // 如果筛选器设置为仅选择连线，则忽略节点点击
+            return;
+        }
+        
         // 选择逻辑
         if (!e.ctrlKey && !e.metaKey) {
             this.deselectAll();
@@ -421,6 +442,9 @@ export default class NodeGraphEditor {
             this.selectedElements.splice(index, 1);
         }
         
+        // 应用筛选器
+        this.filterSelectedElements();
+        
         // 准备拖动
         this.draggingElement = node;
         this.draggingOffset.x = worldPos.x - node.x;
@@ -432,6 +456,12 @@ export default class NodeGraphEditor {
     
     // 处理连线点击
     handleConnectionClick(connection, e) {
+        // 根据筛选器判断是否可以选择连线
+        if (this.selectionFilter === 'nodes') {
+            // 如果筛选器设置为仅选择节点，则忽略连线点击
+            return;
+        }
+        
         if (!e.ctrlKey && !e.metaKey) {
             this.deselectAll();
         }
@@ -443,6 +473,9 @@ export default class NodeGraphEditor {
         } else {
             this.selectedElements.splice(index, 1);
         }
+        
+        // 应用筛选器
+        this.filterSelectedElements();
         
         updatePropertyPanel(this);
         this.scheduleRender();
@@ -467,10 +500,30 @@ export default class NodeGraphEditor {
             return;
         }
         
-        // 拖动节点处理
+        // 拖动节点处理（支持多选拖动）
         if (this.draggingElement && this.draggingElement.type === 'node') {
-            this.draggingElement.x = worldPos.x - this.draggingOffset.x;
-            this.draggingElement.y = worldPos.y - this.draggingOffset.y;
+            // 计算拖动偏移量
+            const deltaX = worldPos.x - this.draggingElement.x - this.draggingOffset.x;
+            const deltaY = worldPos.y - this.draggingElement.y - this.draggingOffset.y;
+            
+            // 获取所有选中的节点
+            const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
+            
+            // 如果只有一个节点被选中，直接移动它
+            if (selectedNodes.length === 1) {
+                this.draggingElement.x = worldPos.x - this.draggingOffset.x;
+                this.draggingElement.y = worldPos.y - this.draggingOffset.y;
+            } else {
+                // 如果有多个节点被选中，移动所有选中的节点
+                selectedNodes.forEach(node => {
+                    node.x += deltaX;
+                    node.y += deltaY;
+                });
+                // 更新拖动偏移量，以便下次移动时使用正确的偏移
+                this.draggingOffset.x = worldPos.x - this.draggingElement.x;
+                this.draggingOffset.y = worldPos.y - this.draggingElement.y;
+            }
+            
             this.scheduleRender();
             return;
         }
@@ -487,6 +540,133 @@ export default class NodeGraphEditor {
         if (e.button === 0 || e.button === 1) {
             this.stopPanningAndDragging();
         }
+    }
+    
+    // 处理键盘按下事件
+    handleKeyDown(e) {
+        // 如果正在输入框中输入，忽略快捷键
+        const activeElement = document.activeElement;
+        if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+            // 但允许Delete键在输入框中工作
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                return;
+            }
+            return;
+        }
+        
+        // F键：重置视图
+        if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            this.resetView();
+            return;
+        }
+        
+        // Delete键：删除选中对象
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault();
+            if (this.selectedElements.length > 0) {
+                // 删除节点
+                const nodesToDelete = this.selectedElements.filter(el => el.type === 'node');
+                if (nodesToDelete.length > 0) {
+                    this.deleteSelectedNodes();
+                }
+                // 删除连线
+                const connectionsToDelete = this.selectedElements.filter(el => el.type === 'connection');
+                if (connectionsToDelete.length > 0) {
+                    this.deleteSelectedConnections();
+                }
+            }
+            return;
+        }
+        
+        // Ctrl+D：复制选中对象到鼠标位置
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+            e.preventDefault();
+            if (this.selectedElements.length > 0) {
+                this.duplicateSelectedElements();
+            }
+            return;
+        }
+    }
+    
+    // 复制选中的元素到鼠标位置
+    duplicateSelectedElements() {
+        if (this.selectedElements.length === 0) return;
+        
+        // 获取鼠标位置（世界坐标）
+        const worldPos = this.screenToWorld(this.lastMouseX - this.canvas.getBoundingClientRect().left, 
+                                           this.lastMouseY - this.canvas.getBoundingClientRect().top);
+        
+        // 计算选中元素的边界框
+        let minX = Infinity, minY = Infinity;
+        const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
+        
+        if (selectedNodes.length === 0) return;
+        
+        selectedNodes.forEach(node => {
+            minX = Math.min(minX, node.x);
+            minY = Math.min(minY, node.y);
+        });
+        
+        // 计算偏移量
+        const offsetX = worldPos.x - minX;
+        const offsetY = worldPos.y - minY;
+        
+        // 创建节点映射（旧ID -> 新节点）
+        const nodeMap = new Map();
+        const newNodes = [];
+        const newConnections = [];
+        
+        // 复制节点
+        selectedNodes.forEach(node => {
+            const newNode = new Node(node.name, node.x + offsetX, node.y + offsetY);
+            newNode.description = node.description;
+            newNode.width = node.width;
+            newNode.height = node.height;
+            newNode.autoSize = node.autoSize;
+            newNode.color = node.color;
+            nodeMap.set(node.id, newNode);
+            newNodes.push(newNode);
+        });
+        
+        // 复制连线（只复制选中节点之间的连线）
+        const selectedNodeIds = new Set(selectedNodes.map(n => n.id));
+        this.connections.forEach(conn => {
+            if (selectedNodeIds.has(conn.sourceNodeId) && selectedNodeIds.has(conn.targetNodeId)) {
+                const newConnection = new Connection(
+                    nodeMap.get(conn.sourceNodeId).id,
+                    nodeMap.get(conn.targetNodeId).id
+                );
+                // 复制条件
+                conn.conditions.forEach(cond => {
+                    const newCond = new Condition(cond.type, cond.key, cond.operator, cond.value);
+                    newConnection.conditions.push(newCond);
+                });
+                // 复制连线属性
+                newConnection.color = conn.color;
+                newConnection.lineWidth = conn.lineWidth;
+                newConnection.lineType = conn.lineType;
+                newConnection.arrowSize = conn.arrowSize;
+                newConnection.arrowColor = conn.arrowColor;
+                newConnections.push(newConnection);
+            }
+        });
+        
+        // 记录历史
+        this.historyManager.addHistory('duplicate-elements', {
+            nodes: newNodes.map(n => n.clone()),
+            connections: newConnections.map(c => c.clone())
+        });
+        
+        // 添加新节点和连线
+        newNodes.forEach(node => this.nodes.push(node));
+        newConnections.forEach(conn => this.connections.push(conn));
+        
+        // 选中新创建的元素
+        this.selectedElements = [...newNodes];
+        
+        updatePropertyPanel(this);
+        this.scheduleRender();
     }
     
     // 处理全局鼠标松开事件（用于在画布外松开鼠标时停止平移）
@@ -861,6 +1041,10 @@ export default class NodeGraphEditor {
         // 更新属性
         node.name = document.getElementById('node-name').value;
         node.description = document.getElementById('node-description').value;
+        const colorInput = document.getElementById('node-color');
+        if (colorInput) {
+            node.color = colorInput.value === '#ffffff' ? null : colorInput.value;
+        }
         
         if (!node.autoSize) {
             node.width = parseInt(document.getElementById('node-width').value) || node.width;
@@ -1092,14 +1276,26 @@ export default class NodeGraphEditor {
         // 节点是否被选中
         const isSelected = this.selectedElements.some(el => el.id === node.id);
         
-        // 绘制节点背景
-        ctx.fillStyle = isSelected 
-            ? '#007acc' 
-            : isLightMode() ? '#ffffff' : '#2d2d30';
-        
-        ctx.strokeStyle = isSelected 
-            ? '#005a9e' 
-            : isLightMode() ? '#cccccc' : '#4a4a4a';
+        // 绘制节点背景（使用节点颜色或默认颜色）
+        if (node.color && !isSelected) {
+            ctx.fillStyle = node.color;
+            // 根据颜色亮度调整边框颜色
+            const rgb = hexToRgb(node.color);
+            if (rgb) {
+                const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+                ctx.strokeStyle = brightness > 128 ? '#cccccc' : '#4a4a4a';
+            } else {
+                ctx.strokeStyle = isLightMode() ? '#cccccc' : '#4a4a4a';
+            }
+        } else {
+            ctx.fillStyle = isSelected 
+                ? '#007acc' 
+                : isLightMode() ? '#ffffff' : '#2d2d30';
+            
+            ctx.strokeStyle = isSelected 
+                ? '#005a9e' 
+                : isLightMode() ? '#cccccc' : '#4a4a4a';
+        }
         
         ctx.lineWidth = isSelected ? 2 : 1;
         
@@ -1212,10 +1408,16 @@ export default class NodeGraphEditor {
             
             ctx.save();
             
-            // 绘制连线
-            ctx.strokeStyle = isSelected ? '#007acc' : isLightMode() ? '#666666' : '#969696';
-            ctx.lineWidth = isSelected ? 2 : 1.5;
-            ctx.setLineDash([]);
+            // 绘制连线（使用连接属性或默认值）
+            ctx.strokeStyle = connection.color || (isSelected ? '#007acc' : isLightMode() ? '#666666' : '#969696');
+            ctx.lineWidth = connection.lineWidth || (isSelected ? 2 : 1.5);
+            
+            // 设置连线类型
+            if (connection.lineType === 'dashed') {
+                ctx.setLineDash([5, 5]);
+            } else {
+                ctx.setLineDash([]);
+            }
             
             // 绘制直线连线
             ctx.beginPath();
@@ -1234,8 +1436,8 @@ export default class NodeGraphEditor {
             const midWorldX = (startX + endX) / 2;
             const midWorldY = (startY + endY) / 2;
             
-            // 绘制中点方向箭头（稍大一些，更明显）
-            const midArrowSize = 15;
+            // 绘制中点方向箭头（使用连接属性或默认值）
+            const midArrowSize = connection.arrowSize || 15;
             
             // 箭头顶点（指向目标节点，屏幕坐标）
             const arrowTipScreenX = midScreenX;
@@ -1247,9 +1449,11 @@ export default class NodeGraphEditor {
             const arrowBase2ScreenX = arrowTipScreenX - midArrowSize * Math.cos(angle + Math.PI / 6);
             const arrowBase2ScreenY = arrowTipScreenY - midArrowSize * Math.sin(angle + Math.PI / 6);
             
-            // 箭头颜色（与连线颜色有少许差异）
+            // 箭头颜色（使用连接属性或默认值）
             let arrowColor;
-            if (isSelected) {
+            if (connection.arrowColor) {
+                arrowColor = connection.arrowColor;
+            } else if (isSelected) {
                 arrowColor = '#0099ff'; // 选中时稍亮一些
             } else if (isLightMode()) {
                 arrowColor = '#888888'; // 浅色模式下稍深一些

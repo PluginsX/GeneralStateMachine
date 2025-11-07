@@ -15,6 +15,7 @@ export default class Node {
         this.minWidth = 50;    // 最小宽度
         this.minHeight = 50;   // 最小高度
         this.padding = 20;     // 内边距
+        this.color = null;     // 节点颜色（null表示使用默认颜色）
     }
     
     // 计算自适应尺寸
@@ -51,6 +52,7 @@ export default class Node {
         clone.minWidth = this.minWidth;
         clone.minHeight = this.minHeight;
         clone.padding = this.padding;
+        clone.color = this.color;
         return clone;
     }
 }
