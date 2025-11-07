@@ -1,0 +1,2390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>节点图形化编辑器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        body.light-mode {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .menu-bar {
+            background-color: #2d2d30;
+            padding: 8px 16px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        body.light-mode .menu-bar {
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #ccc;
+        }
+        
+        .menu-bar button {
+            background-color: #007acc;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            margin-right: 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        body.light-mode .menu-bar button {
+            background-color: #0066cc;
+        }
+        
+        .menu-bar button:hover {
+            background-color: #005a9e;
+        }
+
+        body.light-mode .menu-bar button:hover {
+            background-color: #0052aa;
+        }
+        
+        .menu-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .selection-filter {
+            margin: 0 10px;
+            padding: 4px 8px;
+            background-color: #3c3c3c;
+            color: #e0e0e0;
+            border: 1px solid #464647;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+
+        body.light-mode .selection-filter {
+            background-color: #fff;
+            color: #333;
+            border: 1px solid #ccc;
+        }
+
+        .export-submenu {
+            position: relative;
+            display: inline-block;
+        }
+
+        .export-submenu-content {
+            display: none;
+            position: absolute;
+            background-color: #2d2d30;
+            min-width: 120px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 100;
+            border-radius: 3px;
+        }
+
+        body.light-mode .export-submenu-content {
+            background-color: #f0f0f0;
+        }
+
+        .export-submenu-content button {
+            width: 100%;
+            text-align: left;
+            margin: 0;
+            padding: 8px 12px;
+            border-radius: 0;
+        }
+
+        .export-submenu:hover .export-submenu-content {
+            display: block;
+        }
+        
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .tool-panel {
+            width: 200px;
+            background-color: #252526;
+            border-right: 1px solid #3e3e42;
+            padding: 10px;
+        }
+
+        body.light-mode .tool-panel {
+            background-color: #e9e9e9;
+            border-right: 1px solid #ccc;
+        }
+        
+        .tool-item {
+            background-color: #2d2d30;
+            border: 1px dashed #4a4a4a;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            cursor: grab;
+            text-align: center;
+            user-select: none;
+        }
+
+        body.light-mode .tool-item {
+            background-color: #f0f0f0;
+            border: 1px dashed #bbb;
+            color: #333;
+        }
+        
+        .tool-item:hover {
+            background-color: #37373d;
+        }
+
+        body.light-mode .tool-item:hover {
+            background-color: #d9d9d9;
+        }
+        
+        .workspace {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-color: #1e1e1e;
+        }
+
+        body.light-mode .workspace {
+            background-color: #f5f5f5;
+        }
+        
+        #editor-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .selection-rectangle {
+            position: absolute;
+            border: 1px dashed #007acc;
+            background-color: rgba(0, 122, 204, 0.1);
+            pointer-events: none;
+            z-index: 50;
+        }
+        
+        .property-panel {
+            width: 300px;
+            background-color: #252526;
+            border-left: 1px solid #3e3e42;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        body.light-mode .property-panel {
+            background-color: #e9e9e9;
+            border-left: 1px solid #ccc;
+        }
+        
+        .property-section {
+            margin-bottom: 20px;
+        }
+        
+        .property-section h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #cccccc;
+            border-bottom: 1px solid #3e3e42;
+            padding-bottom: 5px;
+        }
+
+        body.light-mode .property-section h3 {
+            color: #666;
+            border-bottom: 1px solid #ccc;
+        }
+        
+        .form-group {
+            margin-bottom: 12px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #969696;
+        }
+
+        body.light-mode .form-group label {
+            color: #666;
+        }
+        
+        .form-group input, 
+        .form-group textarea, 
+        .form-group select {
+            width: 100%;
+            padding: 6px 8px;
+            background-color: #3c3c3c;
+            border: 1px solid #464647;
+            border-radius: 3px;
+            color: #e0e0e0;
+            font-size: 13px;
+        }
+
+        body.light-mode .form-group input, 
+        body.light-mode .form-group textarea, 
+        body.light-mode .form-group select {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            color: #333;
+        }
+        
+        .form-group textarea {
+            min-height: 60px;
+            resize: vertical;
+        }
+        
+        .condition-item {
+            background-color: #2d2d30;
+            padding: 8px;
+            border-radius: 3px;
+            margin-bottom: 8px;
+            border-left: 3px solid #007acc;
+        }
+
+        body.light-mode .condition-item {
+            background-color: #f0f0f0;
+            border-left: 3px solid #0066cc;
+        }
+        
+        .condition-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        
+        .condition-controls {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .condition-controls button {
+            background: none;
+            border: none;
+            color: #cccccc;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        body.light-mode .condition-controls button {
+            color: #666;
+        }
+        
+        .condition-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 5px;
+        }
+        
+        .btn {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        body.light-mode .btn {
+            background-color: #0066cc;
+        }
+        
+        .btn:hover {
+            background-color: #1177bb;
+        }
+
+        body.light-mode .btn:hover {
+            background-color: #0052aa;
+        }
+        
+        .btn-danger {
+            background-color: #c42b1c;
+        }
+
+        body.light-mode .btn-danger {
+            background-color: #b32418;
+        }
+        
+        .btn-danger:hover {
+            background-color: #da3b2a;
+        }
+
+        body.light-mode .btn-danger:hover {
+            background-color: #c93222;
+        }
+        
+        .status-bar {
+            background-color: #007acc;
+            padding: 4px 12px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        body.light-mode .status-bar {
+            background-color: #0066cc;
+        }
+        
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+        }
+        
+        .zoom-controls button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 2px;
+            margin-left: 4px;
+            cursor: pointer;
+        }
+        
+        .context-menu {
+            position: absolute;
+            background-color: #2d2d30;
+            border: 1px solid #3e3e42;
+            border-radius: 3px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            min-width: 150px;
+        }
+
+        body.light-mode .context-menu {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .context-menu-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        body.light-mode .context-menu-item {
+            color: #333;
+        }
+        
+        .context-menu-item:hover {
+            background-color: #094771;
+        }
+
+        body.light-mode .context-menu-item:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+        
+        .dimension-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部菜单栏 -->
+    <div class="menu-bar">
+        <div class="menu-group">
+            <button id="new-project">新建</button>
+            <button id="import-md">导入Markdown</button>
+            <div class="export-submenu">
+                <button id="export-menu">导出</button>
+                <div class="export-submenu-content">
+                    <button id="export-md">导出Markdown</button>
+                    <button id="export-image">导出为位图</button>
+                </div>
+            </div>
+            <button id="save-project">保存</button>
+            <select id="selection-filter" class="selection-filter">
+                <option value="all">选择所有对象</option>
+                <option value="nodes">仅选择节点</option>
+                <option value="connections">仅选择连线</option>
+            </select>
+        </div>
+        <div class="menu-group">
+            <button id="undo">撤销</button>
+            <button id="redo">重做</button>
+            <button id="toggle-theme">切换主题</button>
+        </div>
+    </div>
+    
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <!-- 左侧工具栏 -->
+        <aside class="tool-panel">
+            <div class="tool-item" draggable="true" data-type="node">
+                📦 节点
+            </div>
+            <div class="tool-item" draggable="true" data-type="connection">
+                🔗 连线
+            </div>
+        </aside>
+        
+        <!-- 中间工作区 -->
+        <section class="workspace">
+            <canvas id="editor-canvas"></canvas>
+            <div class="selection-rectangle hidden"></div>
+        </section>
+        
+        <!-- 右侧属性栏 -->
+        <aside class="property-panel">
+            <div id="node-properties" class="property-section hidden">
+                <h3>节点属性</h3>
+                <div class="form-group">
+                    <label for="node-name">节点名称</label>
+                    <input type="text" id="node-name">
+                </div>
+                <div class="form-group">
+                    <label for="node-description">节点描述</label>
+                    <textarea id="node-description"></textarea>
+                </div>
+                
+                <!-- 新增尺寸设置 -->
+                <div class="form-group">
+                    <label>尺寸设置</label>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="node-autosize">
+                        <label for="node-autosize">自适应内容尺寸</label>
+                    </div>
+                </div>
+                
+                <div class="form-group dimension-inputs">
+                    <div>
+                        <label for="node-width">宽度</label>
+                        <input type="number" id="node-width" min="50" max="500" value="120">
+                    </div>
+                    <div>
+                        <label for="node-height">高度</label>
+                        <input type="number" id="node-height" min="30" max="300" value="80">
+                    </div>
+                </div>
+                
+                <button id="update-node" class="btn">更新节点</button>
+                <button id="delete-node" class="btn btn-danger">删除节点</button>
+            </div>
+            
+            <div id="connection-properties" class="property-section hidden">
+                <h3>连线条件</h3>
+                <div id="conditions-list">
+                    <!-- 条件项将通过JavaScript动态添加 -->
+                </div>
+                <button id="add-condition" class="btn">添加条件</button>
+                <button id="delete-connection" class="btn btn-danger">删除连线</button>
+            </div>
+            
+            <div id="no-selection" class="property-section">
+                <h3>提示</h3>
+                <p>选择节点或连线以编辑其属性</p>
+            </div>
+        </aside>
+    </div>
+    
+    <!-- 底部状态栏 -->
+    <footer class="status-bar">
+        <div class="status-info">就绪</div>
+        <div class="zoom-controls">
+            <button id="zoom-out">-</button>
+            <span id="zoom-level">100%</span>
+            <button id="zoom-in">+</button>
+        </div>
+    </footer>
+    
+    <!-- 隐藏的文件输入，用于导入Markdown -->
+    <input type="file" id="file-input" accept=".md" style="display: none;">
+    
+    <script>
+        // 禁用默认右键菜单
+        document.addEventListener('DOMContentLoaded', () => {
+            document.addEventListener('contextmenu', e => e.preventDefault());
+        });
+
+        // 工具类和辅助函数
+        const Utils = {
+            // 生成UUID
+            generateId: () => crypto.randomUUID(),
+            
+            // 复制对象
+            deepClone: (obj) => {
+                if (obj === null || typeof obj !== 'object') return obj;
+                
+                if (obj instanceof Array) {
+                    return obj.map(item => Utils.deepClone(item));
+                }
+                
+                const clone = {};
+                for (const key in obj) {
+                    if (obj.hasOwnProperty(key)) {
+                        clone[key] = Utils.deepClone(obj[key]);
+                    }
+                }
+                return clone;
+            },
+            
+            // 检查点是否在矩形内
+            isPointInRect: (x, y, rect) => {
+                return x >= rect.x && x <= rect.x + rect.width && 
+                       y >= rect.y && y <= rect.y + rect.height;
+            },
+            
+            // 检查矩形是否重叠
+            doRectsOverlap: (rect1, rect2) => {
+                return rect1.x < rect2.x + rect2.width &&
+                       rect1.x + rect1.width > rect2.x &&
+                       rect1.y < rect2.y + rect2.height &&
+                       rect1.y + rect1.height > rect2.y;
+            }
+        };
+
+        // 历史记录项类
+        class HistoryItem {
+            constructor(type, data) {
+                this.type = type; // 'add', 'delete', 'modify'
+                this.data = data;
+            }
+        }
+
+        // 节点类
+        class Node {
+            constructor(name, x, y) {
+                this.id = Utils.generateId();
+                this.type = 'node';
+                this.name = name || '新节点';
+                this.description = '';
+                this.x = x;
+                this.y = y;
+                
+                // 尺寸属性
+                this.width = 120;
+                this.height = 80;
+                this.autoSize = false; // 是否自适应尺寸
+                this.minWidth = 80;    // 最小宽度
+                this.minHeight = 60;   // 最小高度
+                this.padding = 20;     // 内边距
+            }
+            
+            // 计算自适应尺寸
+            calculateAutoSize(ctx) {
+                if (!this.autoSize) return;
+                
+                // 测量名称文本宽度
+                ctx.font = '14px Arial';
+                const nameMetrics = ctx.measureText(this.name);
+                const nameWidth = nameMetrics.width + this.padding * 2;
+                
+                // 测量描述文本宽度
+                let descWidth = 0;
+                if (this.description) {
+                    ctx.font = '10px Arial';
+                    const desc = this.description.length > 30 ? 
+                        this.description.substring(0, 30) + '...' : this.description;
+                    descWidth = ctx.measureText(desc).width + this.padding * 2;
+                }
+                
+                // 计算最终尺寸
+                this.width = Math.max(this.minWidth, nameWidth, descWidth);
+                this.height = this.minHeight + (this.description ? 25 : 0);
+            }
+
+            // 复制节点
+            clone() {
+                const clone = new Node(this.name, this.x, this.y);
+                clone.id = this.id;
+                clone.description = this.description;
+                clone.width = this.width;
+                clone.height = this.height;
+                clone.autoSize = this.autoSize;
+                clone.minWidth = this.minWidth;
+                clone.minHeight = this.minHeight;
+                clone.padding = this.padding;
+                return clone;
+            }
+        }
+        
+        // 条件类
+        class Condition {
+            constructor(type = 'int', key = '', operator = '>', value = '') {
+                this.type = type;
+                this.key = key;
+                this.operator = operator;
+                this.value = value;
+            }
+
+            clone() {
+                return new Condition(this.type, this.key, this.operator, this.value);
+            }
+        }
+        
+        // 连接类
+        class Connection {
+            constructor(sourceNodeId, targetNodeId) {
+                this.id = Utils.generateId();
+                this.type = 'connection';
+                this.sourceNodeId = sourceNodeId;
+                this.targetNodeId = targetNodeId;
+                this.conditions = [];
+            }
+
+            clone() {
+                const clone = new Connection(this.sourceNodeId, this.targetNodeId);
+                clone.id = this.id;
+                clone.conditions = this.conditions.map(cond => cond.clone());
+                return clone;
+            }
+        }
+        
+        // 编辑器主类
+        class NodeGraphEditor {
+            constructor(canvasId) {
+                // 获取DOM元素
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.selectionRectangle = document.querySelector('.selection-rectangle');
+                this.zoomLevelDisplay = document.getElementById('zoom-level');
+                
+                // 编辑器状态
+                this.nodes = [];
+                this.connections = [];
+                this.selectedElements = []; // 支持多选
+                this.draggingElement = null;
+                this.draggingOffset = { x: 0, y: 0 };
+                this.creatingConnection = null;
+                this.selectionFilter = 'all'; // 选择筛选器：'all', 'nodes', 'connections'
+                
+                // 框选相关
+                this.isSelecting = false;
+                this.selectionStart = { x: 0, y: 0 };
+                this.selectionCurrent = { x: 0, y: 0 };
+                
+                // 视图状态
+                this.zoom = 1.0;
+                this.pan = { x: 0, y: 0 };
+                this.isPanning = false;
+                this.panStart = { x: 0, y: 0 };
+                
+                // 历史记录
+                this.history = [];
+                this.historyIndex = -1;
+                this.historyLimit = 50; // 最多保存50条历史记录
+                
+                // 性能优化
+                this.animationId = null;
+                this.lastRenderTime = 0;
+                this.renderDelay = 16; // ~60FPS
+                
+                // 初始化
+                this.init();
+            }
+            
+            // 初始化编辑器
+            init() {
+                this.setupCanvas();
+                this.setupEventListeners();
+                this.setupUIListeners();
+                this.scheduleRender();
+            }
+            
+            // 设置画布尺寸
+            setupCanvas() {
+                const resizeCanvas = () => {
+                    const container = this.canvas.parentElement;
+                    this.canvas.width = container.clientWidth;
+                    this.canvas.height = container.clientHeight;
+                    this.scheduleRender();
+                };
+                
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+            }
+            
+            // 屏幕坐标转世界坐标
+            screenToWorld(x, y) {
+                return {
+                    x: (x - this.pan.x) / this.zoom,
+                    y: (y - this.pan.y) / this.zoom
+                };
+            }
+            
+            // 世界坐标转屏幕坐标
+            worldToScreen(x, y) {
+                return {
+                    x: x * this.zoom + this.pan.x,
+                    y: y * this.zoom + this.pan.y
+                };
+            }
+            
+            // 设置事件监听器
+            setupEventListeners() {
+                // 鼠标事件
+                this.canvas.addEventListener('mousedown', e => this.handleMouseDown(e));
+                this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseup', e => this.handleMouseUp(e));
+                this.canvas.addEventListener('wheel', e => this.handleWheel(e));
+                
+                // 拖放事件
+                this.canvas.addEventListener('dragover', e => e.preventDefault());
+                this.canvas.addEventListener('drop', e => this.handleDrop(e));
+
+                // 鼠标离开事件
+                this.canvas.addEventListener('mouseleave', e => this.handleMouseLeave(e));
+            }
+            
+            // 设置UI元素监听器
+            setupUIListeners() {
+                // 菜单按钮
+                document.getElementById('new-project').addEventListener('click', () => this.newProject());
+                document.getElementById('import-md').addEventListener('click', () => 
+                    document.getElementById('file-input').click());
+                document.getElementById('export-md').addEventListener('click', () => this.exportMarkdown());
+                document.getElementById('export-image').addEventListener('click', () => this.exportAsImage());
+                document.getElementById('save-project').addEventListener('click', () => this.saveProject());
+                document.getElementById('undo').addEventListener('click', () => this.undo());
+                document.getElementById('redo').addEventListener('click', () => this.redo());
+                document.getElementById('toggle-theme').addEventListener('click', () => this.toggleTheme());
+                
+                // 选择筛选器
+                document.getElementById('selection-filter').addEventListener('change', e => {
+                    this.selectionFilter = e.target.value;
+                    this.filterSelectedElements();
+                    this.updatePropertyPanel();
+                    this.scheduleRender();
+                });
+                
+                // 缩放控制
+                document.getElementById('zoom-in').addEventListener('click', () => this.zoomIn());
+                document.getElementById('zoom-out').addEventListener('click', () => this.zoomOut());
+                
+                // 属性面板
+                document.getElementById('update-node').addEventListener('click', () => this.updateSelectedNode());
+                document.getElementById('delete-node').addEventListener('click', () => this.deleteSelectedNodes());
+                document.getElementById('add-condition').addEventListener('click', () => this.addCondition());
+                document.getElementById('delete-connection').addEventListener('click', () => this.deleteSelectedConnections());
+                
+                // 自适应尺寸切换
+                document.getElementById('node-autosize').addEventListener('change', e => {
+                    this.toggleAutoSize(e.target.checked);
+                });
+                
+                // 文件输入
+                document.getElementById('file-input').addEventListener('change', e => this.handleFileSelect(e));
+                
+                // 工具栏拖拽
+                document.querySelectorAll('.tool-item').forEach(item => {
+                    item.addEventListener('dragstart', e => {
+                        e.dataTransfer.setData('text/plain', item.dataset.type);
+                    });
+                });
+            }
+            
+            // 过滤选中的元素
+            filterSelectedElements() {
+                this.selectedElements = this.selectedElements.filter(el => {
+                    if (this.selectionFilter === 'all') return true;
+                    if (this.selectionFilter === 'nodes' && el.type === 'node') return true;
+                    if (this.selectionFilter === 'connections' && el.type === 'connection') return true;
+                    return false;
+                });
+            }
+            
+            // 添加历史记录
+            addHistory(type, data) {
+                // 如果当前不在历史记录末尾，清除后面的记录
+                if (this.historyIndex < this.history.length - 1) {
+                    this.history = this.history.slice(0, this.historyIndex + 1);
+                }
+                
+                // 添加新记录
+                this.history.push(new HistoryItem(type, data));
+                this.historyIndex++;
+                
+                // 如果超出限制，移除最早的记录
+                if (this.history.length > this.historyLimit) {
+                    this.history.shift();
+                    this.historyIndex--;
+                }
+            }
+            
+            // 撤销操作
+            undo() {
+                if (this.historyIndex < 0) return;
+                
+                const item = this.history[this.historyIndex];
+                this.historyIndex--;
+                
+                switch (item.type) {
+                    case 'add-node':
+                        this.removeNode(item.data.id);
+                        break;
+                        
+                    case 'add-connection':
+                        this.removeConnection(item.data.id);
+                        break;
+                        
+                    case 'delete-nodes':
+                        this.nodes.push(...item.data.nodes);
+                        this.connections.push(...item.data.connections);
+                        break;
+                        
+                    case 'delete-connections':
+                        this.connections.push(...item.data);
+                        break;
+                        
+                    case 'modify-node':
+                        const nodeToRestore = this.nodes.find(n => n.id === item.data.id);
+                        if (nodeToRestore) {
+                            Object.assign(nodeToRestore, item.data.oldValue);
+                        }
+                        break;
+                }
+                
+                this.selectedElements = [];
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+            
+            // 重做操作
+            redo() {
+                if (this.historyIndex >= this.history.length - 1) return;
+                
+                this.historyIndex++;
+                const item = this.history[this.historyIndex];
+                
+                switch (item.type) {
+                    case 'add-node':
+                        this.nodes.push(item.data);
+                        break;
+                        
+                    case 'add-connection':
+                        this.connections.push(item.data);
+                        break;
+                        
+                    case 'delete-nodes':
+                        const nodeIds = item.data.nodes.map(n => n.id);
+                        this.nodes = this.nodes.filter(n => !nodeIds.includes(n.id));
+                        this.connections = this.connections.filter(conn => 
+                            !nodeIds.includes(conn.sourceNodeId) && !nodeIds.includes(conn.targetNodeId)
+                        );
+                        break;
+                        
+                    case 'delete-connections':
+                        const connIds = item.data.map(c => c.id);
+                        this.connections = this.connections.filter(c => !connIds.includes(c.id));
+                        break;
+                        
+                    case 'modify-node':
+                        const nodeToModify = this.nodes.find(n => n.id === item.data.id);
+                        if (nodeToModify) {
+                            Object.assign(nodeToModify, item.data.newValue);
+                        }
+                        break;
+                }
+                
+                this.selectedElements = [];
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+            
+            // 切换主题
+            toggleTheme() {
+                document.body.classList.toggle('light-mode');
+                this.scheduleRender();
+            }
+            
+            // 缩放控制
+            zoomIn() {
+                this.zoom = Math.min(this.zoom * 1.2, 5.0);
+                this.updateZoomDisplay();
+                this.scheduleRender();
+            }
+            
+            zoomOut() {
+                this.zoom = Math.max(this.zoom / 1.2, 0.1);
+                this.updateZoomDisplay();
+                this.scheduleRender();
+            }
+            
+            updateZoomDisplay() {
+                this.zoomLevelDisplay.textContent = `${Math.round(this.zoom * 100)}%`;
+            }
+            
+            // 处理鼠标按下事件
+            handleMouseDown(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = this.screenToWorld(x, y);
+                
+                // 右键菜单处理
+                if (e.button === 2) {
+                    this.handleRightClick(worldPos, x, y);
+                    return;
+                }
+                
+                // 中键平移
+                if (e.button === 1) {
+                    this.startPanning(x, y);
+                    return;
+                }
+                
+                // 左键处理
+                if (e.button === 0) {
+                    // 检查是否点击了节点
+                    const clickedNode = this.nodes.find(node => 
+                        Utils.isPointInRect(worldPos.x, worldPos.y, {
+                            x: node.x,
+                            y: node.y,
+                            width: node.width,
+                            height: node.height
+                        })
+                    );
+                    
+                    if (clickedNode) {
+                        this.handleNodeClick(clickedNode, worldPos, e);
+                        return;
+                    }
+                    
+                    // 检查是否点击了连线
+                    const clickedConnection = this.getConnectionAtPosition(worldPos);
+                    if (clickedConnection) {
+                        this.handleConnectionClick(clickedConnection, e);
+                        return;
+                    }
+                    
+                    // 如果没有点击任何元素，开始框选或平移
+                    if (e.ctrlKey || e.metaKey) {
+                        this.startSelection(x, y);
+                    } else {
+                        this.startPanning(x, y);
+                        this.deselectAll();
+                    }
+                }
+            }
+            
+            // 开始平移
+            startPanning(x, y) {
+                this.isPanning = true;
+                this.panStart.x = x;
+                this.panStart.y = y;
+                this.canvas.style.cursor = 'grabbing';
+            }
+            
+            // 开始框选
+            startSelection(x, y) {
+                this.isSelecting = true;
+                this.selectionStart.x = x;
+                this.selectionStart.y = y;
+                this.selectionCurrent.x = x;
+                this.selectionCurrent.y = y;
+                
+                // 显示选择框
+                this.selectionRectangle.style.left = x + 'px';
+                this.selectionRectangle.style.top = y + 'px';
+                this.selectionRectangle.style.width = '0px';
+                this.selectionRectangle.style.height = '0px';
+                this.selectionRectangle.classList.remove('hidden');
+                
+                // 添加全局事件监听
+                document.addEventListener('mousemove', this.handleGlobalMouseMove.bind(this));
+                document.addEventListener('mouseup', this.handleGlobalMouseUp.bind(this));
+            }
+            
+            // 处理节点点击
+            handleNodeClick(node, worldPos, e) {
+                // 处理连接创建
+                if (this.creatingConnection) {
+                    this.finishConnectionCreation(node.id);
+                    return;
+                }
+                
+                // 选择逻辑
+                if (!e.ctrlKey && !e.metaKey) {
+                    this.deselectAll();
+                }
+                
+                // 切换节点选择状态
+                const index = this.selectedElements.findIndex(el => el.id === node.id);
+                if (index === -1) {
+                    this.selectedElements.push(node);
+                } else {
+                    this.selectedElements.splice(index, 1);
+                }
+                
+                // 准备拖动
+                this.draggingElement = node;
+                this.draggingOffset.x = worldPos.x - node.x;
+                this.draggingOffset.y = worldPos.y - node.y;
+                
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+            
+            // 处理连线点击
+            handleConnectionClick(connection, e) {
+                if (!e.ctrlKey && !e.metaKey) {
+                    this.deselectAll();
+                }
+                
+                // 切换连线选择状态
+                const index = this.selectedElements.findIndex(el => el.id === connection.id);
+                if (index === -1) {
+                    this.selectedElements.push(connection);
+                } else {
+                    this.selectedElements.splice(index, 1);
+                }
+                
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+            
+            // 处理鼠标移动事件
+            handleMouseMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = this.screenToWorld(x, y);
+                
+                // 平移处理
+                if (this.isPanning) {
+                    this.pan.x += x - this.panStart.x;
+                    this.pan.y += y - this.panStart.y;
+                    this.panStart.x = x;
+                    this.panStart.y = y;
+                    this.scheduleRender();
+                    return;
+                }
+                
+                // 拖动节点处理
+                if (this.draggingElement && this.draggingElement.type === 'node') {
+                    this.draggingElement.x = worldPos.x - this.draggingOffset.x;
+                    this.draggingElement.y = worldPos.y - this.draggingOffset.y;
+                    this.scheduleRender();
+                    return;
+                }
+                
+                // 正在创建连线
+                if (this.creatingConnection) {
+                    this.scheduleRender();
+                }
+            }
+            
+            // 处理鼠标释放事件
+            handleMouseUp(e) {
+                // 结束平移
+                if (this.isPanning) {
+                    this.isPanning = false;
+                    this.canvas.style.cursor = 'default';
+                    return;
+                }
+                
+                // 结束拖动节点
+                if (this.draggingElement && this.draggingElement.type === 'node') {
+                    // 如果只选择了一个节点且位置发生了变化，记录历史
+                    if (this.selectedElements.length === 1) {
+                        const node = this.selectedElements[0];
+                        this.addHistory('modify-node', {
+                            id: node.id,
+                            oldValue: node.clone(),
+                            newValue: Utils.deepClone(node)
+                        });
+                    }
+                    
+                    this.draggingElement = null;
+                    return;
+                }
+            }
+            
+            // 处理全局鼠标移动（框选）
+            handleGlobalMouseMove(e) {
+                if (!this.isSelecting) return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // 更新选择框位置和大小
+                const left = Math.min(x, this.selectionStart.x);
+                const top = Math.min(y, this.selectionStart.y);
+                const width = Math.abs(x - this.selectionStart.x);
+                const height = Math.abs(y - this.selectionStart.y);
+                
+                this.selectionCurrent.x = x;
+                this.selectionCurrent.y = y;
+                this.selectionRectangle.style.left = left + 'px';
+                this.selectionRectangle.style.top = top + 'px';
+                this.selectionRectangle.style.width = width + 'px';
+                this.selectionRectangle.style.height = height + 'px';
+            }
+            
+            // 处理全局鼠标释放（框选结束）
+            handleGlobalMouseUp(e) {
+                if (!this.isSelecting) return;
+                
+                // 移除全局事件监听
+                document.removeEventListener('mousemove', this.handleGlobalMouseMove.bind(this));
+                document.removeEventListener('mouseup', this.handleGlobalMouseUp.bind(this));
+                
+                // 处理框选完成逻辑
+                this.isSelecting = false;
+                this.selectionRectangle.classList.add('hidden');
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // 计算选择框的世界坐标
+                const start = this.screenToWorld(this.selectionStart.x, this.selectionStart.y);
+                const end = this.screenToWorld(x, y);
+                
+                const selectionMinX = Math.min(start.x, end.x);
+                const selectionMinY = Math.min(start.y, end.y);
+                const selectionMaxX = Math.max(start.x, end.x);
+                const selectionMaxY = Math.max(start.y, end.y);
+                
+                // 处理选择
+                this.processSelection(selectionMinX, selectionMinY, selectionMaxX, selectionMaxY);
+                
+                this.draggingElement = null;
+                this.isPanning = false;
+                this.scheduleRender();
+            }
+            
+            // 处理鼠标离开事件
+            handleMouseLeave(e) {
+                // 框选过程中鼠标离开画布时不结束框选
+                if (this.isSelecting) return;
+                
+                // 结束拖动和平移
+                this.draggingElement = null;
+                this.isPanning = false;
+                this.canvas.style.cursor = 'default';
+            }
+            
+            // 处理滚轮事件（缩放）
+            handleWheel(e) {
+                e.preventDefault();
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                // 缩放前的鼠标世界坐标
+                const mouseWorldX = (mouseX - this.pan.x) / this.zoom;
+                const mouseWorldY = (mouseY - this.pan.y) / this.zoom;
+                
+                // 应用缩放
+                if (e.deltaY < 0) {
+                    this.zoom = Math.min(this.zoom * 1.1, 5.0);
+                } else {
+                    this.zoom = Math.max(this.zoom / 1.1, 0.1);
+                }
+                
+                // 调整平移，使鼠标指向的世界坐标保持不变
+                this.pan.x = mouseX - mouseWorldX * this.zoom;
+                this.pan.y = mouseY - mouseWorldY * this.zoom;
+                
+                this.updateZoomDisplay();
+                this.scheduleRender();
+            }
+            
+            // 处理拖放事件
+            handleDrop(e) {
+                e.preventDefault();
+                const type = e.dataTransfer.getData('text/plain');
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = this.screenToWorld(x, y);
+                
+                if (type === 'node') {
+                    this.addNode(new Node('新节点', worldPos.x, worldPos.y));
+                } else if (type === 'connection') {
+                    // 开始创建连线
+                    const nodeUnderCursor = this.nodes.find(node => 
+                        Utils.isPointInRect(worldPos.x, worldPos.y, {
+                            x: node.x,
+                            y: node.y,
+                            width: node.width,
+                            height: node.height
+                        })
+                    );
+                    
+                    if (nodeUnderCursor) {
+                        this.startConnectionCreation(nodeUnderCursor.id);
+                    }
+                }
+            }
+            
+            // 开始创建连线
+            startConnectionCreation(sourceNodeId) {
+                this.creatingConnection = {
+                    sourceNodeId: sourceNodeId
+                };
+                this.scheduleRender();
+            }
+            
+            // 完成连线创建
+            finishConnectionCreation(targetNodeId) {
+                if (this.creatingConnection && 
+                    this.creatingConnection.sourceNodeId !== targetNodeId) {
+                    
+                    const newConnection = new Connection(
+                        this.creatingConnection.sourceNodeId,
+                        targetNodeId
+                    );
+                    
+                    this.addConnection(newConnection);
+                }
+                
+                this.creatingConnection = null;
+                this.scheduleRender();
+            }
+            
+            // 处理右键点击
+            handleRightClick(worldPos, screenX, screenY) {
+                // 检查是否点击了节点
+                const clickedNode = this.nodes.find(node => 
+                    Utils.isPointInRect(worldPos.x, worldPos.y, {
+                        x: node.x,
+                        y: node.y,
+                        width: node.width,
+                        height: node.height
+                    })
+                );
+                
+                // 检查是否点击了连线
+                const clickedConnection = this.getConnectionAtPosition(worldPos);
+                
+                // 显示上下文菜单
+                if (clickedNode || clickedConnection) {
+                    this.showContextMenu(screenX, screenY, clickedNode || clickedConnection);
+                }
+            }
+            
+            // 显示上下文菜单
+            showContextMenu(x, y, element) {
+                // 清除现有菜单
+                this.removeContextMenu();
+                
+                // 创建新菜单
+                const menu = document.createElement('div');
+                menu.className = 'context-menu';
+                menu.style.left = x + 'px';
+                menu.style.top = y + 'px';
+                document.body.appendChild(menu);
+                
+                // 添加菜单项
+                if (element.type === 'node') {
+                    const deleteItem = document.createElement('div');
+                    deleteItem.className = 'context-menu-item';
+                    deleteItem.textContent = '删除节点';
+                    deleteItem.addEventListener('click', () => {
+                        this.selectedElements = [element];
+                        this.deleteSelectedNodes();
+                        this.removeContextMenu();
+                    });
+                    menu.appendChild(deleteItem);
+                    
+                    const connectItem = document.createElement('div');
+                    connectItem.className = 'context-menu-item';
+                    connectItem.textContent = '创建连线';
+                    connectItem.addEventListener('click', () => {
+                        this.startConnectionCreation(element.id);
+                        this.removeContextMenu();
+                    });
+                    menu.appendChild(connectItem);
+                } else if (element.type === 'connection') {
+                    const deleteItem = document.createElement('div');
+                    deleteItem.className = 'context-menu-item';
+                    deleteItem.textContent = '删除连线';
+                    deleteItem.addEventListener('click', () => {
+                        this.selectedElements = [element];
+                        this.deleteSelectedConnections();
+                        this.removeContextMenu();
+                    });
+                    menu.appendChild(deleteItem);
+                }
+                
+                // 点击其他地方关闭菜单
+                const closeMenu = () => {
+                    this.removeContextMenu();
+                    document.removeEventListener('click', closeMenu);
+                };
+                
+                setTimeout(() => {
+                    document.addEventListener('click', closeMenu);
+                }, 100);
+            }
+            
+            // 移除上下文菜单
+            removeContextMenu() {
+                const existingMenu = document.querySelector('.context-menu');
+                if (existingMenu) {
+                    existingMenu.remove();
+                }
+            }
+            
+            // 获取指定位置的连线
+            getConnectionAtPosition(pos) {
+                for (const connection of this.connections) {
+                    const sourceNode = this.nodes.find(n => n.id === connection.sourceNodeId);
+                    const targetNode = this.nodes.find(n => n.id === connection.targetNodeId);
+                    
+                    if (!sourceNode || !targetNode) continue;
+                    
+                    // 计算连线的起点和终点
+                    const startX = sourceNode.x + sourceNode.width / 2;
+                    const startY = sourceNode.y + sourceNode.height / 2;
+                    const endX = targetNode.x + targetNode.width / 2;
+                    const endY = targetNode.y + targetNode.height / 2;
+                    
+                    // 简单的连线点击检测
+                    if (this.isPointNearLine(pos.x, pos.y, startX, startY, endX, endY, 5 / this.zoom)) {
+                        return connection;
+                    }
+                }
+                return null;
+            }
+            
+            // 检查点是否靠近线段
+            isPointNearLine(px, py, x1, y1, x2, y2, tolerance) {
+                // 线段长度的平方
+                const len2 = (x2 - x1) **2 + (y2 - y1)** 2;
+                if (len2 === 0) return false; // 线段长度为0
+                
+                // 计算投影比例
+                let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / len2;
+                t = Math.max(0, Math.min(1, t)); // 限制在[0,1]范围内
+                
+                // 计算投影点
+                const projX = x1 + t * (x2 - x1);
+                const projY = y1 + t * (y2 - y1);
+                
+                // 计算点到投影点的距离
+                const dx = px - projX;
+                const dy = py - projY;
+                const dist2 = dx * dx + dy * dy;
+                
+                return dist2 <= tolerance * tolerance;
+            }
+            
+            // 处理框选
+            processSelection(minX, minY, maxX, maxY) {
+                const selectionRect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+                
+                // 根据筛选器类型选择元素
+                if (this.selectionFilter === 'all' || this.selectionFilter === 'nodes') {
+                    this.nodes.forEach(node => {
+                        const nodeRect = {
+                            x: node.x,
+                            y: node.y,
+                            width: node.width,
+                            height: node.height
+                        };
+                        
+                        if (Utils.doRectsOverlap(selectionRect, nodeRect)) {
+                            this.selectedElements.push(node);
+                        }
+                    });
+                }
+                
+                if (this.selectionFilter === 'all' || this.selectionFilter === 'connections') {
+                    this.connections.forEach(connection => {
+                        const sourceNode = this.nodes.find(n => n.id === connection.sourceNodeId);
+                        const targetNode = this.nodes.find(n => n.id === connection.targetNodeId);
+                        
+                        if (sourceNode && targetNode) {
+                            // 检查连线的两个端点是否在选择框内
+                            const startInRect = Utils.isPointInRect(
+                                sourceNode.x + sourceNode.width / 2,
+                                sourceNode.y + sourceNode.height / 2,
+                                selectionRect
+                            );
+                            
+                            const endInRect = Utils.isPointInRect(
+                                targetNode.x + targetNode.width / 2,
+                                targetNode.y + targetNode.height / 2,
+                                selectionRect
+                            );
+                            
+                            if (startInRect && endInRect) {
+                                this.selectedElements.push(connection);
+                            }
+                        }
+                    });
+                }
+                
+                // 去重
+                this.selectedElements = [...new Map(
+                    this.selectedElements.map(item => [item.id, item])
+                ).values()];
+                
+                this.updatePropertyPanel();
+            }
+            
+            // 取消所有选择
+            deselectAll() {
+                this.selectedElements = [];
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+            
+            // 添加节点
+            addNode(node) {
+                this.nodes.push(node);
+                this.addHistory('add-node', node.clone());
+                this.selectedElements = [node];
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+            
+            // 移除节点
+            removeNode(nodeId) {
+                // 找到要删除的节点
+                const nodeIndex = this.nodes.findIndex(n => n.id === nodeId);
+                if (nodeIndex === -1) return;
+                
+                const node = this.nodes[nodeIndex];
+                
+                // 找到相关的连线
+                const connectedConnections = this.connections.filter(conn => 
+                    conn.sourceNodeId === nodeId || conn.targetNodeId === nodeId
+                );
+                
+                // 移除节点和相关连线
+                this.nodes.splice(nodeIndex, 1);
+                connectedConnections.forEach(conn => {
+                    const connIndex = this.connections.findIndex(c => c.id === conn.id);
+                    if (connIndex !== -1) {
+                        this.connections.splice(connIndex, 1);
+                    }
+                });
+                
+                // 更新选择
+                this.selectedElements = this.selectedElements.filter(
+                    el => el.id !== nodeId && !connectedConnections.some(c => c.id === el.id)
+                );
+                
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+            
+            // 添加连线
+            addConnection(connection) {
+                this.connections.push(connection);
+                this.addHistory('add-connection', connection.clone());
+                this.selectedElements = [connection];
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+            
+            // 移除连线
+            removeConnection(connectionId) {
+                const connIndex = this.connections.findIndex(c => c.id === connectionId);
+                if (connIndex !== -1) {
+                    this.connections.splice(connIndex, 1);
+                    
+                    // 更新选择
+                    this.selectedElements = this.selectedElements.filter(el => el.id !== connectionId);
+                    
+                    this.updatePropertyPanel();
+                    this.scheduleRender();
+                }
+            }
+            
+            // 更新属性面板
+            updatePropertyPanel() {
+                const nodeProperties = document.getElementById('node-properties');
+                const connectionProperties = document.getElementById('connection-properties');
+                const noSelection = document.getElementById('no-selection');
+                
+                // 隐藏所有面板
+                nodeProperties.classList.add('hidden');
+                connectionProperties.classList.add('hidden');
+                noSelection.classList.add('hidden');
+                
+                // 显示适当的面板
+                if (this.selectedElements.length === 1) {
+                    const element = this.selectedElements[0];
+                    
+                    if (element.type === 'node') {
+                        this.showNodeProperties(element);
+                    } else if (element.type === 'connection') {
+                        this.showConnectionProperties(element);
+                    }
+                } else {
+                    noSelection.classList.remove('hidden');
+                }
+            }
+            
+            // 显示节点属性
+            showNodeProperties(node) {
+                const nodeProperties = document.getElementById('node-properties');
+                const nodeNameInput = document.getElementById('node-name');
+                const nodeDescInput = document.getElementById('node-description');
+                const nodeWidthInput = document.getElementById('node-width');
+                const nodeHeightInput = document.getElementById('node-height');
+                const nodeAutosizeInput = document.getElementById('node-autosize');
+                
+                // 填充表单
+                nodeNameInput.value = node.name;
+                nodeDescInput.value = node.description;
+                nodeWidthInput.value = node.width;
+                nodeHeightInput.value = node.height;
+                nodeAutosizeInput.checked = node.autoSize;
+                
+                // 控制尺寸输入的可用性
+                nodeWidthInput.disabled = node.autoSize;
+                nodeHeightInput.disabled = node.autoSize;
+                
+                // 显示面板
+                nodeProperties.classList.remove('hidden');
+            }
+            
+            // 显示连线属性
+            showConnectionProperties(connection) {
+                const connectionProperties = document.getElementById('connection-properties');
+                const conditionsList = document.getElementById('conditions-list');
+                
+                // 清空现有条件
+                conditionsList.innerHTML = '';
+                
+                // 添加所有条件
+                connection.conditions.forEach((condition, index) => {
+                    conditionsList.appendChild(this.createConditionElement(condition, index));
+                });
+                
+                // 显示面板
+                connectionProperties.classList.remove('hidden');
+            }
+            
+            // 创建条件元素
+            createConditionElement(condition, index) {
+                const conditionItem = document.createElement('div');
+                conditionItem.className = 'condition-item';
+                conditionItem.dataset.index = index;
+                
+                // 条件头部
+                const header = document.createElement('div');
+                header.className = 'condition-header';
+                header.innerHTML = `<span>条件 ${index + 1}</span>`;
+                
+                // 条件控制按钮
+                const controls = document.createElement('div');
+                controls.className = 'condition-controls';
+                
+                const upBtn = document.createElement('button');
+                upBtn.innerHTML = '↑';
+                upBtn.disabled = index === 0;
+                upBtn.addEventListener('click', () => this.moveConditionUp(index));
+                
+                const downBtn = document.createElement('button');
+                downBtn.innerHTML = '↓';
+                downBtn.disabled = index === this.selectedElements[0].conditions.length - 1;
+                downBtn.addEventListener('click', () => this.moveConditionDown(index));
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.innerHTML = '✕';
+                deleteBtn.addEventListener('click', () => this.deleteCondition(index));
+                
+                controls.appendChild(upBtn);
+                controls.appendChild(downBtn);
+                controls.appendChild(deleteBtn);
+                header.appendChild(controls);
+                
+                // 条件字段
+                const fields = document.createElement('div');
+                fields.className = 'condition-fields';
+                
+                // 类型选择
+                const typeSelect = document.createElement('select');
+                typeSelect.innerHTML = `
+                    <option value="int">整数</option>
+                    <option value="float">浮点数</option>
+                    <option value="string">字符串</option>
+                    <option value="boolean">布尔值</option>
+                `;
+                typeSelect.value = condition.type;
+                typeSelect.addEventListener('change', (e) => 
+                    this.updateCondition(index, 'type', e.target.value));
+                
+                // 键输入
+                const keyInput = document.createElement('input');
+                keyInput.type = 'text';
+                keyInput.placeholder = '键';
+                keyInput.value = condition.key;
+                keyInput.addEventListener('change', (e) => 
+                    this.updateCondition(index, 'key', e.target.value));
+                
+                // 操作符选择
+                const operatorSelect = document.createElement('select');
+                operatorSelect.innerHTML = `
+                    <option value=">">大于</option>
+                    <option value="<">小于</option>
+                    <option value="==">等于</option>
+                    <option value="!=">不等于</option>
+                    <option value=">=">大于等于</option>
+                    <option value="<=">小于等于</option>
+                `;
+                operatorSelect.value = condition.operator;
+                operatorSelect.addEventListener('change', (e) => 
+                    this.updateCondition(index, 'operator', e.target.value));
+                
+                // 值输入
+                const valueInput = document.createElement('input');
+                valueInput.type = 'text';
+                valueInput.placeholder = '值';
+                valueInput.value = condition.value;
+                valueInput.addEventListener('change', (e) => 
+                    this.updateCondition(index, 'value', e.target.value));
+                
+                fields.appendChild(typeSelect);
+                fields.appendChild(keyInput);
+                fields.appendChild(operatorSelect);
+                fields.appendChild(valueInput);
+                
+                conditionItem.appendChild(header);
+                conditionItem.appendChild(fields);
+                
+                return conditionItem;
+            }
+            
+            // 更新节点属性
+            updateSelectedNode() {
+                if (this.selectedElements.length !== 1 || this.selectedElements[0].type !== 'node') {
+                    return;
+                }
+                
+                const node = this.selectedElements[0];
+                const oldValue = node.clone();
+                
+                // 更新属性
+                node.name = document.getElementById('node-name').value;
+                node.description = document.getElementById('node-description').value;
+                
+                if (!node.autoSize) {
+                    node.width = parseInt(document.getElementById('node-width').value) || node.width;
+                    node.height = parseInt(document.getElementById('node-height').value) || node.height;
+                }
+                
+                // 计算自适应尺寸
+                node.calculateAutoSize(this.ctx);
+                
+                // 记录历史
+                this.addHistory('modify-node', {
+                    id: node.id,
+                    oldValue: oldValue,
+                    newValue: Utils.deepClone(node)
+                });
+                
+                this.scheduleRender();
+            }
+            
+            // 切换自适应尺寸
+            toggleAutoSize(enabled) {
+                if (this.selectedElements.length !== 1 || this.selectedElements[0].type !== 'node') {
+                    return;
+                }
+                
+                const node = this.selectedElements[0];
+                const oldValue = node.clone();
+                
+                node.autoSize = enabled;
+                document.getElementById('node-width').disabled = enabled;
+                document.getElementById('node-height').disabled = enabled;
+                
+                // 计算自适应尺寸
+                node.calculateAutoSize(this.ctx);
+                
+                // 更新输入框
+                document.getElementById('node-width').value = node.width;
+                document.getElementById('node-height').value = node.height;
+                
+                // 记录历史
+                this.addHistory('modify-node', {
+                    id: node.id,
+                    oldValue: oldValue,
+                    newValue: Utils.deepClone(node)
+                });
+                
+                this.scheduleRender();
+            }
+            
+            // 删除选中的节点
+            deleteSelectedNodes() {
+                const nodesToDelete = this.selectedElements.filter(el => el.type === 'node');
+                if (nodesToDelete.length === 0) return;
+                
+                // 找到相关的连线
+                const nodeIds = nodesToDelete.map(n => n.id);
+                const connectionsToDelete = this.connections.filter(conn => 
+                    nodeIds.includes(conn.sourceNodeId) || nodeIds.includes(conn.targetNodeId)
+                );
+                
+                // 记录历史
+                this.addHistory('delete-nodes', {
+                    nodes: nodesToDelete.map(n => n.clone()),
+                    connections: connectionsToDelete.map(c => c.clone())
+                });
+                
+                // 删除节点
+                nodesToDelete.forEach(node => this.removeNode(node.id));
+                
+                this.deselectAll();
+            }
+            
+            // 添加条件
+            addCondition() {
+                if (this.selectedElements.length !== 1 || this.selectedElements[0].type !== 'connection') {
+                    return;
+                }
+                
+                const connection = this.selectedElements[0];
+                connection.conditions.push(new Condition());
+                this.showConnectionProperties(connection);
+            }
+            
+            // 更新条件
+            updateCondition(index, property, value) {
+                if (this.selectedElements.length !== 1 || this.selectedElements[0].type !== 'connection') {
+                    return;
+                }
+                
+                const connection = this.selectedElements[0];
+                if (index >= 0 && index < connection.conditions.length) {
+                    connection.conditions[index][property] = value;
+                }
+            }
+            
+            // 上移条件
+            moveConditionUp(index) {
+                if (index <= 0) return;
+                this.swapConditions(index, index - 1);
+            }
+            
+            // 下移条件
+            moveConditionDown(index) {
+                if (this.selectedElements.length !== 1 || this.selectedElements[0].type !== 'connection') {
+                    return;
+                }
+                
+                const connection = this.selectedElements[0];
+                if (index >= connection.conditions.length - 1) return;
+                this.swapConditions(index, index + 1);
+            }
+            
+            // 交换条件位置
+            swapConditions(i, j) {
+                if (this.selectedElements.length !== 1 || this.selectedElements[0].type !== 'connection') {
+                    return;
+                }
+                
+                const connection = this.selectedElements[0];
+                [connection.conditions[i], connection.conditions[j]] = 
+                [connection.conditions[j], connection.conditions[i]];
+                
+                this.showConnectionProperties(connection);
+            }
+            
+            // 删除条件
+            deleteCondition(index) {
+                if (this.selectedElements.length !== 1 || this.selectedElements[0].type !== 'connection') {
+                    return;
+                }
+                
+                const connection = this.selectedElements[0];
+                connection.conditions.splice(index, 1);
+                this.showConnectionProperties(connection);
+            }
+            
+            // 删除选中的连线
+            deleteSelectedConnections() {
+                const connectionsToDelete = this.selectedElements.filter(el => el.type === 'connection');
+                if (connectionsToDelete.length === 0) return;
+                
+                // 记录历史
+                this.addHistory('delete-connections', connectionsToDelete.map(c => c.clone()));
+                
+                // 删除连线
+                connectionsToDelete.forEach(conn => this.removeConnection(conn.id));
+                
+                this.deselectAll();
+            }
+            
+            // 新建项目
+            newProject() {
+                if (confirm('确定要新建项目吗？当前项目的更改将会丢失。')) {
+                    this.nodes = [];
+                    this.connections = [];
+                    this.selectedElements = [];
+                    this.history = [];
+                    this.historyIndex = -1;
+                    this.updatePropertyPanel();
+                    this.scheduleRender();
+                }
+            }
+            
+            // 处理文件选择（导入）
+            handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const content = event.target.result;
+                        this.importMarkdown(content);
+                    } catch (error) {
+                        alert('导入失败: ' + error.message);
+                    }
+                };
+                
+                if (file.name.endsWith('.md')) {
+                    reader.readAsText(file);
+                } else {
+                    alert('请选择Markdown文件 (.md)');
+                }
+                
+                // 重置文件输入，允许重复选择同一个文件
+                e.target.value = '';
+            }
+            
+            // 导入Markdown
+            importMarkdown(content) {
+                // 简单的Markdown解析示例
+                const lines = content.split('\n');
+                let currentNode = null;
+                let nodesMap = new Map();
+                let nodeCounter = 0;
+                
+                // 清空现有内容
+                this.nodes = [];
+                this.connections = [];
+                
+                // 解析Markdown并创建节点
+                lines.forEach(line => {
+                    line = line.trim();
+                    
+                    // 标题作为节点
+                    if (line.startsWith('#')) {
+                        const level = line.search(/\S|$/);
+                        const title = line.substring(level).trim();
+                        
+                        // 创建新节点
+                        currentNode = new Node(
+                            title,
+                            100 + (nodeCounter % 5) * 200,
+                            100 + Math.floor(nodeCounter / 5) * 150
+                        );
+                        
+                        this.nodes.push(currentNode);
+                        nodesMap.set(title, currentNode.id);
+                        nodeCounter++;
+                    } 
+                    // 列表项作为连接
+                    else if (line.startsWith('-') && currentNode) {
+                        const text = line.substring(1).trim();
+                        if (nodesMap.has(text)) {
+                            this.connections.push(
+                                new Connection(currentNode.id, nodesMap.get(text))
+                            );
+                        }
+                    }
+                });
+                
+                this.deselectAll();
+                this.scheduleRender();
+            }
+            
+            // 导出Markdown
+            exportMarkdown() {
+                let mdContent = '# 节点图导出\n\n';
+                
+                // 导出节点
+                this.nodes.forEach(node => {
+                    mdContent += `## ${node.name}\n`;
+                    if (node.description) {
+                        mdContent += `${node.description}\n\n`;
+                    }
+                    
+                    // 导出从当前节点出发的连接
+                    const outgoingConnections = this.connections.filter(
+                        conn => conn.sourceNodeId === node.id
+                    );
+                    
+                    if (outgoingConnections.length > 0) {
+                        mdContent += '连接到：\n';
+                        outgoingConnections.forEach(conn => {
+                            const targetNode = this.nodes.find(n => n.id === conn.targetNodeId);
+                            if (targetNode) {
+                                mdContent += `- ${targetNode.name}\n`;
+                                
+                                // 导出条件
+                                if (conn.conditions.length > 0) {
+                                    conn.conditions.forEach(cond => {
+                                        mdContent += `  - 条件: ${cond.key} ${cond.operator} ${cond.value}\n`;
+                                    });
+                                }
+                            }
+                        });
+                        mdContent += '\n';
+                    }
+                });
+                
+                // 创建下载链接
+                const blob = new Blob([mdContent], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = '节点图导出.md';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            
+            // 导出为图片
+            exportAsImage() {
+                // 创建一个临时canvas用于导出
+                const exportCanvas = document.createElement('canvas');
+                const ctx = exportCanvas.getContext('2d');
+                
+                // 计算所有元素的边界框
+                let minX = Infinity, minY = Infinity;
+                let maxX = -Infinity, maxY = -Infinity;
+                
+                // 考虑所有节点
+                this.nodes.forEach(node => {
+                    minX = Math.min(minX, node.x);
+                    minY = Math.min(minY, node.y);
+                    maxX = Math.max(maxX, node.x + node.width);
+                    maxY = Math.max(maxY, node.y + node.height);
+                });
+                
+                // 考虑连线的起点和终点
+                this.connections.forEach(connection => {
+                    const sourceNode = this.nodes.find(n => n.id === connection.sourceNodeId);
+                    const targetNode = this.nodes.find(n => n.id === connection.targetNodeId);
+                    
+                    if (sourceNode && targetNode) {
+                        const startX = sourceNode.x + sourceNode.width / 2;
+                        const startY = sourceNode.y + sourceNode.height / 2;
+                        const endX = targetNode.x + targetNode.width / 2;
+                        const endY = targetNode.y + targetNode.height / 2;
+                        
+                        minX = Math.min(minX, startX, endX);
+                        minY = Math.min(minY, startY, endY);
+                        maxX = Math.max(maxX, startX, endX);
+                        maxY = Math.max(maxY, startY, endY);
+                    }
+                });
+                
+                // 如果没有元素，使用默认尺寸
+                if (this.nodes.length === 0 && this.connections.length === 0) {
+                    minX = 0;
+                    minY = 0;
+                    maxX = 800;
+                    maxY = 600;
+                } else {
+                    // 添加边距
+                    const padding = 50;
+                    minX -= padding;
+                    minY -= padding;
+                    maxX += padding;
+                    maxY += padding;
+                }
+                
+                // 设置导出canvas尺寸
+                const width = maxX - minX;
+                const height = maxY - minY;
+                exportCanvas.width = width;
+                exportCanvas.height = height;
+                
+                // 保存当前视图状态
+                const originalPan = { ...this.pan };
+                const originalZoom = this.zoom;
+                const originalSelectedElements = [...this.selectedElements];
+                
+                // 临时调整视图以适应所有元素
+                this.pan.x = -minX;
+                this.pan.y = -minY;
+                this.zoom = 1;
+                this.selectedElements = [];
+                
+                // 渲染到导出canvas
+                ctx.fillStyle = document.body.classList.contains('light-mode') ? '#f5f5f5' : '#1e1e1e';
+                ctx.fillRect(0, 0, width, height);
+                
+                // 绘制网格和元素
+                this.drawGrid(ctx, width, height, minX, minY, maxX, maxY);
+                this.drawConnections(ctx);
+                this.nodes.forEach(node => {
+                    node.calculateAutoSize(ctx);
+                    this.drawNode(ctx, node);
+                });
+                
+                // 恢复原始视图状态
+                this.pan = originalPan;
+                this.zoom = originalZoom;
+                this.selectedElements = originalSelectedElements;
+                
+                // 创建下载链接
+                exportCanvas.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = '节点图导出.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+                
+                this.scheduleRender();
+            }
+            
+            // 保存项目
+            saveProject() {
+                const projectData = {
+                    nodes: this.nodes.map(node => ({
+                        id: node.id,
+                        name: node.name,
+                        description: node.description,
+                        x: node.x,
+                        y: node.y,
+                        width: node.width,
+                        height: node.height,
+                        autoSize: node.autoSize
+                    })),
+                    connections: this.connections.map(conn => ({
+                        id: conn.id,
+                        sourceNodeId: conn.sourceNodeId,
+                        targetNodeId: conn.targetNodeId,
+                        conditions: conn.conditions.map(cond => ({
+                            type: cond.type,
+                            key: cond.key,
+                            operator: cond.operator,
+                            value: cond.value
+                        }))
+                    }))
+                };
+                
+                const json = JSON.stringify(projectData, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = '节点图项目.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            
+            // 绘制网格
+            drawGrid(ctx, width = this.canvas.width, height = this.canvas.height, 
+                     minX = 0, minY = 0, maxX = width, maxY = height) {
+                const gridSize = 20;
+                const isLightMode = document.body.classList.contains('light-mode');
+                
+                ctx.save();
+                
+                // 计算可见网格范围
+                const startX = Math.floor(minX / gridSize) * gridSize;
+                const startY = Math.floor(minY / gridSize) * gridSize;
+                const endX = Math.ceil(maxX / gridSize) * gridSize;
+                const endY = Math.ceil(maxY / gridSize) * gridSize;
+                
+                // 绘制主网格线
+                ctx.strokeStyle = isLightMode ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)';
+                ctx.lineWidth = 1;
+                
+                // 水平线
+                for (let y = startY; y <= endY; y += gridSize) {
+                    const screenY = this.worldToScreen(0, y).y;
+                    ctx.beginPath();
+                    ctx.moveTo(0, screenY);
+                    ctx.lineTo(width, screenY);
+                    ctx.stroke();
+                }
+                
+                // 垂直线
+                for (let x = startX; x <= endX; x += gridSize) {
+                    const screenX = this.worldToScreen(x, 0).x;
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, 0);
+                    ctx.lineTo(screenX, height);
+                    ctx.stroke();
+                }
+                
+                // 绘制较粗的网格线
+                ctx.strokeStyle = isLightMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 1.5;
+                
+                // 水平线
+                for (let y = startY; y <= endY; y += gridSize * 5) {
+                    const screenY = this.worldToScreen(0, y).y;
+                    ctx.beginPath();
+                    ctx.moveTo(0, screenY);
+                    ctx.lineTo(width, screenY);
+                    ctx.stroke();
+                }
+                
+                // 垂直线
+                for (let x = startX; x <= endX; x += gridSize * 5) {
+                    const screenX = this.worldToScreen(x, 0).x;
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, 0);
+                    ctx.lineTo(screenX, height);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+            
+            // 绘制节点
+            drawNode(ctx, node) {
+                const screenPos = this.worldToScreen(node.x, node.y);
+                const width = node.width * this.zoom;
+                const height = node.height * this.zoom;
+                
+                // 检查节点是否可见
+                if (screenPos.x + width < 0 || screenPos.x > this.canvas.width ||
+                    screenPos.y + height < 0 || screenPos.y > this.canvas.height) {
+                    return;
+                }
+                
+                ctx.save();
+                
+                // 节点是否被选中
+                const isSelected = this.selectedElements.some(el => el.id === node.id);
+                const isLightMode = document.body.classList.contains('light-mode');
+                
+                // 绘制节点背景
+                ctx.fillStyle = isSelected 
+                    ? '#007acc' 
+                    : isLightMode ? '#ffffff' : '#2d2d30';
+                
+                ctx.strokeStyle = isSelected 
+                    ? '#005a9e' 
+                    : isLightMode ? '#cccccc' : '#4a4a4a';
+                
+                ctx.lineWidth = isSelected ? 2 : 1;
+                
+                ctx.beginPath();
+                ctx.roundRect(screenPos.x, screenPos.y, width, height, 4);
+                ctx.fill();
+                ctx.stroke();
+                
+                // 绘制节点名称
+                ctx.font = 'bold 14px Arial';
+                ctx.fillStyle = isSelected ? '#ffffff' : isLightMode ? '#333333' : '#e0e0e0';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(node.name, screenPos.x + width / 2, screenPos.y + height / 3);
+                
+                // 绘制节点描述
+                if (node.description) {
+                    ctx.font = '10px Arial';
+                    ctx.fillStyle = isSelected ? 'rgba(255, 255, 255, 0.8)' : isLightMode ? '#666666' : '#969696';
+                    
+                    // 截断长描述
+                    let displayText = node.description;
+                    if (displayText.length > 30) {
+                        displayText = displayText.substring(0, 30) + '...';
+                    }
+                    
+                    ctx.fillText(displayText, screenPos.x + width / 2, screenPos.y + height * 2 / 3);
+                }
+                
+                ctx.restore();
+            }
+            
+            // 绘制连线
+            drawConnections(ctx) {
+                this.connections.forEach(connection => {
+                    const sourceNode = this.nodes.find(n => n.id === connection.sourceNodeId);
+                    const targetNode = this.nodes.find(n => n.id === connection.targetNodeId);
+                    
+                    if (!sourceNode || !targetNode) return;
+                    
+                    // 计算连线的起点和终点
+                    const startX = sourceNode.x + sourceNode.width / 2;
+                    const startY = sourceNode.y + sourceNode.height / 2;
+                    const endX = targetNode.x + targetNode.width / 2;
+                    const endY = targetNode.y + targetNode.height / 2;
+                    
+                    // 转换为屏幕坐标
+                    const screenStart = this.worldToScreen(startX, startY);
+                    const screenEnd = this.worldToScreen(endX, endY);
+                    
+                    // 连线是否被选中
+                    const isSelected = this.selectedElements.some(el => el.id === connection.id);
+                    const isLightMode = document.body.classList.contains('light-mode');
+                    
+                    ctx.save();
+                    
+                    // 绘制连线
+                    ctx.strokeStyle = isSelected ? '#007acc' : isLightMode ? '#666666' : '#969696';
+                    ctx.lineWidth = isSelected ? 2 : 1.5;
+                    ctx.setLineDash([]);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(screenStart.x, screenStart.y);
+                    
+                    // 计算控制点，使连线有一个弧度
+                    const controlX = (screenStart.x + screenEnd.x) / 2;
+                    ctx.quadraticCurveTo(controlX, screenStart.y, screenEnd.x, screenEnd.y);
+                    
+                    ctx.stroke();
+                    
+                    // 绘制箭头
+                    const arrowSize = 6;
+                    const angle = Math.atan2(screenEnd.y - screenStart.y, screenEnd.x - screenStart.x);
+                    
+                    ctx.fillStyle = ctx.strokeStyle;
+                    ctx.beginPath();
+                    ctx.moveTo(screenEnd.x, screenEnd.y);
+                    ctx.lineTo(
+                        screenEnd.x - arrowSize * Math.cos(angle - Math.PI / 6),
+                        screenEnd.y - arrowSize * Math.sin(angle - Math.PI / 6)
+                    );
+                    ctx.lineTo(
+                        screenEnd.x - arrowSize * Math.cos(angle + Math.PI / 6),
+                        screenEnd.y - arrowSize * Math.sin(angle + Math.PI / 6)
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    // 如果有条件，在连线中间绘制一个标记
+                    if (connection.conditions.length > 0) {
+                        const midX = (screenStart.x + screenEnd.x) / 2;
+                        const midY = (screenStart.y + screenEnd.y) / 2 - 10;
+                        
+                        ctx.fillStyle = isLightMode ? '#ffffff' : '#2d2d30';
+                        ctx.strokeStyle = ctx.strokeStyle;
+                        ctx.lineWidth = 1;
+                        
+                        ctx.beginPath();
+                        ctx.arc(midX, midY, 8, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                        
+                        ctx.font = '8px Arial';
+                        ctx.fillStyle = ctx.strokeStyle;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(connection.conditions.length, midX, midY);
+                    }
+                    
+                    ctx.restore();
+                });
+                
+                // 绘制正在创建的连线
+                if (this.creatingConnection) {
+                    const sourceNode = this.nodes.find(n => n.id === this.creatingConnection.sourceNodeId);
+                    if (sourceNode) {
+                        const startX = sourceNode.x + sourceNode.width / 2;
+                        const startY = sourceNode.y + sourceNode.height / 2;
+                        const screenStart = this.worldToScreen(startX, startY);
+                        
+                        // 获取鼠标位置
+                        const rect = this.canvas.getBoundingClientRect();
+                        const mouseX = this.lastMouseX - rect.left;
+                        const mouseY = this.lastMouseY - rect.top;
+                        
+                        ctx.save();
+                        ctx.strokeStyle = '#007acc';
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([5, 5]);
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(screenStart.x, screenStart.y);
+                        ctx.lineTo(mouseX, mouseY);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+            }
+            
+            // 渲染函数
+            render(timestamp) {
+                // 限制渲染频率
+                if (timestamp - this.lastRenderTime < this.renderDelay) {
+                    this.scheduleRender();
+                    return;
+                }
+                
+                this.lastRenderTime = timestamp;
+                
+                // 清空画布
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // 绘制网格
+                this.drawGrid(this.ctx);
+                
+                // 绘制连线
+                this.drawConnections(this.ctx);
+                
+                // 绘制节点
+                this.nodes.forEach(node => {
+                    node.calculateAutoSize(this.ctx);
+                    this.drawNode(this.ctx, node);
+                });
+                
+                // 继续渲染循环
+                this.scheduleRender();
+            }
+            
+            // 安排渲染
+            scheduleRender() {
+                if (!this.animationId) {
+                    this.animationId = requestAnimationFrame(timestamp => {
+                        this.animationId = null;
+                        this.render(timestamp);
+                    });
+                }
+            }
+        }
+        
+        // 初始化编辑器
+        document.addEventListener('DOMContentLoaded', () => {
+            const editor = new NodeGraphEditor('editor-canvas');
+        });
+    </script>
+</body>
+</html>
