@@ -208,7 +208,7 @@ export const showConnectionProperties = (connection, editor) => {
         nodeInfo.querySelector('div').style.color = '#666';
         nodeInfo.querySelectorAll('strong').forEach(s => s.style.color = '#333');
     }
-    conditionsList.appendChild(nodeInfo);
+    conditionsList.insertBefore(nodeInfo, conditionsList.firstChild);
     
     // 填充连线属性
     const colorInput = document.getElementById('connection-color');
@@ -303,6 +303,12 @@ export const showConnectionProperties = (connection, editor) => {
     
     // 显示面板
     connectionProperties.classList.remove('hidden');
+    
+    // 单一连线时，显示静态按钮
+    const addConditionBtnStatic = document.getElementById('add-condition');
+    const deleteConnectionBtnStatic = document.getElementById('delete-connection');
+    if (addConditionBtnStatic) addConditionBtnStatic.style.display = 'inline-block';
+    if (deleteConnectionBtnStatic) deleteConnectionBtnStatic.style.display = 'inline-block';
 };
 
 // 显示多条连线属性
@@ -319,12 +325,6 @@ export const showMultipleConnectionProperties = (connections, editor) => {
     // 创建绘制属性区域（在顶部，影响画布绘制）
     const drawPropertiesSection = document.createElement('div');
     drawPropertiesSection.className = 'draw-properties-section';
-    drawPropertiesSection.style.cssText = 'padding: 15px; border-bottom: 2px solid #ddd; margin-bottom: 15px; background: #f9f9f9;';
-    
-    const drawPropertiesTitle = document.createElement('h4');
-    drawPropertiesTitle.textContent = '画布绘制属性（影响所有选中连线）';
-    drawPropertiesTitle.style.cssText = 'margin: 0 0 10px 0;';
-    drawPropertiesSection.appendChild(drawPropertiesTitle);
     
     // 线颜色
     const colorInput = document.getElementById('connection-color');
@@ -402,7 +402,7 @@ export const showMultipleConnectionProperties = (connections, editor) => {
         // 创建连线标题（显示起始节点和终止节点名称）
         const connectionHeader = document.createElement('div');
         connectionHeader.className = 'connection-header';
-        connectionHeader.style.cssText = 'padding: 10px; border-bottom: 1px solid #ddd; cursor: pointer; background: #f5f5f5;';
+        //connectionHeader.style.cssText = 'padding: 10px; border-bottom: 1px solid #ddd; cursor: pointer; background: #f5f5f5;';
         connectionHeader.innerHTML = `
             <div style="font-weight: bold;">${sourceNode.name} → ${targetNode.name}</div>
             <div style="font-size: 11px; color: #969696; margin-top: 2px;">
@@ -420,74 +420,158 @@ export const showMultipleConnectionProperties = (connections, editor) => {
         connConditionsList.className = 'conditions-list';
         
         connection.conditions.forEach((condition, index) => {
-            const conditionEl = createConditionElement(condition, index, editor);
-            // 需要更新条件时使用当前connection
-            const conn = editor.connections.find(c => c.id === connection.id);
-            if (conn) {
-                // 重写条件元素的更新函数，使其直接更新当前connection
-                const inputs = conditionEl.querySelectorAll('input, select');
-                inputs.forEach(input => {
-                    // 移除原有的事件监听器
-                    const newInput = input.cloneNode(true);
-                    input.parentNode.replaceChild(newInput, input);
-                    
-                    // 根据输入类型添加新的事件监听器
-                    if (newInput.tagName === 'SELECT') {
-                        // 判断是类型选择还是操作符选择
-                        const isTypeSelect = newInput.querySelector('option[value="Float"]') !== null;
-                        newInput.addEventListener('change', (e) => {
-                            const prop = isTypeSelect ? 'type' : 'operator';
-                            conn.conditions[index][prop] = e.target.value;
-                            editor.scheduleRender();
-                        });
-                    } else {
-                        newInput.addEventListener('change', (e) => {
-                            const prop = newInput.placeholder === '键' ? 'key' : 'value';
-                            conn.conditions[index][prop] = e.target.value;
-                            editor.scheduleRender();
-                        });
-                    }
+            // 创建自定义的条件元素，直接关联到当前connection
+            const conditionItem = document.createElement('div');
+            conditionItem.className = 'condition-item';
+            conditionItem.dataset.index = index;
+            
+            // 条件头部
+            const header = document.createElement('div');
+            header.className = 'condition-header';
+            header.innerHTML = `<span>条件 ${index + 1}</span>`;
+            
+            // 条件控制按钮
+            const controls = document.createElement('div');
+            controls.className = 'condition-controls';
+            
+            const upBtn = document.createElement('button');
+            upBtn.innerHTML = '↑';
+            upBtn.disabled = index === 0;
+            upBtn.addEventListener('click', () => {
+                if (connection.conditions[index - 1]) {
+                    [connection.conditions[index], connection.conditions[index - 1]] = [connection.conditions[index - 1], connection.conditions[index]];
+                    editor.scheduleRender();
+                    showMultipleConnectionProperties(connections, editor);
+                }
+            });
+            
+            const downBtn = document.createElement('button');
+            downBtn.innerHTML = '↓';
+            downBtn.disabled = index === connection.conditions.length - 1;
+            downBtn.addEventListener('click', () => {
+                if (connection.conditions[index + 1]) {
+                    [connection.conditions[index], connection.conditions[index + 1]] = [connection.conditions[index + 1], connection.conditions[index]];
+                    editor.scheduleRender();
+                    showMultipleConnectionProperties(connections, editor);
+                }
+            });
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = '✕';
+            deleteBtn.addEventListener('click', () => {
+                connection.conditions.splice(index, 1);
+                editor.scheduleRender();
+                showMultipleConnectionProperties(connections, editor);
+            });
+            
+            controls.appendChild(upBtn);
+            controls.appendChild(downBtn);
+            controls.appendChild(deleteBtn);
+            header.appendChild(controls);
+            
+            // 条件字段
+            const fields = document.createElement('div');
+            fields.className = 'condition-fields';
+            
+            // 类型选择
+            const typeSelect = document.createElement('select');
+            typeSelect.innerHTML = `
+                <option value="Float">Float</option>
+                <option value="Int">Int</option>
+                <option value="Bool">Bool</option>
+                <option value="Trigger">Trigger</option>
+            `;
+            typeSelect.value = condition.type;
+            typeSelect.addEventListener('change', (e) => {
+                conn.conditions[index].type = e.target.value;
+                editor.scheduleRender();
+                // 重新渲染以更新UI
+                showMultipleConnectionProperties(connections, editor);
+            });
+            
+            // 键输入
+            const keyInput = document.createElement('input');
+            keyInput.type = 'text';
+            keyInput.placeholder = '键';
+            keyInput.value = condition.key || '';
+            keyInput.addEventListener('input', (e) => {
+                conn.conditions[index].key = e.target.value;
+                editor.scheduleRender();
+            });
+            
+            // 添加类型和键输入
+            fields.appendChild(typeSelect);
+            fields.appendChild(keyInput);
+            
+            // 根据类型添加其他字段
+            const currentType = condition.type;
+            
+            if (currentType !== 'Trigger') {
+                // 操作符选择
+                const operatorSelect = document.createElement('select');
+                let operatorOptions = '';
+                
+                if (currentType === 'Bool') {
+                    operatorOptions = `
+                        <option value="==">等于</option>
+                        <option value="!=">不等于</option>
+                    `;
+                } else {
+                    operatorOptions = `
+                        <option value=">">大于</option>
+                        <option value="<">小于</option>
+                        <option value="==">等于</option>
+                        <option value="!=">不等于</option>
+                        <option value=">=">大于等于</option>
+                        <option value="<=">小于等于</option>
+                    `;
+                }
+                
+                operatorSelect.innerHTML = operatorOptions;
+                operatorSelect.value = condition.operator || '==';
+                operatorSelect.addEventListener('change', (e) => {
+                    conn.conditions[index].operator = e.target.value;
+                    editor.scheduleRender();
                 });
                 
-                // 重写按钮事件
-                const upBtn = conditionEl.querySelector('.condition-controls button:first-child');
-                const downBtn = conditionEl.querySelector('.condition-controls button:nth-child(2)');
-                const deleteBtn = conditionEl.querySelector('.condition-controls button:last-child');
+                fields.appendChild(operatorSelect);
                 
-                if (upBtn) {
-                    const newUpBtn = upBtn.cloneNode(true);
-                    upBtn.parentNode.replaceChild(newUpBtn, upBtn);
-                    newUpBtn.addEventListener('click', () => {
-                        if (index > 0) {
-                            [conn.conditions[index], conn.conditions[index - 1]] = 
-                                [conn.conditions[index - 1], conn.conditions[index]];
-                            showMultipleConnectionProperties(connections, editor);
-                        }
+                // 值输入
+                if (currentType === 'Bool') {
+                    const valueCheckbox = document.createElement('input');
+                    valueCheckbox.type = 'checkbox';
+                    valueCheckbox.checked = condition.value === 'true' || condition.value === true;
+                    valueCheckbox.addEventListener('change', (e) => {
+                        conn.conditions[index].value = e.target.checked.toString();
+                        editor.scheduleRender();
                     });
-                }
-                
-                if (downBtn) {
-                    const newDownBtn = downBtn.cloneNode(true);
-                    downBtn.parentNode.replaceChild(newDownBtn, downBtn);
-                    newDownBtn.addEventListener('click', () => {
-                        if (index < conn.conditions.length - 1) {
-                            [conn.conditions[index], conn.conditions[index + 1]] = 
-                                [conn.conditions[index + 1], conn.conditions[index]];
-                            showMultipleConnectionProperties(connections, editor);
-                        }
+                    fields.appendChild(valueCheckbox);
+                } else {
+                    const valueInput = document.createElement('input');
+                    valueInput.type = 'number';
+                    valueInput.step = currentType === 'Int' ? '1' : '0.1';
+                    valueInput.value = condition.value !== undefined ? 
+                        (currentType === 'Int' ? parseInt(condition.value) : parseFloat(condition.value)) : 0;
+                    valueInput.addEventListener('input', (e) => {
+                        const value = currentType === 'Int' ? 
+                            parseInt(e.target.value) || 0 : 
+                            parseFloat(e.target.value) || 0;
+                        conn.conditions[index].value = value.toString();
+                        editor.scheduleRender();
                     });
+                    fields.appendChild(valueInput);
                 }
-                
-                if (deleteBtn) {
-                    const newDeleteBtn = deleteBtn.cloneNode(true);
-                    deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
-                    newDeleteBtn.addEventListener('click', () => {
-                        conn.conditions.splice(index, 1);
-                        showMultipleConnectionProperties(connections, editor);
-                    });
-                }
+            } else {
+                // Trigger类型显示Active标签
+                const activeLabel = document.createElement('span');
+                activeLabel.textContent = 'Active';
+                activeLabel.className = 'trigger-active-label';
+                fields.appendChild(activeLabel);
             }
-            connConditionsList.appendChild(conditionEl);
+            
+            conditionItem.appendChild(header);
+            conditionItem.appendChild(fields);
+            connConditionsList.appendChild(conditionItem);
         });
         
         connectionContent.appendChild(connConditionsList);
@@ -539,13 +623,13 @@ export const showMultipleConnectionProperties = (connections, editor) => {
         connectionHeader.addEventListener('click', () => {
             const isHidden = connectionContent.style.display === 'none';
             connectionContent.style.display = isHidden ? 'block' : 'none';
-            connectionHeader.style.background = isHidden ? '#e5e5e5' : '#f5f5f5';
+            //connectionHeader.style.background = isHidden ? '#e5e5e5' : '#f5f5f5';
         });
         
         // 添加到列表
         const connectionItem = document.createElement('div');
         connectionItem.className = 'connection-item';
-        connectionItem.style.cssText = 'margin-bottom: 10px; border: 1px solid #ddd;';
+        connectionItem.style.cssText = 'margin-bottom: 10px; border: 1px solid #464647; border-radius: 3px;';
         connectionItem.appendChild(connectionHeader);
         connectionItem.appendChild(connectionContent);
         conditionsList.appendChild(connectionItem);
@@ -553,4 +637,10 @@ export const showMultipleConnectionProperties = (connections, editor) => {
     
     // 显示面板
     connectionProperties.classList.remove('hidden');
+    
+    // 复合连线时，隐藏静态按钮
+    const addConditionBtnStatic = document.getElementById('add-condition');
+    const deleteConnectionBtnStatic = document.getElementById('delete-connection');
+    if (addConditionBtnStatic) addConditionBtnStatic.style.display = 'none';
+    if (deleteConnectionBtnStatic) deleteConnectionBtnStatic.style.display = 'none';
 };

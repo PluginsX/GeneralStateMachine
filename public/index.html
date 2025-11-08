@@ -12,17 +12,39 @@
     <!-- 顶部菜单栏 -->
     <div class="menu-bar">
         <div class="menu-group">
-            <button id="new-project">新建</button>
-            <button id="open-project">打开</button>
-            <button id="import-md">导入</button>
+            <!-- 文件菜单 -->
             <div class="export-submenu">
-                <button id="export-menu">导出</button>
+                <button id="file-menu">文件</button>
                 <div class="export-submenu-content">
-                    <button id="export-md">导出Markdown</button>
-                    <button id="export-image">导出为位图</button>
+                    <button id="new-project">新建工程</button>
+                    <button id="open-project">打开工程</button>
+                    <button id="save-project">保存工程</button>
                 </div>
             </div>
-            <button id="save-project">保存</button>
+            
+            <!-- 工具菜单 -->
+            <div class="export-submenu">
+                <button id="tools-menu">工具</button>
+                <div class="export-submenu-content">
+                    <!-- 导入子菜单 -->
+                    <div class="export-submenu">
+                        <button id="import-menu">导入</button>
+                        <div class="export-submenu-content">
+                            <button id="import-md">Markdown</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 导出子菜单 -->
+                    <div class="export-submenu">
+                        <button id="export-menu">导出</button>
+                        <div class="export-submenu-content">
+                            <button id="export-md">Markdown</button>
+                            <button id="export-image">Image</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <select id="selection-filter" class="selection-filter">
                 <option value="all">选择所有对象</option>
                 <option value="nodes">仅选择节点</option>

@@ -47,43 +47,110 @@ export const createConditionElement = (condition, index, editor) => {
         <option value="Trigger">Trigger</option>
     `;
     typeSelect.value = condition.type;
-    typeSelect.addEventListener('change', (e) => 
-        editor.updateCondition(index, 'type', e.target.value));
+    typeSelect.addEventListener('change', (e) => {
+        editor.updateCondition(index, 'type', e.target.value);
+        // 重新创建条件元素以更新UI
+        updateConditionFields();
+    });
     
     // 键输入
     const keyInput = document.createElement('input');
     keyInput.type = 'text';
     keyInput.placeholder = '键';
-    keyInput.value = condition.key;
-    keyInput.addEventListener('change', (e) => 
+    keyInput.value = condition.key || '';
+    // 改为input事件以实现实时更新
+    keyInput.addEventListener('input', (e) => 
         editor.updateCondition(index, 'key', e.target.value));
     
-    // 操作符选择
-    const operatorSelect = document.createElement('select');
-    operatorSelect.innerHTML = `
-        <option value=">">大于</option>
-        <option value="<">小于</option>
-        <option value="==">等于</option>
-        <option value="!=">不等于</option>
-        <option value=">=">大于等于</option>
-        <option value="<=">小于等于</option>
-    `;
-    operatorSelect.value = condition.operator;
-    operatorSelect.addEventListener('change', (e) => 
-        editor.updateCondition(index, 'operator', e.target.value));
+    // 根据类型更新条件字段的函数
+    const updateConditionFields = () => {
+        // 清空现有字段，保留类型和键输入
+        while (fields.lastChild) {
+            if (fields.lastChild === typeSelect || fields.lastChild === keyInput) {
+                break;
+            }
+            fields.removeChild(fields.lastChild);
+        }
+        
+        const currentType = typeSelect.value;
+        
+        if (currentType === 'Trigger') {
+            // Trigger类型只显示"Active"文本
+            const activeLabel = document.createElement('span');
+            activeLabel.textContent = 'Active';
+            activeLabel.className = 'trigger-active-label';
+            fields.appendChild(activeLabel);
+        } else {
+            // 操作符选择 - 根据类型动态生成选项
+            const operatorSelect = document.createElement('select');
+            let operatorOptions = '';
+            
+            if (currentType === 'Bool') {
+                // Bool类型只有等于和不等于
+                operatorOptions = `
+                    <option value="==">等于</option>
+                    <option value="!=">不等于</option>
+                `;
+            } else {
+                // Float和Int类型有所有运算符
+                operatorOptions = `
+                    <option value=">">大于</option>
+                    <option value="<">小于</option>
+                    <option value="==">等于</option>
+                    <option value="!=">不等于</option>
+                    <option value=">=">大于等于</option>
+                    <option value="<=">小于等于</option>
+                `;
+            }
+            
+            operatorSelect.innerHTML = operatorOptions;
+            operatorSelect.value = condition.operator || '==';
+            // 改为input事件以实现实时更新
+            operatorSelect.addEventListener('change', (e) => 
+                editor.updateCondition(index, 'operator', e.target.value));
+            
+            // 值输入 - 根据类型使用不同的输入控件
+            let valueControl;
+            
+            if (currentType === 'Bool') {
+                // Bool类型使用复选框
+                valueControl = document.createElement('input');
+                valueControl.type = 'checkbox';
+                valueControl.checked = condition.value === 'true' || condition.value === true;
+                // 改为change事件以实现实时更新
+                valueControl.addEventListener('change', (e) => 
+                    editor.updateCondition(index, 'value', e.target.checked.toString()));
+            } else {
+                // Float和Int类型使用数字输入框
+                valueControl = document.createElement('input');
+                valueControl.type = 'number';
+                if (currentType === 'Int') {
+                    valueControl.step = '1';
+                    valueControl.value = condition.value !== undefined ? parseInt(condition.value) : 0;
+                } else { // Float
+                    valueControl.step = '0.1';
+                    valueControl.value = condition.value !== undefined ? parseFloat(condition.value) : 0;
+                }
+                // 改为input事件以实现实时更新
+                valueControl.addEventListener('input', (e) => {
+                    const value = currentType === 'Int' ? 
+                        parseInt(e.target.value) || 0 : 
+                        parseFloat(e.target.value) || 0;
+                    editor.updateCondition(index, 'value', value.toString());
+                });
+            }
+            
+            fields.appendChild(operatorSelect);
+            fields.appendChild(valueControl);
+        }
+    };
     
-    // 值输入
-    const valueInput = document.createElement('input');
-    valueInput.type = 'text';
-    valueInput.placeholder = '值';
-    valueInput.value = condition.value;
-    valueInput.addEventListener('change', (e) => 
-        editor.updateCondition(index, 'value', e.target.value));
-    
+    // 添加类型和键输入
     fields.appendChild(typeSelect);
     fields.appendChild(keyInput);
-    fields.appendChild(operatorSelect);
-    fields.appendChild(valueInput);
+    
+    // 初始更新字段
+    updateConditionFields();
     
     conditionItem.appendChild(header);
     conditionItem.appendChild(fields);

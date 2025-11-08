@@ -3,6 +3,10 @@
     padding: 0;
     box-sizing: border-box;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 body {
@@ -91,6 +95,21 @@ body.light-mode .selection-filter {
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     z-index: 100;
     border-radius: 3px;
+    left: 0;
+    top: 100%; /* 顶级子菜单向下展开 */
+}
+
+/* 嵌套子菜单样式 - 确保左上角对齐父菜单项右上角 */
+.export-submenu .export-submenu {
+    display: block;
+    position: relative;
+}
+
+/* 确保嵌套子菜单向右展开并正确对齐 */
+.export-submenu .export-submenu .export-submenu-content {
+    left: 100%; /* 子菜单左侧紧靠父菜单右侧 */
+    top: 0; /* 子菜单Top与父菜单项Top对齐 */
+    margin-top: 0;
 }
 
 body.light-mode .export-submenu-content {
@@ -105,7 +124,8 @@ body.light-mode .export-submenu-content {
     border-radius: 0;
 }
 
-.export-submenu:hover .export-submenu-content {
+.export-submenu > button:hover + .export-submenu-content,
+.export-submenu > .export-submenu-content:hover {
     display: block;
 }
 
@@ -132,7 +152,7 @@ body.light-mode .export-submenu-content {
     flex: 0 0 auto;
     padding: 10px;
     min-height: 100px;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 .object-section {
@@ -201,7 +221,7 @@ body.light-mode .toolbar-btn:hover {
     right: 0;
     height: 10px;
     transform: translateY(-50%);
-    background: transparent;
+    background: #3e3e42;
     transition: background-color 0.2s;
 }
 
