@@ -1,18 +1,78 @@
 import Connection from '../core/connection.js';
 import Condition from '../core/condition.js';
 import Node from '../core/node.js';
+import { extractMermaidCharts, parseMermaidChart, parseMarkdownList } from '../utils/mermaidParser.js';
 
 // 导入Markdown
 export const importMarkdown = (content, editor) => {
+    // 清空现有内容
+    editor.nodes = [];
+    editor.connections = [];
+    
+    // 尝试从mermaid图表导入
+    const mermaidCharts = extractMermaidCharts(content);
+    
+    if (mermaidCharts.length > 0) {
+        // 如果找到mermaid图表，导入第一个图表
+        const { type, code } = mermaidCharts[0];
+        const { nodes, connections } = parseMermaidChart(type, code);
+        
+        // 转换为实际的Node和Connection对象
+        const nodeMap = new Map();
+        
+        nodes.forEach(nodeData => {
+            const node = new Node(nodeData.name, nodeData.x, nodeData.y);
+            nodeMap.set(nodeData.id, node.id);
+            editor.nodes.push(node);
+        });
+        
+        connections.forEach(connData => {
+            const connection = new Connection(
+                nodeMap.get(connData.sourceNodeId),
+                nodeMap.get(connData.targetNodeId)
+            );
+            editor.connections.push(connection);
+        });
+    } 
+    // 尝试从无序列表导入
+    else {
+        const { nodes, connections } = parseMarkdownList(content);
+        
+        if (nodes.length > 0) {
+            // 转换为实际的Node和Connection对象
+            const nodeMap = new Map();
+            
+            nodes.forEach(nodeData => {
+                const node = new Node(nodeData.name, nodeData.x, nodeData.y);
+                nodeMap.set(nodeData.id, node.id);
+                editor.nodes.push(node);
+            });
+            
+            connections.forEach(connData => {
+                const connection = new Connection(
+                    nodeMap.get(connData.sourceNodeId),
+                    nodeMap.get(connData.targetNodeId)
+                );
+                editor.connections.push(connection);
+            });
+        }
+        // 回退到原始的标题解析
+        else {
+            importMarkdownLegacy(content, editor);
+        }
+    }
+    
+    editor.deselectAll();
+    editor.scheduleRender();
+};
+
+// 原始的Markdown解析方法（作为回退）
+const importMarkdownLegacy = (content, editor) => {
     // 简单的Markdown解析示例
     const lines = content.split('\n');
     let currentNode = null;
     let nodesMap = new Map();
     let nodeCounter = 0;
-    
-    // 清空现有内容
-    editor.nodes = [];
-    editor.connections = [];
     
     // 解析Markdown并创建节点
     lines.forEach(line => {
@@ -44,9 +104,6 @@ export const importMarkdown = (content, editor) => {
             }
         }
     });
-    
-    editor.deselectAll();
-    editor.scheduleRender();
 };
 
 // 处理文件选择（导入）
