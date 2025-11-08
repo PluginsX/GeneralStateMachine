@@ -1118,20 +1118,10 @@ export default class NodeGraphEditor {
                 const targetNode = this.nodes.find(n => n.id === connection.targetNodeId);
                 
                 if (sourceNode && targetNode) {
-                    // 检查连线的两个端点是否在选择框内
-                    const startInRect = isPointInRect(
-                        sourceNode.x + sourceNode.width / 2,
-                        sourceNode.y + sourceNode.height / 2,
-                        selectionRect
-                    );
+                    // 检查是否选中箭头或端点
+                    const isConnected = this._isConnectionSelectedByArrowOrEndpoints(sourceNode, targetNode, selectionRect, connection);
                     
-                    const endInRect = isPointInRect(
-                        targetNode.x + targetNode.width / 2,
-                        targetNode.y + targetNode.height / 2,
-                        selectionRect
-                    );
-                    
-                    if (startInRect && endInRect) {
+                    if (isConnected) {
                         this.selectedElements.push(connection);
                     }
                 }
@@ -1144,6 +1134,88 @@ export default class NodeGraphEditor {
         ).values()];
         
         updatePropertyPanel(this);
+    }
+    
+    // 检查连线是否通过箭头或端点被选中
+    _isConnectionSelectedByArrowOrEndpoints(sourceNode, targetNode, selectionRect, connection) {
+        // 检查端点是否在选择框内（原有逻辑）
+        const sourceCenterX = sourceNode.x + sourceNode.width / 2;
+        const sourceCenterY = sourceNode.y + sourceNode.height / 2;
+        const targetCenterX = targetNode.x + targetNode.width / 2;
+        const targetCenterY = targetNode.y + targetNode.height / 2;
+        
+        const startInRect = isPointInRect(sourceCenterX, sourceCenterY, selectionRect);
+        const endInRect = isPointInRect(targetCenterX, targetCenterY, selectionRect);
+        
+        // 如果两个端点都在选择框内，保持原有逻辑
+        if (startInRect && endInRect) {
+            return true;
+        }
+        
+        // 计算连线方向和箭头位置
+        const dx = targetCenterX - sourceCenterX;
+        const dy = targetCenterY - sourceCenterY;
+        const angle = Math.atan2(dy, dx);
+        
+        // 箭头大小默认为10（与drawArrow方法一致）
+        const arrowSize = 10;
+        
+        // 计算连线中点（箭头实际绘制在中点位置）
+        const midX = (sourceCenterX + targetCenterX) / 2;
+        const midY = (sourceCenterY + targetCenterY) / 2;
+        
+        // 计算箭头中心位置（使用连线中点作为箭头中心，与drawConnectionGroup方法中的绘制逻辑一致）
+        const arrowCenterX = midX;
+        const arrowCenterY = midY;
+        
+        // 计算箭头的三个顶点
+        const tipX = arrowCenterX + arrowSize * Math.cos(angle);
+        const tipY = arrowCenterY + arrowSize * Math.sin(angle);
+        const base1X = arrowCenterX - arrowSize * Math.cos(angle - Math.PI / 3);
+        const base1Y = arrowCenterY - arrowSize * Math.sin(angle - Math.PI / 3);
+        const base2X = arrowCenterX - arrowSize * Math.cos(angle + Math.PI / 3);
+        const base2Y = arrowCenterY - arrowSize * Math.sin(angle + Math.PI / 3);
+        
+        // 检查箭头三角形是否与选择框相交
+        // 1. 检查箭头的任意一个顶点是否在选择框内
+        const tipInRect = isPointInRect(tipX, tipY, selectionRect);
+        const base1InRect = isPointInRect(base1X, base1Y, selectionRect);
+        const base2InRect = isPointInRect(base2X, base2Y, selectionRect);
+        
+        if (tipInRect || base1InRect || base2InRect) {
+            return true;
+        }
+        
+        // 2. 对于多条平行连线的情况，也检查另一个方向的箭头
+        // 查找是否有反向连接（多条平行连线）
+        const hasReverseConnection = this.connections.some(conn => 
+            conn.sourceNodeId === connection.targetNodeId && 
+            conn.targetNodeId === connection.sourceNodeId
+        );
+        
+        if (hasReverseConnection) {
+            // 对于反向连接，箭头位置也在中点，但方向相反
+            const reverseAngle = angle + Math.PI;
+            
+            // 计算反向箭头的三个顶点
+            const reverseTipX = arrowCenterX + arrowSize * Math.cos(reverseAngle);
+            const reverseTipY = arrowCenterY + arrowSize * Math.sin(reverseAngle);
+            const reverseBase1X = arrowCenterX - arrowSize * Math.cos(reverseAngle - Math.PI / 3);
+            const reverseBase1Y = arrowCenterY - arrowSize * Math.sin(reverseAngle - Math.PI / 3);
+            const reverseBase2X = arrowCenterX - arrowSize * Math.cos(reverseAngle + Math.PI / 3);
+            const reverseBase2Y = arrowCenterY - arrowSize * Math.sin(reverseAngle + Math.PI / 3);
+            
+            // 检查反向箭头的顶点是否在选择框内
+            const reverseTipInRect = isPointInRect(reverseTipX, reverseTipY, selectionRect);
+            const reverseBase1InRect = isPointInRect(reverseBase1X, reverseBase1Y, selectionRect);
+            const reverseBase2InRect = isPointInRect(reverseBase2X, reverseBase2Y, selectionRect);
+            
+            if (reverseTipInRect || reverseBase1InRect || reverseBase2InRect) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     // 取消所有选择
@@ -2020,61 +2092,76 @@ export default class NodeGraphEditor {
             }
         });
         
-        // 先绘制未选中的连线
+        // 1. 绘制未选中的连线
         unselectedGroups.forEach(group => {
             this.drawConnectionGroup(this.ctx, group);
         });
         
-        // 绘制未选中的节点
+        // 2. 绘制未选中的节点
         unselectedNodes.forEach(node => {
             node.calculateAutoSize(this.ctx);
             this.drawNode(this.ctx, node);
         });
         
-        // 再绘制选中的连线（在未选中节点之上）
-        selectedGroups.forEach(group => {
-            this.drawConnectionGroup(this.ctx, group);
-        });
+        // 3. 检查是否有选中的连线
+        const hasSelectedConnections = selectedGroups.some(group => 
+            group.forward.some(conn => this.selectedElements.includes(conn)) ||
+            group.backward.some(conn => this.selectedElements.includes(conn))
+        );
         
-        // 分离选中连线的起始和终止节点
-        const selectedConnectionNodes = new Set();
-        selectedGroups.forEach(group => {
-            group.forward.forEach(conn => {
-                if (this.selectedElements.includes(conn)) {
-                    selectedConnectionNodes.add(conn.sourceNodeId);
-                    selectedConnectionNodes.add(conn.targetNodeId);
+        // 4. 检查是否只有选中的节点
+        const hasSelectedNodesOnly = selectedNodes.length > 0 && !hasSelectedConnections;
+        
+        if (hasSelectedNodesOnly) {
+            // 4.1 当单选节点时，该选中的节点在最后绘制(最上层)
+            // 不在这里绘制，留到最后绘制所有选中节点
+        } else {
+            // 4.2 当选中的是连线时，先绘制选中的连线
+            selectedGroups.forEach(group => {
+                this.drawConnectionGroup(this.ctx, group);
+            });
+            
+            // 分离选中连线的起始和终止节点
+            const selectedConnectionNodes = new Set();
+            selectedGroups.forEach(group => {
+                group.forward.forEach(conn => {
+                    if (this.selectedElements.includes(conn)) {
+                        selectedConnectionNodes.add(conn.sourceNodeId);
+                        selectedConnectionNodes.add(conn.targetNodeId);
+                    }
+                });
+                group.backward.forEach(conn => {
+                    if (this.selectedElements.includes(conn)) {
+                        selectedConnectionNodes.add(conn.sourceNodeId);
+                        selectedConnectionNodes.add(conn.targetNodeId);
+                    }
+                });
+            });
+            
+            // 先绘制非连线相关的选中节点
+            selectedNodes.forEach(node => {
+                if (!selectedConnectionNodes.has(node.id)) {
+                    node.calculateAutoSize(this.ctx);
+                    this.drawNode(this.ctx, node);
                 }
             });
-            group.backward.forEach(conn => {
-                if (this.selectedElements.includes(conn)) {
-                    selectedConnectionNodes.add(conn.sourceNodeId);
-                    selectedConnectionNodes.add(conn.targetNodeId);
+            
+            // 最后绘制选中连线的起始和终止节点（最顶层，覆盖选中连线）
+            selectedNodes.forEach(node => {
+                if (selectedConnectionNodes.has(node.id)) {
+                    node.calculateAutoSize(this.ctx);
+                    this.drawNode(this.ctx, node);
                 }
             });
-        });
+        }
         
-        // 分离选中节点：选中连线的节点和其他选中节点
-        const selectedConnectionRelatedNodes = [];
-        const otherSelectedNodes = [];
-        selectedNodes.forEach(node => {
-            if (selectedConnectionNodes.has(node.id)) {
-                selectedConnectionRelatedNodes.push(node);
-            } else {
-                otherSelectedNodes.push(node);
-            }
-        });
-        
-        // 先绘制其他选中节点
-        otherSelectedNodes.forEach(node => {
-            node.calculateAutoSize(this.ctx);
-            this.drawNode(this.ctx, node);
-        });
-        
-        // 最后绘制选中连线的起始和终止节点（最顶层，覆盖选中连线）
-        selectedConnectionRelatedNodes.forEach(node => {
-            node.calculateAutoSize(this.ctx);
-            this.drawNode(this.ctx, node);
-        });
+        // 如果只有选中的节点，则在这里绘制（最顶层）
+        if (hasSelectedNodesOnly) {
+            selectedNodes.forEach(node => {
+                node.calculateAutoSize(this.ctx);
+                this.drawNode(this.ctx, node);
+            });
+        }
         
         // 绘制正在创建的连线（最顶层）
         if (this.creatingConnection) {
@@ -2135,72 +2222,120 @@ export default class NodeGraphEditor {
             // 如果有新节点且节点有描述信息，设置定时器显示提示框
             if (hoveredNode && hoveredNode.description && hoveredNode.description.trim()) {
                 this.hoverStartTime = Date.now();
-                this.hoverTimeout = setTimeout(() => {
-                    this.showTooltip(hoveredNode, screenX, screenY);
-                }, 1000); // 1秒后显示
+                // 使用函数参数传递节点引用，避免闭包中的引用问题
+                this.hoverTimeout = setTimeout((nodeRef) => {
+                    // 再次检查节点是否仍然被悬浮
+                    if (this.hoveredNode === nodeRef) {
+                        // 使用当前的鼠标位置计算提示框位置
+                        const rect = this.canvas.getBoundingClientRect();
+                        const currentScreenX = this.lastMouseX - rect.left;
+                        const currentScreenY = this.lastMouseY - rect.top;
+                        this.showTooltip(nodeRef, currentScreenX, currentScreenY);
+                    }
+                }, 1000, hoveredNode); // 1秒后显示
             }
         }
     }
     
     // 显示节点提示框
     showTooltip(node, screenX, screenY) {
-        // 如果提示框已存在，先移除
-        this.hideTooltip();
-        
-        // 创建提示框元素
-        const tooltip = document.createElement('div');
-        tooltip.className = 'node-tooltip';
-        tooltip.id = 'node-tooltip';
-        
-        // 设置样式
-        const isLight = document.body.classList.contains('light-mode');
-        tooltip.style.cssText = `
-            position: absolute;
-            min-width: 150px;
-            max-width: 300px;
-            padding: 8px 12px;
-            background: ${isLight ? '#ffffff' : '#2d2d30'};
-            color: ${isLight ? '#333333' : '#e0e0e0'};
-            border: 1px solid ${isLight ? '#ccc' : '#3e3e42'};
-            border-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            font-size: 12px;
-            line-height: 1.4;
-            z-index: 10000;
-            pointer-events: none;
-            word-wrap: break-word;
-            white-space: pre-wrap;
-        `;
-        
-        // 设置内容
-        tooltip.textContent = node.description;
-        
-        // 添加到body
-        document.body.appendChild(tooltip);
-        
-        // 计算位置：节点左下角下方5像素
-        const nodeScreenPos = this.worldToScreen(node.x, node.y + node.height);
-        const rect = this.canvas.getBoundingClientRect();
-        const tooltipX = rect.left + nodeScreenPos.x;
-        const tooltipY = rect.top + nodeScreenPos.y + 5;
-        
-        tooltip.style.left = tooltipX + 'px';
-        tooltip.style.top = tooltipY + 'px';
-        
-        this.tooltipElement = tooltip;
+        try {
+            // 如果提示框已存在，先移除
+            this.hideTooltip();
+            
+            // 创建提示框元素
+            const tooltip = document.createElement('div');
+            tooltip.className = 'node-tooltip';
+            tooltip.id = 'node-tooltip';
+            
+            // 设置样式 - 使用更可靠的样式设置方式
+            tooltip.style.position = 'absolute';
+            tooltip.style.minWidth = '150px';
+            tooltip.style.maxWidth = '300px';
+            tooltip.style.padding = '8px 12px';
+            tooltip.style.borderRadius = '4px';
+            tooltip.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.2)';
+            tooltip.style.fontSize = '12px';
+            tooltip.style.lineHeight = '1.4';
+            tooltip.style.zIndex = '10000';
+            tooltip.style.pointerEvents = 'none';
+            tooltip.style.wordWrap = 'break-word';
+            tooltip.style.whiteSpace = 'pre-wrap';
+            tooltip.style.opacity = '0';
+            tooltip.style.transition = 'opacity 0.2s ease-in-out';
+            
+            // 根据主题设置颜色
+            const isLight = document.body.classList.contains('light-mode');
+            tooltip.style.backgroundColor = isLight ? '#ffffff' : '#2d2d30';
+            tooltip.style.color = isLight ? '#333333' : '#e0e0e0';
+            tooltip.style.border = `1px solid ${isLight ? '#ccc' : '#3e3e42'}`;
+            
+            // 设置内容
+            tooltip.textContent = node.description || '';
+            
+            // 添加到body
+            document.body.appendChild(tooltip);
+            
+            // 计算位置：使用鼠标位置而不是节点位置
+            const rect = this.canvas.getBoundingClientRect();
+            let tooltipX = this.lastMouseX + 10; // 鼠标右侧10px
+            let tooltipY = this.lastMouseY + 10; // 鼠标下方10px
+            
+            // 确保提示框不会超出视口边界
+            const tooltipRect = tooltip.getBoundingClientRect();
+            if (tooltipX + tooltipRect.width > window.innerWidth) {
+                tooltipX = this.lastMouseX - tooltipRect.width - 10;
+            }
+            if (tooltipY + tooltipRect.height > window.innerHeight) {
+                tooltipY = this.lastMouseY - tooltipRect.height - 10;
+            }
+            
+            // 设置位置
+            tooltip.style.left = tooltipX + 'px';
+            tooltip.style.top = tooltipY + 'px';
+            
+            // 触发重排后再设置opacity，实现淡入效果
+            tooltip.offsetHeight; // 强制重排
+            tooltip.style.opacity = '1';
+            
+            this.tooltipElement = tooltip;
+        } catch (error) {
+            console.error('Error showing tooltip:', error);
+        }
     }
     
     // 隐藏节点提示框
     hideTooltip() {
-        if (this.tooltipElement) {
-            this.tooltipElement.remove();
+        try {
+            // 如果有定时器，清除它
+            if (this.hoverTimeout) {
+                clearTimeout(this.hoverTimeout);
+                this.hoverTimeout = null;
+            }
+            
+            // 移除提示框元素
+            if (this.tooltipElement && document.body.contains(this.tooltipElement)) {
+                // 添加淡出效果
+                this.tooltipElement.style.opacity = '0';
+                setTimeout(() => {
+                    if (this.tooltipElement && document.body.contains(this.tooltipElement)) {
+                        this.tooltipElement.remove();
+                    }
+                }, 200); // 等待淡出动画完成
+            }
+            
+            // 重置状态
             this.tooltipElement = null;
-        }
-        if (this.hoverTimeout) {
-            clearTimeout(this.hoverTimeout);
+            this.hoveredNode = null;
+            this.hoverStartTime = 0;
+        } catch (error) {
+            console.error('Error hiding tooltip:', error);
+            // 确保状态被重置
+            this.tooltipElement = null;
+            this.hoveredNode = null;
             this.hoverTimeout = null;
+            this.hoverStartTime = 0;
         }
-        this.hoveredNode = null;
     }
     
     // 安排渲染

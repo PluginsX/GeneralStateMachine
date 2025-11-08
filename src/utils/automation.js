@@ -1,6 +1,7 @@
 import { deepClone } from './common.js';
 import Node from '../core/node.js';
 import Connection from '../core/connection.js';
+import Condition from '../core/condition.js';
 
 // 合并节点功能
 export function mergeNodes(editor) {
@@ -225,5 +226,75 @@ export function mergeConditions(editor) {
     editor.scheduleRender();
     
     alert('条件合并完成');
+}
+
+// 删除重复连接功能
+export function removeDuplicateConnections(editor) {
+    // 保存历史状态
+    const stateBefore = {
+        nodes: editor.nodes.map(n => deepClone(n)),
+        connections: editor.connections.map(c => deepClone(c))
+    };
+    
+    // 用于存储唯一连接的键值对
+    const uniqueConnections = new Map();
+    // 存储要删除的重复连接
+    const duplicateConnections = [];
+    
+    // 遍历所有连接
+    editor.connections.forEach(connection => {
+        // 创建连接的唯一标识：起始节点ID + 终止节点ID + 条件的JSON字符串
+        // 首先确保条件数组的一致性，按相同顺序排序条件以正确比较
+        const sortedConditions = [...connection.conditions].sort((a, b) => {
+            // 按类型、参数、操作符和值排序
+            if (a.type !== b.type) return a.type.localeCompare(b.type);
+            if (a.parameter !== b.parameter) return a.parameter.localeCompare(b.parameter);
+            if (a.operator !== b.operator) return a.operator.localeCompare(b.operator);
+            return a.value.localeCompare(b.value);
+        });
+        
+        // 创建连接标识
+        const connectionKey = `${connection.sourceNodeId}-${connection.targetNodeId}-${JSON.stringify(sortedConditions)}`;
+        
+        // 检查是否已存在相同的连接
+        if (uniqueConnections.has(connectionKey)) {
+            // 如果存在，将当前连接标记为重复
+            duplicateConnections.push(connection.id);
+        } else {
+            // 否则，将其添加到唯一连接集合中
+            uniqueConnections.set(connectionKey, connection);
+        }
+    });
+    
+    // 删除所有重复连接
+    duplicateConnections.forEach(connId => {
+        const index = editor.connections.findIndex(c => c.id === connId);
+        if (index !== -1) {
+            editor.connections.splice(index, 1);
+            
+            // 从选中元素中移除
+            editor.selectedElements = editor.selectedElements.filter(el => el.id !== connId);
+        }
+    });
+    
+    // 保存历史状态
+    const stateAfter = {
+        nodes: editor.nodes.map(n => deepClone(n)),
+        connections: editor.connections.map(c => deepClone(c))
+    };
+    
+    editor.historyManager.addHistory('remove-duplicate-connections', {
+        before: stateBefore,
+        after: stateAfter
+    });
+    
+    // 更新UI
+    editor.scheduleRender();
+    
+    if (duplicateConnections.length > 0) {
+        alert(`成功删除了 ${duplicateConnections.length} 个重复连接`);
+    } else {
+        alert('未发现重复连接');
+    }
 }
 

@@ -1,5 +1,5 @@
 import NodeGraphEditor from './core/editor.js';
-import { mergeNodes, mergeConditions } from './utils/automation.js';
+import { mergeNodes, mergeConditions, removeDuplicateConnections } from './utils/automation.js';
 
 // 禁用默认右键菜单
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 绑定自动化工具按钮
     const mergeNodesBtn = document.getElementById('merge-nodes-btn');
     const mergeConditionsBtn = document.getElementById('merge-conditions-btn');
+    const removeDuplicateConnectionsBtn = document.getElementById('remove-duplicate-connections-btn');
     
     if (mergeNodesBtn) {
         mergeNodesBtn.addEventListener('click', () => {
@@ -27,6 +28,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mergeConditionsBtn) {
         mergeConditionsBtn.addEventListener('click', () => {
             mergeConditions(editor);
+        });
+    }
+    
+    if (removeDuplicateConnectionsBtn) {
+        removeDuplicateConnectionsBtn.addEventListener('click', () => {
+            removeDuplicateConnections(editor);
         });
     }
 });
