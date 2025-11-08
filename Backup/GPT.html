@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>节点图形化编辑器 v2</title>
+    <style>
+        :root{
+            --bg: #1e1e1e;
+            --panel: #252526;
+            --menu: #2d2d30;
+            --text: #e0e0e0;
+            --muted: #969696;
+            --accent: #007acc;
+            --node-bg: #323233;
+            --node-selected: #2a7fb6;
+            --grid: #252525;
+        }
+        .light {
+            --bg: #f4f4f4;
+            --panel: #efefef;
+            --menu: #e6e6e6;
+            --text: #1b1b1b;
+            --muted: #666666;
+            --accent: #0a66d6;
+            --node-bg: #ffffff;
+            --node-selected: #cfe9ff;
+            --grid: #e6e6e6;
+        }
+
+        *{box-sizing:border-box;margin:0;padding:0;font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;}
+        body{
+            background:var(--bg);
+            color:var(--text);
+            display:flex;
+            flex-direction:column;
+            height:100vh;
+            overflow:hidden;
+        }
+        .menu-bar{
+            background:var(--menu);
+            padding:8px 12px;
+            border-bottom:1px solid rgba(0,0,0,0.2);
+            display:flex;
+            align-items:center;
+            gap:8px;
+        }
+        .menu-left{display:flex;align-items:center;gap:8px;}
+        .menu-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+        .menu-bar button, .menu-bar select, .menu-bar .dropdown {
+            background:var(--accent);
+            color:white;
+            border:none;
+            padding:6px 10px;
+            border-radius:4px;
+            cursor:pointer;
+            font-size:13px;
+        }
+        .menu-bar select { padding:6px 8px; background: white; color: black; border-radius:4px; }
+        .menu-bar .small {
+            background:transparent;
+            color:var(--text);
+            border:1px solid rgba(255,255,255,0.06);
+            padding:6px 8px;
+        }
+        .menu-bar .dropdown {
+            position:relative;
+        }
+        .menu-bar .dropdown-menu {
+            display:none;
+            position:absolute;
+            top:36px;
+            left:0;
+            background:var(--panel);
+            border:1px solid rgba(0,0,0,0.2);
+            box-shadow:0 6px 12px rgba(0,0,0,0.2);
+            z-index:2000;
+            min-width:160px;
+        }
+        .menu-bar .dropdown-menu.show{display:block;}
+        .menu-bar .dropdown-menu button{ display:block; width:100%; text-align:left; background:transparent; color:var(--text); padding:8px 10px; border:none;}
+        .main-content{display:flex;flex:1;overflow:hidden;}
+        .tool-panel{width:200px;background:var(--panel);border-right:1px solid rgba(0,0,0,0.12);padding:10px;}
+        .tool-item{background:var(--menu);border:1px dashed rgba(0,0,0,0.12);padding:12px;margin-bottom:10px;border-radius:4px;cursor:grab;text-align:center;user-select:none;}
+        .workspace{flex:1;position:relative;overflow:hidden;background:var(--bg);}
+        #editor-canvas{position:absolute;top:0;left:0;}
+        .property-panel{width:300px;background:var(--panel);border-left:1px solid rgba(0,0,0,0.12);padding:15px;overflow:auto;}
+        .property-section{margin-bottom:20px;}
+        .property-section h3{font-size:14px;margin-bottom:10px;color:var(--muted);border-bottom:1px solid rgba(0,0,0,0.08);padding-bottom:6px;}
+        .form-group{margin-bottom:12px;}
+        .form-group label{display:block;font-size:12px;margin-bottom:4px;color:var(--muted);}
+        .form-group input, .form-group textarea, .form-group select{width:100%;padding:6px 8px;background: #3c3c3c;border:1px solid #464647;border-radius:3px;color:var(--text);font-size:13px;}
+        .form-group textarea{min-height:60px;}
+        .btn{background:var(--accent);color:white;border:none;padding:6px 10px;border-radius:3px;cursor:pointer;}
+        .btn-danger{background:#c42b1c;}
+        footer.status-bar{background:var(--accent);padding:6px 12px;font-size:12px;display:flex;justify-content:space-between;align-items:center;}
+        .zoom-controls{display:flex;align-items:center;gap:6px;}
+        .status-info{font-size:12px;}
+        .context-menu{position:absolute;background:var(--panel);border:1px solid rgba(0,0,0,0.18);border-radius:4px;box-shadow:0 6px 12px rgba(0,0,0,0.2);z-index:3000;min-width:150px;}
+        .context-menu-item{padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text);}
+        .context-menu-item:hover{background:rgba(0,0,0,0.06);}
+        .hidden{display:none;}
+        .selection-rect {
+            position: absolute;
+            border: 1px dashed rgba(0,122,204,0.9);
+            background: rgba(0,122,204,0.08);
+            pointer-events: none;
+            z-index: 2500;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部菜单栏 -->
+    <div class="menu-bar">
+        <div class="menu-left">
+            <button id="new-project">新建</button>
+            <div class="dropdown" id="import-dropdown">
+                <button id="import-md">导入 ▼</button>
+                <div class="dropdown-menu" id="import-menu">
+                    <button id="import-md-file">导入Markdown</button>
+                </div>
+            </div>
+
+            <div class="dropdown" id="export-dropdown">
+                <button id="export-btn">导出 ▼</button>
+                <div class="dropdown-menu" id="export-menu">
+                    <button id="export-md">导出Markdown</button>
+                    <button id="export-png">导出为位图 (PNG)</button>
+                </div>
+            </div>
+
+            <button id="save-project" class="small">保存</button>
+
+            <!-- 选择对象筛选器 -->
+            <label style="margin-left:8px;color:var(--text);font-size:13px;">选择模式：</label>
+            <select id="select-filter">
+                <option value="all">所有对象</option>
+                <option value="nodes">仅节点</option>
+                <option value="connections">仅连线</option>
+            </select>
+        </div>
+
+        <div class="menu-right">
+            <button id="undo-btn" title="撤销 (Ctrl+Z)">撤销</button>
+            <button id="redo-btn" title="重做 (Ctrl+Y)">重做</button>
+            <button id="theme-toggle" title="切换白天/夜间">🌗</button>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <!-- 左侧工具栏 -->
+        <aside class="tool-panel">
+            <div class="tool-item" draggable="true" data-type="node">📦 节点</div>
+            <div class="tool-item" draggable="true" data-type="connection">🔗 连线</div>
+        </aside>
+
+        <!-- 中间工作区 -->
+        <section class="workspace">
+            <canvas id="editor-canvas"></canvas>
+            <div id="selection-rect" class="selection-rect hidden"></div>
+        </section>
+
+        <!-- 右侧属性栏 -->
+        <aside class="property-panel">
+            <div id="node-properties" class="property-section hidden">
+                <h3>节点属性</h3>
+                <div class="form-group">
+                    <label for="node-name">节点名称</label>
+                    <input type="text" id="node-name">
+                </div>
+                <div class="form-group">
+                    <label for="node-description">节点描述</label>
+                    <textarea id="node-description"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>尺寸设置</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="node-autosize">
+                        <label for="node-autosize" style="color:var(--muted);">自适应内容尺寸</label>
+                    </div>
+                </div>
+
+                <div class="form-group" style="display:flex;gap:8px;">
+                    <div style="flex:1;">
+                        <label for="node-width">宽度</label>
+                        <input type="number" id="node-width" min="50" max="500" value="120">
+                    </div>
+                    <div style="flex:1;">
+                        <label for="node-height">高度</label>
+                        <input type="number" id="node-height" min="30" max="300" value="80">
+                    </div>
+                </div>
+
+                <button id="update-node" class="btn">更新节点</button>
+                <button id="delete-node" class="btn btn-danger">删除节点</button>
+            </div>
+
+            <div id="connection-properties" class="property-section hidden">
+                <h3>连线条件</h3>
+                <div id="conditions-list"></div>
+                <button id="add-condition" class="btn">添加条件</button>
+                <button id="delete-connection" class="btn btn-danger" style="margin-top:8px;">删除连线</button>
+            </div>
+
+            <div id="no-selection" class="property-section">
+                <h3>提示</h3>
+                <p>选择节点或连线以编辑其属性</p>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <footer class="status-bar">
+        <div class="status-info">就绪</div>
+        <div class="zoom-controls">
+            <button id="zoom-out">-</button>
+            <span id="zoom-level">100%</span>
+            <button id="zoom-in">+</button>
+        </div>
+    </footer>
+
+    <input type="file" id="file-input" accept=".md" style="display:none;">
+
+    <script>
+        // ---------- 工具函数 ----------
+        function deepClone(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        // ---------- 基本类 ----------
+        class Node {
+            constructor(name, x, y) {
+                this.id = crypto.randomUUID();
+                this.type = 'node';
+                this.name = name;
+                this.description = '';
+                this.x = x;
+                this.y = y;
+                this.width = 120;
+                this.height = 80;
+                this.autoSize = false;
+                this.minWidth = 80;
+                this.minHeight = 60;
+                this.padding = 20;
+            }
+
+            calculateAutoSize(ctx) {
+                if (!this.autoSize) return;
+                ctx.save();
+                ctx.font = '14px Arial';
+                const nameMetrics = ctx.measureText(this.name || '');
+                const nameWidth = (nameMetrics.width || 0) + this.padding * 2;
+                let descWidth = 0;
+                if (this.description) {
+                    ctx.font = '10px Arial';
+                    const desc = this.description.length > 30 ? this.description.substring(0,30)+'...' : this.description;
+                    descWidth = ctx.measureText(desc).width + this.padding * 2;
+                }
+                this.width = Math.max(this.minWidth, nameWidth, descWidth);
+                this.height = this.minHeight + (this.description ? 25 : 0);
+                ctx.restore();
+            }
+        }
+
+        class Condition {
+            constructor(type = 'int', key = '', operator = '>', value = '') {
+                this.type = type;
+                this.key = key;
+                this.operator = operator;
+                this.value = value;
+            }
+        }
+
+        class Connection {
+            constructor(sourceNodeId, targetNodeId) {
+                this.id = crypto.randomUUID();
+                this.type = 'connection';
+                this.sourceNodeId = sourceNodeId;
+                this.targetNodeId = targetNodeId;
+                this.conditions = [];
+            }
+        }
+
+        // ---------- 主编辑器 ----------
+        class NodeGraphEditor {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+
+                // 文档数据
+                this.nodes = [];
+                this.connections = [];
+                this.selectedElement = null;
+
+                // interaction
+                this.draggingElement = null;
+                this.draggingOffset = {x:0,y:0};
+                this.creatingConnection = null;
+
+                // 视图
+                this.zoom = 1.0;
+                this.pan = {x:0,y:0};
+
+                // 平移状态（右键拖）
+                this.isRightPanning = false;
+                this.rightPanStart = {x:0,y:0};
+                this.rightMouseMoved = false;
+
+                // 左键选择矩形
+                this.isSelecting = false;
+                this.selectStart = {x:0,y:0};
+                this.selectEnd = {x:0,y:0};
+
+                // 选择过滤器 (all, nodes, connections)
+                this.selectFilter = 'all';
+
+                // 性能
+                this.animationId = null;
+                this.lastRenderTime = 0;
+
+                // 历史（撤销/重做）
+                this.history = [];
+                this.historyIndex = -1;
+                this.historyIgnore = false; // 临时禁止历史记录（如回放时）
+
+                // 初始设置
+                this.setupCanvas();
+                this.setupEventListeners();
+                this.setupUIListeners();
+                this.loadThemeFromStorage();
+                this.scheduleRender();
+            }
+
+            setupCanvas(){
+                this.resizeCanvas();
+                window.addEventListener('resize', ()=>this.resizeCanvas());
+            }
+
+            resizeCanvas(){
+                const container = this.canvas.parentElement;
+                this.canvas.width = container.clientWidth;
+                this.canvas.height = container.clientHeight;
+                this.scheduleRender();
+            }
+
+            setupEventListeners(){
+                // 使用捕获方式监听全局鼠标up，保证能捕获释放事件
+                window.addEventListener('mouseup', (e)=>this.handleMouseUp(e));
+                window.addEventListener('mousemove', (e)=>this.handleMouseMove(e));
+
+                // canvas 本身监听 mousedown & wheel & drag/drop
+                this.canvas.addEventListener('mousedown', (e)=>this.handleMouseDown(e));
+                this.canvas.addEventListener('wheel', (e)=>this.handleWheel(e), {passive:false});
+
+                // 禁用默认上下文菜单
+                this.canvas.addEventListener('contextmenu', (e)=>e.preventDefault());
+
+                // 拖放创建
+                this.canvas.addEventListener('dragover', (e)=>e.preventDefault());
+                this.canvas.addEventListener('drop', (e)=>this.handleDrop(e));
+            }
+
+            setupUIListeners(){
+                document.getElementById('new-project').addEventListener('click', ()=>this.newProject());
+
+                // 导入/导出下拉
+                const importDropdown = document.getElementById('import-dropdown');
+                document.getElementById('import-md').addEventListener('click', ()=>importDropdown.querySelector('.dropdown-menu').classList.toggle('show'));
+                document.getElementById('import-md-file').addEventListener('click', ()=>document.getElementById('file-input').click());
+
+                const exportDropdown = document.getElementById('export-dropdown');
+                document.getElementById('export-btn').addEventListener('click', ()=>exportDropdown.querySelector('.dropdown-menu').classList.toggle('show'));
+                document.getElementById('export-md').addEventListener('click', ()=>this.exportMarkdown());
+                document.getElementById('export-png').addEventListener('click', ()=>this.exportAsImage());
+
+                document.getElementById('save-project').addEventListener('click', ()=>this.saveProject());
+
+                document.getElementById('zoom-in').addEventListener('click', ()=>this.zoomIn());
+                document.getElementById('zoom-out').addEventListener('click', ()=>this.zoomOut());
+
+                document.getElementById('update-node').addEventListener('click', ()=>this.updateSelectedNode());
+                document.getElementById('delete-node').addEventListener('click', ()=>this.deleteSelectedNode());
+                document.getElementById('add-condition').addEventListener('click', ()=>this.addCondition());
+                document.getElementById('delete-connection').addEventListener('click', ()=>this.deleteSelectedConnection());
+
+                document.getElementById('node-autosize').addEventListener('change', (e)=>this.toggleAutoSize(e.target.checked));
+                document.getElementById('file-input').addEventListener('change', (e)=>this.handleFileSelect(e));
+
+                document.querySelectorAll('.tool-item').forEach(item=>{
+                    item.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', item.dataset.type); });
+                });
+
+                // 选择筛选器
+                document.getElementById('select-filter').addEventListener('change', (e)=>{
+                    this.selectFilter = e.target.value;
+                });
+
+                // 撤销/重做按钮
+                document.getElementById('undo-btn').addEventListener('click', ()=>this.undo());
+                document.getElementById('redo-btn').addEventListener('click', ()=>this.redo());
+
+                // 主题切换
+                document.getElementById('theme-toggle').addEventListener('click', ()=>this.toggleTheme());
+
+                // 全局快捷键
+                window.addEventListener('keydown', (e)=>{
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); this.undo(); }
+                    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); this.redo(); }
+                });
+
+                // 点击空白关闭下拉菜单
+                document.addEventListener('click', (e)=>{
+                    document.querySelectorAll('.dropdown-menu').forEach(dm=>dm.classList.remove('show'));
+                });
+            }
+
+            scheduleRender(){
+                if (this.animationId) return;
+                this.animationId = requestAnimationFrame((t)=>{
+                    this.render();
+                    this.animationId = null;
+                });
+            }
+
+            screenToWorld(x,y){
+                return { x: (x - this.pan.x)/this.zoom, y: (y - this.pan.y)/this.zoom };
+            }
+            worldToScreen(x,y){
+                return { x: x*this.zoom + this.pan.x, y: y*this.zoom + this.pan.y };
+            }
+
+            // ---------- 鼠标事件处理 ----------
+            handleMouseDown(e){
+                e.preventDefault();
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = this.screenToWorld(x,y);
+
+                // 右键按下：准备右键平移（只有按住并移动才平移）
+                if (e.button === 2) {
+                    this.isRightPanning = true;
+                    this.rightPanStart = { x: e.clientX, y: e.clientY };
+                    this.rightMouseMoved = false;
+                    // 阻止浏览器 menu
+                    return;
+                }
+
+                // 左键
+                if (e.button === 0) {
+                    const element = this.getElementAt(worldPos.x, worldPos.y);
+
+                    // 如果点击空白：开始框选
+                    if (!element) {
+                        this.isSelecting = true;
+                        this.selectStart = { x: e.clientX, y: e.clientY };
+                        this.selectEnd = { x: e.clientX, y: e.clientY };
+                        // 隐藏上次选择
+                        this.selectedElement = null;
+                        this.updatePropertyPanel();
+                        this.updateSelectionRect();
+                        this.scheduleRender();
+                        return;
+                    }
+
+                    // 点击到元素：如果是节点，开始拖动（ctrl+click 则开始创建连线）
+                    this.selectedElement = element;
+                    this.updatePropertyPanel();
+                    if (element.type === 'node') {
+                        if (e.ctrlKey) {
+                            this.creatingConnection = {
+                                sourceNode: element,
+                                x1: element.x + element.width/2,
+                                y1: element.y + element.height/2,
+                                x2: worldPos.x,
+                                y2: worldPos.y
+                            };
+                        } else {
+                            this.draggingElement = element;
+                            this.draggingOffset.x = worldPos.x - element.x;
+                            this.draggingOffset.y = worldPos.y - element.y;
+                        }
+                    }
+                    this.scheduleRender();
+                }
+            }
+
+            handleMouseMove(e){
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = this.screenToWorld(x,y);
+
+                // 更新状态栏
+                document.querySelector('.status-info').textContent = `X: ${Math.round(worldPos.x)}, Y: ${Math.round(worldPos.y)} 缩放: ${Math.round(this.zoom*100)}%`;
+
+                // 右键拖动平移（按下右键并且移动超过阈值）
+                if (this.isRightPanning) {
+                    const dx = e.clientX - this.rightPanStart.x;
+                    const dy = e.clientY - this.rightPanStart.y;
+                    if (!this.rightMouseMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+                        this.rightMouseMoved = true;
+                    }
+                    if (this.rightMouseMoved) {
+                        // 平移以屏幕像素为基准
+                        this.pan.x += dx;
+                        this.pan.y += dy;
+                        this.rightPanStart = { x: e.clientX, y: e.clientY };
+                        this.scheduleRender();
+                    }
+                    return;
+                }
+
+                // 拖动节点
+                if (this.draggingElement) {
+                    this.draggingElement.x = worldPos.x - this.draggingOffset.x;
+                    this.draggingElement.y = worldPos.y - this.draggingOffset.y;
+                    this.pushHistoryDebounced();
+                    this.scheduleRender();
+                    return;
+                }
+
+                // 创建连线的预览
+                if (this.creatingConnection) {
+                    this.creatingConnection.x2 = worldPos.x;
+                    this.creatingConnection.y2 = worldPos.y;
+                    this.scheduleRender();
+                    return;
+                }
+
+                // 左键正在框选
+                if (this.isSelecting) {
+                    this.selectEnd = { x: e.clientX, y: e.clientY };
+                    this.updateSelectionRect();
+                    return;
+                }
+            }
+
+            handleMouseUp(e){
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = this.screenToWorld(x,y);
+
+                // 右键弹起：如果没有移动就触发上下文菜单（模仿点击），否则结束平移
+                if (e.button === 2 && this.isRightPanning) {
+                    if (!this.rightMouseMoved) {
+                        // 没有拖动：当作“右键单击”打开上下文菜单
+                        const screenX = e.clientX - rect.left;
+                        const screenY = e.clientY - rect.top;
+                        this.showContextMenu(screenX, screenY);
+                    }
+                    this.isRightPanning = false;
+                    this.rightMouseMoved = false;
+                    return;
+                }
+
+                // 左键释放
+                if (e.button === 0) {
+                    // 如果完成框选：计算选中元素
+                    if (this.isSelecting) {
+                        this.isSelecting = false;
+                        document.getElementById('selection-rect').classList.add('hidden');
+                        // 计算框选区域的世界坐标
+                        const startScreen = { x: this.selectStart.x - rect.left, y: this.selectStart.y - rect.top };
+                        const endScreen = { x: this.selectEnd.x - rect.left, y: this.selectEnd.y - rect.top };
+                        const minScreen = { x: Math.min(startScreen.x, endScreen.x), y: Math.min(startScreen.y, endScreen.y) };
+                        const maxScreen = { x: Math.max(startScreen.x, endScreen.x), y: Math.max(startScreen.y, endScreen.y) };
+                        const topLeft = this.screenToWorld(minScreen.x, minScreen.y);
+                        const bottomRight = this.screenToWorld(maxScreen.x, maxScreen.y);
+
+                        const selected = [];
+                        // 根据筛选器进行选择
+                        if (this.selectFilter === 'all' || this.selectFilter === 'nodes') {
+                            this.nodes.forEach(n=>{
+                                // 判断节点的世界边界是否在选区内（完全或部分可选，这里使用部分重叠）
+                                if (!(n.x > bottomRight.x || n.x + n.width < topLeft.x || n.y > bottomRight.y || n.y + n.height < topLeft.y)) {
+                                    selected.push(n);
+                                }
+                            });
+                        }
+                        if (this.selectFilter === 'all' || this.selectFilter === 'connections') {
+                            this.connections.forEach(c=>{
+                                // 对连线使用端点中点判定：如果连线中点在矩形内则选中（简单实现）
+                                const s = this.nodes.find(nn=>nn.id===c.sourceNodeId);
+                                const t = this.nodes.find(nn=>nn.id===c.targetNodeId);
+                                if (!s || !t) return;
+                                const midX = (s.x + t.x + s.width/2 + t.width/2)/2;
+                                const midY = (s.y + t.y + s.height/2 + t.height/2)/2;
+                                if (midX >= topLeft.x && midX <= bottomRight.x && midY >= topLeft.y && midY <= bottomRight.y) {
+                                    selected.push(c);
+                                }
+                            });
+                        }
+
+                        // 若选中元素数量为1就选中该元素，否则保持数组（此处我们设置为多选时只选择第一个并保留其它为备选）
+                        if (selected.length === 1) {
+                            this.selectedElement = selected[0];
+                        } else if (selected.length > 1) {
+                            // 将第一个设为主选择（方便属性面板显示），也保留 nodes/conn selection by ids if needed
+                            this.selectedElement = selected[0];
+                        } else {
+                            this.selectedElement = null;
+                        }
+                        this.updatePropertyPanel();
+                        this.scheduleRender();
+                        return;
+                    }
+
+                    // 创建连线的结束
+                    if (this.creatingConnection) {
+                        const targetElement = this.getElementAt(worldPos.x, worldPos.y);
+                        if (targetElement && targetElement.type === 'node' && targetElement !== this.creatingConnection.sourceNode) {
+                            const connection = new Connection(this.creatingConnection.sourceNode.id, targetElement.id);
+                            this.connections.push(connection);
+                            this.pushHistory();
+                            this.selectedElement = connection;
+                            this.updatePropertyPanel();
+                        }
+                        this.creatingConnection = null;
+                        this.scheduleRender();
+                        return;
+                    }
+
+                    // 结束拖动节点
+                    if (this.draggingElement) {
+                        this.draggingElement = null;
+                        this.pushHistory();
+                        this.scheduleRender();
+                    }
+                }
+            }
+
+            handleWheel(e){
+                e.preventDefault();
+                // 保持滚轮缩放
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const zoomIntensity = 0.0025;
+                const wheel = e.deltaY < 0 ? 1 : -1;
+                const zoomFactor = 1 + wheel * zoomIntensity * Math.abs(this.zoom);
+                const newZoom = this.zoom * zoomFactor;
+                const clamped = Math.max(0.1, Math.min(5, newZoom));
+
+                // 以鼠标位置为缩放中心
+                this.pan.x = x - (x - this.pan.x) * (clamped/this.zoom);
+                this.pan.y = y - (y - this.pan.y) * (clamped/this.zoom);
+                this.zoom = clamped;
+                document.getElementById('zoom-level').textContent = Math.round(this.zoom*100)+'%';
+                this.scheduleRender();
+            }
+
+            handleDrop(e){
+                e.preventDefault();
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = this.screenToWorld(x,y);
+                const type = e.dataTransfer.getData('text/plain');
+                if (type === 'node') {
+                    const node = new Node(`节点${this.nodes.length+1}`, worldPos.x, worldPos.y);
+                    this.nodes.push(node);
+                    this.selectedElement = node;
+                    this.pushHistory();
+                    this.updatePropertyPanel();
+                    this.scheduleRender();
+                }
+            }
+
+            handleFileSelect(e){
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev)=>{ this.importMarkdown(ev.target.result); };
+                reader.readAsText(file);
+            }
+
+            // ---------- 元素查找，注意筛选器 ----------
+            getElementAt(x,y){
+                // 根据筛选器尝试查找元素，优先连线（绘制顺序）然后节点
+                if (this.selectFilter === 'all' || this.selectFilter === 'connections') {
+                    for (let i=this.connections.length-1;i>=0;i--){
+                        const connection = this.connections[i];
+                        if (this.isPointOnConnection(x,y,connection)) return connection;
+                    }
+                }
+
+                if (this.selectFilter === 'all' || this.selectFilter === 'nodes') {
+                    for (let i=this.nodes.length-1;i>=0;i--){
+                        const node = this.nodes[i];
+                        if (this.isPointInNode(x,y,node)) return node;
+                    }
+                }
+                return null;
+            }
+
+            isPointInNode(x,y,node){
+                return x >= node.x && x <= node.x + node.width && y >= node.y && y <= node.y + node.height;
+            }
+
+            isPointOnConnection(x,y,connection){
+                const sourceNode = this.nodes.find(n=>n.id===connection.sourceNodeId);
+                const targetNode = this.nodes.find(n=>n.id===connection.targetNodeId);
+                if (!sourceNode || !targetNode) return false;
+                const startX = sourceNode.x + sourceNode.width/2;
+                const startY = sourceNode.y + sourceNode.height/2;
+                const endX = targetNode.x + targetNode.width/2;
+                const endY = targetNode.y + targetNode.height/2;
+                const threshold = 6 / this.zoom; // 考虑缩放后判定更合理
+                const A = x - startX;
+                const B = y - startY;
+                const C = endX - startX;
+                const D = endY - startY;
+                const dot = A * C + B * D;
+                const lenSq = C*C + D*D;
+                let param = -1;
+                if (lenSq !== 0) param = dot / lenSq;
+                let xx,yy;
+                if (param < 0) { xx = startX; yy = startY; }
+                else if (param > 1) { xx = endX; yy = endY; }
+                else { xx = startX + param * C; yy = startY + param * D; }
+                const dx = x - xx; const dy = y - yy;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                return distance <= threshold;
+            }
+
+            // ---------- 渲染 ----------
+            render(){
+                const ctx = this.ctx;
+                const width = this.canvas.width;
+                const height = this.canvas.height;
+
+                // 背景
+                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#1e1e1e';
+                ctx.fillRect(0,0,width,height);
+
+                ctx.save();
+                // 应用平移缩放（整个工作区）
+                ctx.translate(this.pan.x, this.pan.y);
+                ctx.scale(this.zoom, this.zoom);
+
+                // 绘制栅格：确保总是覆盖整个画布（添加缓冲）
+                this.drawGrid();
+
+                // 绘制连线
+                this.connections.forEach(connection=>{
+                    this.drawConnection(connection, connection === this.selectedElement);
+                });
+
+                // 连线预览（创建中）
+                if (this.creatingConnection) {
+                    ctx.setLineDash([6,6]);
+                    ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#007acc';
+                    ctx.lineWidth = 2 / this.zoom;
+                    ctx.beginPath();
+                    ctx.moveTo(this.creatingConnection.x1, this.creatingConnection.y1);
+                    ctx.lineTo(this.creatingConnection.x2, this.creatingConnection.y2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                // 绘制节点
+                this.nodes.forEach(node=>{
+                    this.drawNode(node, node === this.selectedElement);
+                });
+
+                ctx.restore();
+
+                // 如果存在 selection rectangle（屏幕坐标）则由 DOM 显示（已在 updateSelectionRect 中处理）
+
+                // 更新缩放显示
+                document.getElementById('zoom-level').textContent = Math.round(this.zoom*100) + '%';
+            }
+
+            drawGrid(){
+                const ctx = this.ctx;
+                const canvasWidth = this.canvas.width;
+                const canvasHeight = this.canvas.height;
+
+                // 以 world-space 网格为准，gridSize 为世界单位
+                const gridSize = 20;
+
+                // 计算可见世界坐标范围（多加一个格子缓冲，避免边缘空白）
+                const visibleLeft = -this.pan.x/this.zoom - gridSize;
+                const visibleTop = -this.pan.y/this.zoom - gridSize;
+                const visibleRight = (canvasWidth - this.pan.x)/this.zoom + gridSize;
+                const visibleBottom = (canvasHeight - this.pan.y)/this.zoom + gridSize;
+
+                // 起止（以 gridSize 对齐）
+                const startX = Math.floor(visibleLeft / gridSize) * gridSize;
+                const endX = Math.ceil(visibleRight / gridSize) * gridSize;
+                const startY = Math.floor(visibleTop / gridSize) * gridSize;
+                const endY = Math.ceil(visibleBottom / gridSize) * gridSize;
+
+                ctx.lineWidth = 1 / this.zoom;
+                ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--grid').trim() || '#252525';
+
+                // 垂直线
+                ctx.beginPath();
+                for (let x = startX; x <= endX; x += gridSize) {
+                    ctx.moveTo(x, visibleTop);
+                    ctx.lineTo(x, visibleBottom);
+                }
+                ctx.stroke();
+
+                // 水平线
+                ctx.beginPath();
+                for (let y = startY; y <= endY; y += gridSize) {
+                    ctx.moveTo(visibleLeft, y);
+                    ctx.lineTo(visibleRight, y);
+                }
+                ctx.stroke();
+            }
+
+            drawNode(node, isSelected){
+                const ctx = this.ctx;
+                if (node.autoSize) node.calculateAutoSize(ctx);
+
+                ctx.fillStyle = isSelected ? getComputedStyle(document.body).getPropertyValue('--node-selected').trim() : getComputedStyle(document.body).getPropertyValue('--node-bg').trim();
+                ctx.fillRect(node.x, node.y, node.width, node.height);
+
+                ctx.strokeStyle = isSelected ? (getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#007acc') : '#464647';
+                ctx.lineWidth = isSelected ? 2/this.zoom : 1/this.zoom;
+                ctx.strokeRect(node.x, node.y, node.width, node.height);
+
+                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text').trim() || '#e0e0e0';
+                ctx.font = `${14/this.zoom}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                const nameY = node.y + node.height/2;
+                ctx.fillText(node.name, node.x + node.width/2, nameY);
+
+                if (node.description) {
+                    ctx.font = `${10/this.zoom}px Arial`;
+                    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--muted').trim() || '#969696';
+                    const desc = node.description.length > 30 ? node.description.substring(0,30) + '...' : node.description;
+                    ctx.fillText(desc, node.x + node.width/2, nameY + (15/this.zoom));
+                }
+
+                if (isSelected) {
+                    ctx.font = `${8/this.zoom}px Arial`;
+                    ctx.fillStyle = '#888888';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`${Math.round(node.width)}×${Math.round(node.height)}`, node.x + 5/this.zoom, node.y + node.height - 6/this.zoom);
+                    ctx.textAlign = 'center';
+                }
+            }
+
+            drawConnection(connection, isSelected){
+                const ctx = this.ctx;
+                const sourceNode = this.nodes.find(n=>n.id===connection.sourceNodeId);
+                const targetNode = this.nodes.find(n=>n.id===connection.targetNodeId);
+                if (!sourceNode || !targetNode) return;
+
+                const startX = sourceNode.x + sourceNode.width/2;
+                const startY = sourceNode.y + sourceNode.height/2;
+                const endX = targetNode.x + targetNode.width/2;
+                const endY = targetNode.y + targetNode.height/2;
+
+                ctx.strokeStyle = isSelected ? (getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#007acc') : '#666666';
+                ctx.lineWidth = (isSelected ? 3 : 2) / this.zoom;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+
+                // 箭头（world-space）
+                const angle = Math.atan2(endY - startY, endX - startX);
+                const arrowLength = 10 / this.zoom;
+
+                ctx.fillStyle = isSelected ? (getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#007acc') : '#666666';
+                ctx.beginPath();
+                ctx.moveTo(endX, endY);
+                ctx.lineTo(endX - arrowLength * Math.cos(angle - Math.PI/6), endY - arrowLength * Math.sin(angle - Math.PI/6));
+                ctx.lineTo(endX - arrowLength * Math.cos(angle + Math.PI/6), endY - arrowLength * Math.sin(angle + Math.PI/6));
+                ctx.closePath();
+                ctx.fill();
+
+                // 条件数量标记
+                if (connection.conditions.length > 0) {
+                    const midX = (startX + endX)/2;
+                    const midY = (startY + endY)/2;
+                    ctx.fillStyle = isSelected ? (getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#007acc') : '#464647';
+                    ctx.beginPath();
+                    ctx.arc(midX, midY, 12/this.zoom, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text').trim() || '#e0e0e0';
+                    ctx.font = `${10/this.zoom}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(connection.conditions.length.toString(), midX, midY);
+                }
+            }
+
+            // ---------- 上下文菜单 ----------
+            showContextMenu(screenX, screenY){
+                // 移除旧菜单
+                document.querySelectorAll('.context-menu').forEach(n=>n.remove());
+                const menu = document.createElement('div');
+                menu.className = 'context-menu';
+                menu.style.left = screenX + 'px';
+                menu.style.top = screenY + 'px';
+
+                // 转换为 world
+                const rect = this.canvas.getBoundingClientRect();
+                const world = this.screenToWorld(screenX, screenY);
+                const element = this.getElementAt(world.x, world.y);
+
+                if (element) {
+                    if (element.type === 'node') {
+                        menu.innerHTML = `
+                            <div class="context-menu-item" data-action="create-connection">创建连线</div>
+                            <div class="context-menu-item" data-action="delete-node">删除节点</div>
+                        `;
+                    } else if (element.type === 'connection') {
+                        menu.innerHTML = `<div class="context-menu-item" data-action="delete-connection">删除连线</div>`;
+                    }
+                } else {
+                    menu.innerHTML = `
+                        <div class="context-menu-item" data-action="create-node">创建节点</div>
+                        <div class="context-menu-item" data-action="reset-view">重置视图</div>
+                    `;
+                }
+
+                menu.addEventListener('click', (e)=>{
+                    const action = e.target.dataset.action;
+                    this.handleContextMenuAction(action, world, element);
+                    menu.remove();
+                });
+
+                // 点击其他地方关闭
+                setTimeout(()=>{ // 延迟绑定，避免立即触发移除
+                    document.addEventListener('click', function closeMenu(){ menu.remove(); document.removeEventListener('click', closeMenu); });
+                }, 10);
+
+                this.canvas.parentElement.appendChild(menu);
+            }
+
+            handleContextMenuAction(action, worldPos, element){
+                switch(action){
+                    case 'create-node':
+                        const node = new Node(`节点${this.nodes.length+1}`, worldPos.x, worldPos.y);
+                        this.nodes.push(node);
+                        this.selectedElement = node;
+                        this.pushHistory();
+                        this.updatePropertyPanel();
+                        break;
+                    case 'create-connection':
+                        if (element && element.type === 'node') {
+                            this.creatingConnection = {
+                                sourceNode: element,
+                                x1: element.x + element.width/2,
+                                y1: element.y + element.height/2,
+                                x2: worldPos.x,
+                                y2: worldPos.y
+                            };
+                        }
+                        break;
+                    case 'delete-node':
+                        if (element && element.type === 'node') {
+                            this.nodes = this.nodes.filter(n=>n !== element);
+                            this.connections = this.connections.filter(c=> c.sourceNodeId !== element.id && c.targetNodeId !== element.id);
+                            this.selectedElement = null;
+                            this.pushHistory();
+                            this.updatePropertyPanel();
+                        }
+                        break;
+                    case 'delete-connection':
+                        if (element && element.type === 'connection') {
+                            this.connections = this.connections.filter(c=>c !== element);
+                            this.selectedElement = null;
+                            this.pushHistory();
+                            this.updatePropertyPanel();
+                        }
+                        break;
+                    case 'reset-view':
+                        this.zoom = 1.0; this.pan = {x:0,y:0};
+                        document.getElementById('zoom-level').textContent = '100%';
+                        break;
+                }
+                this.scheduleRender();
+            }
+
+            // ---------- 属性面板 ----------
+            updatePropertyPanel(){
+                const nodeProps = document.getElementById('node-properties');
+                const connectionProps = document.getElementById('connection-properties');
+                const noSelection = document.getElementById('no-selection');
+
+                nodeProps.classList.add('hidden');
+                connectionProps.classList.add('hidden');
+                noSelection.classList.add('hidden');
+
+                if (!this.selectedElement) {
+                    noSelection.classList.remove('hidden');
+                    return;
+                }
+
+                if (this.selectedElement.type === 'node') {
+                    nodeProps.classList.remove('hidden');
+                    const node = this.selectedElement;
+                    document.getElementById('node-name').value = node.name;
+                    document.getElementById('node-description').value = node.description || '';
+                    document.getElementById('node-width').value = node.width;
+                    document.getElementById('node-height').value = node.height;
+                    document.getElementById('node-autosize').checked = node.autoSize;
+                    this.toggleDimensionInputs(!node.autoSize);
+                } else if (this.selectedElement.type === 'connection') {
+                    connectionProps.classList.remove('hidden');
+                    this.updateConditionsList();
+                }
+            }
+
+            toggleDimensionInputs(enabled){ document.getElementById('node-width').disabled = !enabled; document.getElementById('node-height').disabled = !enabled; }
+
+            toggleAutoSize(enabled){
+                if (this.selectedElement && this.selectedElement.type === 'node') {
+                    this.selectedElement.autoSize = enabled;
+                    this.toggleDimensionInputs(!enabled);
+                    if (enabled) this.selectedElement.calculateAutoSize(this.ctx);
+                    this.pushHistory();
+                    this.scheduleRender();
+                }
+            }
+
+            updateConditionsList(){
+                const conditionsList = document.getElementById('conditions-list');
+                conditionsList.innerHTML = '';
+                if (!this.selectedElement || this.selectedElement.type !== 'connection') return;
+                this.selectedElement.conditions.forEach((condition, idx)=>{
+                    const div = document.createElement('div');
+                    div.className = 'condition-item';
+                    div.style.background = 'var(--menu)';
+                    div.style.padding = '6px';
+                    div.style.marginBottom = '6px';
+                    div.innerHTML = `
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <span>条件 ${idx+1}</span>
+                            <button data-index="${idx}" class="delete-cond">🗑️</button>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            <select data-index="${idx}" class="cond-type">
+                                <option value="int">整数</option>
+                                <option value="float">浮点数</option>
+                                <option value="bool">布尔</option>
+                                <option value="trigger">触发器</option>
+                            </select>
+                            <input data-index="${idx}" class="cond-key" placeholder="参数名" value="${condition.key}" />
+                            <select data-index="${idx}" class="cond-op">
+                                <option value=">">></option>
+                                <option value="<"><</option>
+                                <option value="==">==</option>
+                                <option value="!=">!=</option>
+                                <option value=">=">>=</option>
+                                <option value="<="><=</option>
+                            </select>
+                            <input data-index="${idx}" class="cond-value" placeholder="值" value="${condition.value}" />
+                        </div>
+                    `;
+                    conditionsList.appendChild(div);
+                    div.querySelector('.cond-type').value = condition.type;
+                    div.querySelector('.cond-op').value = condition.operator;
+
+                    div.querySelectorAll('.cond-type, .cond-key, .cond-op, .cond-value').forEach(inp=>{
+                        inp.addEventListener('change', (ev)=>{
+                            const i = parseInt(ev.target.dataset.index);
+                            const cond = this.selectedElement.conditions[i];
+                            if (!cond) return;
+                            if (ev.target.classList.contains('cond-type')) cond.type = ev.target.value;
+                            if (ev.target.classList.contains('cond-key')) cond.key = ev.target.value;
+                            if (ev.target.classList.contains('cond-op')) cond.operator = ev.target.value;
+                            if (ev.target.classList.contains('cond-value')) cond.value = ev.target.value;
+                            this.pushHistoryDebounced();
+                        });
+                    });
+
+                    div.querySelector('.delete-cond').addEventListener('click', (ev)=>{
+                        const i = parseInt(ev.target.dataset.index);
+                        this.selectedElement.conditions.splice(i,1);
+                        this.pushHistory();
+                        this.updateConditionsList();
+                        this.scheduleRender();
+                    });
+                });
+            }
+
+            addCondition(){
+                if (!this.selectedElement || this.selectedElement.type !== 'connection') return;
+                this.selectedElement.conditions.push(new Condition());
+                this.pushHistory();
+                this.updateConditionsList();
+                this.scheduleRender();
+            }
+
+            updateSelectedNode(){
+                if (!this.selectedElement || this.selectedElement.type !== 'node') return;
+                const node = this.selectedElement;
+                node.name = document.getElementById('node-name').value;
+                node.description = document.getElementById('node-description').value;
+                if (!node.autoSize) {
+                    node.width = parseInt(document.getElementById('node-width').value) || 120;
+                    node.height = parseInt(document.getElementById('node-height').value) || 80;
+                } else {
+                    node.calculateAutoSize(this.ctx);
+                }
+                this.pushHistory();
+                this.scheduleRender();
+            }
+
+            deleteSelectedNode(){
+                if (!this.selectedElement || this.selectedElement.type !== 'node') return;
+                this.nodes = this.nodes.filter(n=>n !== this.selectedElement);
+                this.connections = this.connections.filter(c=> c.sourceNodeId !== this.selectedElement.id && c.targetNodeId !== this.selectedElement.id);
+                this.selectedElement = null;
+                this.pushHistory();
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+
+            deleteSelectedConnection(){
+                if (!this.selectedElement || this.selectedElement.type !== 'connection') return;
+                this.connections = this.connections.filter(c=>c !== this.selectedElement);
+                this.selectedElement = null;
+                this.pushHistory();
+                this.updatePropertyPanel();
+                this.scheduleRender();
+            }
+
+            zoomIn(){ this.zoom *= 1.2; this.zoom = Math.min(5, this.zoom); document.getElementById('zoom-level').textContent = Math.round(this.zoom*100)+'%'; this.scheduleRender(); }
+            zoomOut(){ this.zoom /= 1.2; this.zoom = Math.max(0.1, this.zoom); document.getElementById('zoom-level').textContent = Math.round(this.zoom*100)+'%'; this.scheduleRender(); }
+
+            newProject(){ this.nodes = []; this.connections = []; this.selectedElement = null; this.zoom = 1; this.pan = {x:0,y:0}; document.getElementById('zoom-level').textContent='100%'; this.updatePropertyPanel(); this.pushHistory(true); this.scheduleRender(); }
+
+            importMarkdown(content){
+                // 简单解析 (沿用之前逻辑)
+                const lines = content.split('\n');
+                let currentSection = null;
+                let currentNode = null;
+                let currentConnection = null;
+                this.nodes = []; this.connections = [];
+                for (const line of lines) {
+                    const t = line.trim();
+                    if (!t) continue;
+                    if (t.startsWith('[节点]')) { currentSection='node'; currentNode=new Node('',0,0); this.nodes.push(currentNode); }
+                    else if (t.startsWith('[连线]')) { currentSection='connection'; currentConnection=new Connection('',''); this.connections.push(currentConnection); }
+                    else if (t.startsWith('条件')) { currentSection='condition'; }
+                    else if (currentSection === 'node' && currentNode) {
+                        if (!currentNode.name) currentNode.name = t;
+                        else if (!currentNode.description) currentNode.description = t;
+                    } else if (currentSection === 'connection' && currentConnection) {
+                        if (!currentConnection.sourceNodeId) { const s = this.nodes.find(n=>n.name===t); if (s) currentConnection.sourceNodeId = s.id; }
+                        else if (!currentConnection.targetNodeId) { const tt = this.nodes.find(n=>n.name===t); if (tt) currentConnection.targetNodeId = tt.id; }
+                    } else if (currentSection === 'condition' && currentConnection) {
+                        const parts = t.match(/(\w+)([<>!=]+)(.+)/);
+                        if (parts && parts.length>=4) {
+                            const cond = new Condition();
+                            cond.key = parts[1]; cond.operator = parts[2]; cond.value = parts[3];
+                            if (cond.value.toLowerCase()==='true' || cond.value.toLowerCase()==='false') cond.type='bool';
+                            else if (cond.value.includes('.')) cond.type='float';
+                            else cond.type='int';
+                            currentConnection.conditions.push(cond);
+                        }
+                    }
+                }
+                // 布局
+                const container = this.canvas.parentElement;
+                const centerX = container.clientWidth/2/this.zoom;
+                const centerY = container.clientHeight/2/this.zoom;
+                this.nodes.forEach((node,i)=>{
+                    const angle = (i/this.nodes.length)*Math.PI*2;
+                    const radius = 200;
+                    node.x = centerX + Math.cos(angle)*radius - node.width/2;
+                    node.y = centerY + Math.sin(angle)*radius - node.height/2;
+                });
+                this.pushHistory();
+                this.scheduleRender();
+            }
+
+            exportMarkdown(){
+                let markdown = '';
+                this.nodes.forEach(n => { markdown += `[节点]\n  ${n.name}\n  ${n.description || ''}\n\n`; });
+                this.connections.forEach(c => {
+                    const s = this.nodes.find(n=>n.id===c.sourceNodeId);
+                    const t = this.nodes.find(n=>n.id===c.targetNodeId);
+                    if (s && t) {
+                        markdown += `[连线]\n  ${s.name}\n  ${t.name}\n`;
+                        if (c.conditions.length>0) {
+                            markdown += '  条件\n';
+                            c.conditions.forEach(cond => { markdown += `    ${cond.key}${cond.operator}${cond.value}\n`; });
+                        }
+                        markdown += '\n';
+                    }
+                });
+                const blob = new Blob([markdown], {type:'text/markdown'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'node-graph.md';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            exportAsImage(){
+                // 直接将当前画布（可视区域）导出为 PNG
+                // 如果需要导出整个工作区（超出可视区域），可改用离屏画布和自定义尺寸渲染
+                const dataURL = this.canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataURL;
+                a.download = 'node-graph.png';
+                a.click();
+            }
+
+            saveProject(){ this.exportMarkdown(); }
+
+            // ---------- 历史记录（简单快照实现） ----------
+            pushHistory(ignoreIndexReset=false){
+                if (this.historyIgnore) return;
+                // 构造可序列化状态（注意函数/循环引用）
+                const state = {
+                    nodes: deepClone(this.nodes),
+                    connections: deepClone(this.connections),
+                    pan: deepClone(this.pan),
+                    zoom: this.zoom
+                };
+                // 如果在中间位置做了新操作，丢弃 redo 部分
+                if (!ignoreIndexReset && this.historyIndex < this.history.length - 1) {
+                    this.history = this.history.slice(0, this.historyIndex+1);
+                }
+                this.history.push(state);
+                // 限制历史长度
+                if (this.history.length > 200) this.history.shift();
+                this.historyIndex = this.history.length - 1;
+                this.updateUndoRedoButtons();
+            }
+
+            // 用于拖动过程中节流历史推送
+            pushHistoryDebounced(){
+                if (this._debounceTimer) clearTimeout(this._debounceTimer);
+                this._debounceTimer = setTimeout(()=>{ this.pushHistory(); }, 400);
+            }
+
+            undo(){
+                if (this.historyIndex <= 0) return;
+                this.historyIndex--;
+                this.applyHistoryState(this.history[this.historyIndex]);
+                this.updateUndoRedoButtons();
+            }
+            redo(){
+                if (this.historyIndex >= this.history.length - 1) return;
+                this.historyIndex++;
+                this.applyHistoryState(this.history[this.historyIndex]);
+                this.updateUndoRedoButtons();
+            }
+            applyHistoryState(state){
+                if (!state) return;
+                // 禁止将这些改动再次记录到历史
+                this.historyIgnore = true;
+                this.nodes = deepClone(state.nodes);
+                this.connections = deepClone(state.connections);
+                this.pan = deepClone(state.pan);
+                this.zoom = state.zoom;
+                this.selectedElement = null;
+                this.updatePropertyPanel();
+                this.historyIgnore = false;
+                this.scheduleRender();
+            }
+            updateUndoRedoButtons(){
+                document.getElementById('undo-btn').disabled = this.historyIndex <= 0;
+                document.getElementById('redo-btn').disabled = this.historyIndex >= this.history.length - 1;
+            }
+
+            // ---------- 选择矩形 DOM 显示 ----------
+            updateSelectionRect(){
+                const rectDOM = document.getElementById('selection-rect');
+                const rect = this.canvas.getBoundingClientRect();
+                const x1 = this.selectStart.x;
+                const y1 = this.selectStart.y;
+                const x2 = this.selectEnd.x;
+                const y2 = this.selectEnd.y;
+                const left = Math.min(x1,x2);
+                const top = Math.min(y1,y2);
+                const width = Math.abs(x2-x1);
+                const height = Math.abs(y2-y1);
+                rectDOM.style.left = left + 'px';
+                rectDOM.style.top = top + 'px';
+                rectDOM.style.width = width + 'px';
+                rectDOM.style.height = height + 'px';
+                rectDOM.classList.remove('hidden');
+            }
+
+            // ---------- 主题持久化 ----------
+            toggleTheme(){
+                const el = document.body;
+                if (el.classList.contains('light')) {
+                    el.classList.remove('light');
+                    localStorage.removeItem('node-editor-theme');
+                } else {
+                    el.classList.add('light');
+                    localStorage.setItem('node-editor-theme','light');
+                }
+            }
+            loadThemeFromStorage(){
+                const t = localStorage.getItem('node-editor-theme');
+                if (t === 'light') document.body.classList.add('light');
+            }
+        }
+
+        // ---------- 初始化 ----------
+        let editor = null;
+        document.addEventListener('DOMContentLoaded', ()=>{
+            const canvas = document.getElementById('editor-canvas');
+            editor = new NodeGraphEditor(canvas);
+
+            // 初始化基础历史（空文档）
+            editor.pushHistory();
+
+            // 工具栏拖拽 - 为了方便测试：双击拖动项也创建节点
+            document.querySelectorAll('.tool-item').forEach(t=>{
+                t.addEventListener('dblclick', (e)=>{
+                    const rect = canvas.getBoundingClientRect();
+                    const world = editor.screenToWorld(rect.width/2, rect.height/2);
+                    if (t.dataset.type === 'node') {
+                        const n = new Node('节点'+(editor.nodes.length+1), world.x, world.y);
+                        editor.nodes.push(n);
+                        editor.pushHistory();
+                        editor.scheduleRender();
+                    } else if (t.dataset.type === 'connection') {
+                        // nothing
+                    }
+                });
+            });
+
+            // 右上按钮初始状态
+            editor.updateUndoRedoButtons();
+        });
+    </script>
+</body>
+</html>
