@@ -75,6 +75,8 @@ export default class CanvasRenderer {
         const endX = startX + this.canvas.width / zoom + gridInterval;
         const endY = startY + this.canvas.height / zoom + gridInterval;
         
+        // 确保使用实线绘制网格
+        ctx.setLineDash([]);
         ctx.strokeStyle = this.colors.grid;
         ctx.lineWidth = 0.5 / zoom;
         ctx.beginPath();
@@ -105,6 +107,8 @@ export default class CanvasRenderer {
         
         // 绘制节点背景
         ctx.fillStyle = nodeColor;
+        // 确保使用实线绘制节点边框
+        ctx.setLineDash([]);
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.beginPath();
@@ -142,10 +146,18 @@ export default class CanvasRenderer {
         const { x: startX, y: startY } = this.calculateConnectionPoint(sourceNode, connection.fromSide);
         const { x: endX, y: endY } = this.calculateConnectionPoint(targetNode, connection.toSide);
         
-        // 计算连线颜色
+        // 计算连线颜色和样式
         const isSelected = this.editorState.selectedConnectionIds.has(connection.id);
-        ctx.strokeStyle = isSelected ? this.colors.connectionSelected : this.colors.connection;
-        ctx.lineWidth = isSelected ? 3 : 1.5;
+        
+        // 根据连线类型设置线条样式
+        if (connection.lineType === 'dashed') {
+            ctx.setLineDash([5, 5]);
+        } else {
+            ctx.setLineDash([]);
+        }
+        
+        ctx.strokeStyle = connection.color || (isSelected ? this.colors.connectionSelected : this.colors.connection);
+        ctx.lineWidth = connection.lineWidth || (isSelected ? 3 : 1.5);
         ctx.lineCap = 'round';
         
         // 绘制连线
@@ -205,20 +217,25 @@ export default class CanvasRenderer {
     drawTempConnection(startX, startY, endX, endY) {
         const { ctx } = this;
         
+        // 保存当前状态
+        ctx.save();
+        
+        // 设置临时连线样式
         ctx.strokeStyle = this.colors.connectionHover;
         ctx.lineWidth = 1.5;
         ctx.lineDashOffset = 0;
         ctx.setLineDash([5, 5]);
         
+        // 绘制临时连线
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.lineTo(endX, endY);
         ctx.stroke();
         
-        // 重置线条样式
-        ctx.setLineDash([]);
+        // 恢复状态
+        ctx.restore();
         
-        // 绘制箭头
+        // 绘制箭头（使用默认实线样式）
         this.drawArrow(ctx, startX, startY, endX, endY);
     }
     

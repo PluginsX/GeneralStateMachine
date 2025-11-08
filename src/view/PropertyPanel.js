@@ -137,6 +137,12 @@ export default class PropertyPanel {
         // 默认连接
         form.appendChild(this.createCheckbox('默认连接', 'defaultConnection', connection.defaultConnection));
         
+        // 线类型选择
+        form.appendChild(this.createSelect('线类型', 'lineType', connection.lineType, [
+            { value: 'solid', label: '连续线' },
+            { value: 'dashed', label: '间隔线' }
+        ]));
+        
         // 条件管理 (简化版)
         const conditionsContainer = document.createElement('div');
         conditionsContainer.className = 'property-group';
@@ -242,6 +248,33 @@ export default class PropertyPanel {
         return group;
     }
     
+    // 创建下拉选择框
+    createSelect(label, name, value, options) {
+        const group = document.createElement('div');
+        group.className = 'property-group';
+        
+        const labelEl = document.createElement('label');
+        labelEl.textContent = label;
+        labelEl.htmlFor = `prop-${name}`;
+        group.appendChild(labelEl);
+        
+        const select = document.createElement('select');
+        select.id = `prop-${name}`;
+        select.name = name;
+        
+        // 添加选项
+        options.forEach(option => {
+            const optionEl = document.createElement('option');
+            optionEl.value = option.value;
+            optionEl.textContent = option.label;
+            optionEl.selected = option.value === value;
+            select.appendChild(optionEl);
+        });
+        
+        group.appendChild(select);
+        return group;
+    }
+    
     // 设置表单监听器
     setupFormListeners(form, item, type = 'node') {
         // 文本输入监听
@@ -265,6 +298,14 @@ export default class PropertyPanel {
         checkboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
                 this.handleInputChange(item, checkbox.name, e.target.checked, type);
+            });
+        });
+        
+        // 下拉选择框监听
+        const selectInputs = form.querySelectorAll('select');
+        selectInputs.forEach(select => {
+            select.addEventListener('change', (e) => {
+                this.handleInputChange(item, select.name, e.target.value, type);
             });
         });
     }

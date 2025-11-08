@@ -12,6 +12,13 @@ export default class Connection {
         // 条件属性
         this.conditions = [];
         this.defaultConnection = false;
+        
+        // 连线样式属性
+        this.color = null;           // 连线颜色（null表示使用默认颜色）
+        this.lineWidth = null;        // 连线粗细（null表示使用默认粗细）
+        this.lineType = 'solid';      // 连线类型：'solid'（连续线）或'dashed'（间隔线）
+        this.arrowSize = null;        // 箭头尺寸（null表示使用默认尺寸）
+        this.arrowColor = null;       // 箭头颜色（null表示使用默认颜色）
     }
     
     // 复制连线
@@ -20,6 +27,11 @@ export default class Connection {
         clone.id = this.id;
         clone.conditions = JSON.parse(JSON.stringify(this.conditions));
         clone.defaultConnection = this.defaultConnection;
+        clone.color = this.color;
+        clone.lineWidth = this.lineWidth;
+        clone.lineType = this.lineType;
+        clone.arrowSize = this.arrowSize;
+        clone.arrowColor = this.arrowColor;
         return clone;
     }
 }
