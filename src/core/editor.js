@@ -6,6 +6,7 @@ import { isLightMode, toggleTheme } from '../ui/theme.js';
 import { deepClone } from '../utils/common.js';
 import { showContextMenu } from '../utils/dom.js';
 import { doRectsOverlap, isPointInRect, isPointNearLine } from '../utils/math.js';
+import { ConfirmDialog } from '../utils/popup.js';
 import Condition from './condition.js';
 import Connection from './connection.js';
 import Node from './node.js';
@@ -1393,9 +1394,16 @@ export default class NodeGraphEditor {
     }
     
     // 删除选中的节点
-    deleteSelectedNodes() {
+    async deleteSelectedNodes() {
         const nodesToDelete = this.selectedElements.filter(el => el.type === 'node');
         if (nodesToDelete.length === 0) return;
+        
+        // 显示确认对话框
+        const confirmed = await ConfirmDialog(
+            `确定要删除选中的 ${nodesToDelete.length} 个节点吗？\n这将同时删除相关的连线。`
+        );
+        
+        if (!confirmed) return;
         
         // 找到相关的连线
         const nodeIds = nodesToDelete.map(n => n.id);
@@ -1413,6 +1421,8 @@ export default class NodeGraphEditor {
         nodesToDelete.forEach(node => this.removeNode(node.id));
         
         this.deselectAll();
+        updatePropertyPanel(this);
+        this.scheduleRender();
     }
     
     // 添加条件
@@ -1480,9 +1490,16 @@ export default class NodeGraphEditor {
     }
     
     // 删除选中的连线
-    deleteSelectedConnections() {
+    async deleteSelectedConnections() {
         const connectionsToDelete = this.selectedElements.filter(el => el.type === 'connection');
         if (connectionsToDelete.length === 0) return;
+        
+        // 显示确认对话框
+        const confirmed = await ConfirmDialog(
+            `确定要删除选中的 ${connectionsToDelete.length} 条连线吗？`
+        );
+        
+        if (!confirmed) return;
         
         // 记录历史
         this.historyManager.addHistory('delete-connections', connectionsToDelete.map(c => c.clone()));
@@ -1491,6 +1508,8 @@ export default class NodeGraphEditor {
         connectionsToDelete.forEach(conn => this.removeConnection(conn.id));
         
         this.deselectAll();
+        updatePropertyPanel(this);
+        this.scheduleRender();
     }
     
     // 新建项目

@@ -1,19 +1,20 @@
 import { deepClone } from './common.js';
+import { AlertDialog, ConfirmDialog } from './popup.js';
 import Node from '../core/node.js';
 import Connection from '../core/connection.js';
 import Condition from '../core/condition.js';
 
 // 合并节点功能
-export function mergeNodes(editor) {
+export async function mergeNodes(editor) {
     // 检查是否有选中的节点
     const selectedNodes = editor.selectedElements.filter(el => el.type === 'node');
     if (selectedNodes.length === 0) {
-        alert('请先选择一个节点作为合并目标');
+        await AlertDialog('请先选择一个节点作为合并目标');
         return;
     }
     
     if (selectedNodes.length > 1) {
-        alert('请只选择一个节点作为合并目标');
+        await AlertDialog('请只选择一个节点作为合并目标');
         return;
     }
     
@@ -24,7 +25,7 @@ export function mergeNodes(editor) {
     const nodesToMerge = editor.nodes.filter(node => node.name === targetName && node.id !== targetNode.id);
     
     if (nodesToMerge.length === 0) {
-        alert(`没有找到其他名为"${targetName}"的节点`);
+        await AlertDialog(`没有找到其他名为"${targetName}"的节点`);
         return;
     }
     
@@ -69,20 +70,20 @@ export function mergeNodes(editor) {
     editor.selectedElements = [targetNode];
     editor.scheduleRender();
     
-    alert(`成功合并了 ${nodesToMerge.length} 个同名节点`);
+    await AlertDialog(`成功合并了 ${nodesToMerge.length} 个同名节点`);
 }
 
 // 合并条件功能
-export function mergeConditions(editor) {
+export async function mergeConditions(editor) {
     // 检查是否有选中的节点
     const selectedNodes = editor.selectedElements.filter(el => el.type === 'node');
     if (selectedNodes.length === 0) {
-        alert('请先选择一个节点作为合并条件的起始节点');
+        await AlertDialog('请先选择一个节点作为合并条件的起始节点');
         return;
     }
     
     if (selectedNodes.length > 1) {
-        alert('请只选择一个节点作为合并条件的起始节点');
+        await AlertDialog('请只选择一个节点作为合并条件的起始节点');
         return;
     }
     
@@ -92,7 +93,7 @@ export function mergeConditions(editor) {
     const outgoingConnections = editor.connections.filter(conn => conn.sourceNodeId === sourceNode.id);
     
     if (outgoingConnections.length === 0) {
-        alert('该节点没有出发的连线');
+        await AlertDialog('该节点没有出发的连线');
         return;
     }
     
@@ -225,11 +226,11 @@ export function mergeConditions(editor) {
     editor.selectedElements = [sourceNode];
     editor.scheduleRender();
     
-    alert('条件合并完成');
+    await AlertDialog('条件合并完成');
 }
 
 // 删除重复连接功能
-export function removeDuplicateConnections(editor) {
+export async function removeDuplicateConnections(editor) {
     // 保存历史状态
     const stateBefore = {
         nodes: editor.nodes.map(n => deepClone(n)),
@@ -292,9 +293,9 @@ export function removeDuplicateConnections(editor) {
     editor.scheduleRender();
     
     if (duplicateConnections.length > 0) {
-        alert(`成功删除了 ${duplicateConnections.length} 个重复连接`);
+        await AlertDialog(`成功删除了 ${duplicateConnections.length} 个重复连接`);
     } else {
-        alert('未发现重复连接');
+        await AlertDialog('未发现重复连接');
     }
 }
 

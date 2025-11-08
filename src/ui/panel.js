@@ -1,5 +1,6 @@
 import { createConditionElement } from '../utils/dom.js';
 import Condition from '../core/condition.js';
+import { ConfirmDialog } from '../utils/popup.js';
 
 // 属性面板管理
 export const updatePropertyPanel = (editor) => {
@@ -168,8 +169,9 @@ const createConnectionListItem = (connection, targetName, type, editor) => {
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn-small btn-danger';
     deleteBtn.textContent = '删除';
-    deleteBtn.addEventListener('click', () => {
-        if (confirm('确定要删除这条连线吗？')) {
+    deleteBtn.addEventListener('click', async () => {
+        const confirmed = await ConfirmDialog('确定要删除这条连线吗？');
+        if (confirmed) {
             editor.removeConnection(connection.id);
             updateNodeConnectionsList(editor.selectedElements[0], editor);
             editor.scheduleRender();
@@ -608,8 +610,9 @@ export const showMultipleConnectionProperties = (connections, editor) => {
         deleteBtn.className = 'btn btn-danger';
         deleteBtn.textContent = '删除连线';
         deleteBtn.style.cssText = 'margin-top: 10px;';
-        deleteBtn.addEventListener('click', () => {
-            if (confirm('确定要删除这条连线吗？')) {
+        deleteBtn.addEventListener('click', async () => {
+            const confirmed = await ConfirmDialog('确定要删除这条连线吗？');
+            if (confirmed) {
                 editor.removeConnection(connection.id);
                 const remaining = editor.selectedElements.filter(el => el.id !== connection.id);
                 editor.selectedElements = remaining;

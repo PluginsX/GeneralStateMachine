@@ -2,6 +2,7 @@ import Connection from '../core/connection.js';
 import Condition from '../core/condition.js';
 import Node from '../core/node.js';
 import { extractMermaidCharts, parseMermaidChart, parseMarkdownList } from '../utils/mermaidParser.js';
+import { AlertDialog, ConfirmDialog } from '../utils/popup.js';
 
 // 导入Markdown
 export const importMarkdown = (content, editor) => {
@@ -107,24 +108,24 @@ const importMarkdownLegacy = (content, editor) => {
 };
 
 // 处理文件选择（导入）
-export const handleFileSelect = (e, editor) => {
+export const handleFileSelect = async (e, editor) => {
     const file = e.target.files[0];
     if (!file) return;
     
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
         try {
             const content = event.target.result;
             importMarkdown(content, editor);
         } catch (error) {
-            alert('导入失败: ' + error.message);
+            await AlertDialog('导入失败: ' + error.message);
         }
     };
     
     if (file.name.endsWith('.md')) {
         reader.readAsText(file);
     } else {
-        alert('请选择Markdown文件 (.md)');
+        await AlertDialog('请选择Markdown文件 (.md)');
     }
     
     // 重置文件输入，允许重复选择同一个文件
@@ -132,10 +133,10 @@ export const handleFileSelect = (e, editor) => {
 };
 
 // 打开项目文件
-export const openProject = (editor) => {
+export const openProject = async (editor) => {
     const input = document.getElementById('project-input');
     if (!input) {
-        alert('项目文件输入元素不存在');
+        await AlertDialog('项目文件输入元素不存在');
         return;
     }
     
@@ -143,19 +144,19 @@ export const openProject = (editor) => {
 };
 
 // 处理项目文件选择
-export const handleProjectFileSelect = (e, editor) => {
+export const handleProjectFileSelect = async (e, editor) => {
     const file = e.target.files[0];
     if (!file) return;
     
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
         try {
             const jsonContent = event.target.result;
             const projectData = JSON.parse(jsonContent);
             
             // 验证项目文件格式
             if (!projectData.type || projectData.type !== 'node-graph-editor-project') {
-                alert('这不是一个有效的项目文件');
+                await AlertDialog('这不是一个有效的项目文件');
                 return;
             }
             
@@ -211,14 +212,14 @@ export const handleProjectFileSelect = (e, editor) => {
             editor.scheduleRender();
             
         } catch (error) {
-            alert('打开项目失败: ' + error.message);
-        }
+                await AlertDialog('打开项目失败: ' + error.message);
+            }
     };
     
     if (file.name.endsWith('.json')) {
         reader.readAsText(file);
     } else {
-        alert('请选择JSON项目文件 (.json)');
+        await AlertDialog('请选择JSON项目文件 (.json)');
     }
     
     // 重置文件输入，允许重复选择同一个文件

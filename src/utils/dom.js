@@ -1,5 +1,6 @@
 // DOM操作工具函数
 import Node from '../core/node.js';
+import { ConfirmDialog } from './popup.js';
 
 export const createConditionElement = (condition, index, editor) => {
     const conditionItem = document.createElement('div');
@@ -263,10 +264,10 @@ export const showContextMenu = (x, y, element, editor, worldPos = null) => {
         deleteItem.addEventListener('mousedown', (e) => {
             e.stopPropagation(); // 阻止事件冒泡
         });
-        deleteItem.addEventListener('click', (e) => {
+        deleteItem.addEventListener('click', async (e) => {
             e.stopPropagation(); // 阻止事件冒泡
             editor.selectedElements = [element];
-            editor.deleteSelectedNodes();
+            await editor.deleteSelectedNodes();
             removeContextMenu();
         });
         menu.appendChild(deleteItem);
@@ -278,10 +279,10 @@ export const showContextMenu = (x, y, element, editor, worldPos = null) => {
         deleteItem.addEventListener('mousedown', (e) => {
             e.stopPropagation(); // 阻止事件冒泡
         });
-        deleteItem.addEventListener('click', (e) => {
+        deleteItem.addEventListener('click', async (e) => {
             e.stopPropagation(); // 阻止事件冒泡
             editor.selectedElements = [element];
-            editor.deleteSelectedConnections();
+            await editor.deleteSelectedConnections();
             removeContextMenu();
         });
         menu.appendChild(deleteItem);
