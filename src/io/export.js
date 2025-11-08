@@ -119,6 +119,14 @@ export const exportAsImage = (editor) => {
     ctx.fillStyle = isLightMode() ? '#f5f5f5' : '#1e1e1e';
     ctx.fillRect(0, 0, width, height);
     
+    // 保存原始上下文状态
+    const originalCtx = editor.ctx;
+    const originalCanvas = editor.canvas;
+    
+    // 临时设置导出canvas为编辑器canvas（用于绘制）
+    editor.ctx = ctx;
+    editor.canvas = exportCanvas;
+    
     // 绘制网格和元素
     editor.drawGrid(ctx, width, height, minX, minY, maxX, maxY);
     editor.drawConnections(ctx);
@@ -126,6 +134,10 @@ export const exportAsImage = (editor) => {
         node.calculateAutoSize(ctx);
         editor.drawNode(ctx, node);
     });
+    
+    // 恢复原始上下文
+    editor.ctx = originalCtx;
+    editor.canvas = originalCanvas;
     
     // 恢复原始视图状态
     editor.pan = originalPan;

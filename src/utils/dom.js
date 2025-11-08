@@ -38,13 +38,13 @@ export const createConditionElement = (condition, index, editor) => {
     const fields = document.createElement('div');
     fields.className = 'condition-fields';
     
-    // 类型选择
+    // 类型选择（与Unity动画控制器参数一致）
     const typeSelect = document.createElement('select');
     typeSelect.innerHTML = `
-        <option value="int">整数</option>
-        <option value="float">浮点数</option>
-        <option value="string">字符串</option>
-        <option value="boolean">布尔值</option>
+        <option value="Float">Float</option>
+        <option value="Int">Int</option>
+        <option value="Bool">Bool</option>
+        <option value="Trigger">Trigger</option>
     `;
     typeSelect.value = condition.type;
     typeSelect.addEventListener('change', (e) => 

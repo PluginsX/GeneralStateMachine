@@ -1,6 +1,6 @@
 // 条件类
 export default class Condition {
-    constructor(type = 'int', key = '', operator = '>', value = '') {
+    constructor(type = 'Float', key = '', operator = '>', value = '') {
         this.type = type;
         this.key = key;
         this.operator = operator;

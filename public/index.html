@@ -14,7 +14,7 @@
         <div class="menu-group">
             <button id="new-project">新建</button>
             <button id="open-project">打开</button>
-            <button id="import-md">导入Markdown</button>
+            <button id="import-md">导入</button>
             <div class="export-submenu">
                 <button id="export-menu">导出</button>
                 <div class="export-submenu-content">
@@ -40,18 +40,32 @@
     <div class="main-content">
         <!-- 左侧工具栏 -->
         <aside class="tool-panel">
-            <div class="tool-item" draggable="true" data-type="node">
-                📦 节点
+            <!-- 工具栏（上方） -->
+            <div class="toolbar-section">
+                <h4 class="toolbar-title">工具</h4>
+                <button id="merge-nodes-btn" class="toolbar-btn">合并节点</button>
+                <button id="merge-conditions-btn" class="toolbar-btn">合并条件</button>
             </div>
-            <div class="tool-item" draggable="true" data-type="connection">
-                🔗 连线
+            <!-- 纵向分隔线 -->
+            <div class="toolbar-resizer" id="toolbar-resizer"></div>
+            <!-- 对象栏（下方） -->
+            <div class="object-section">
+                <h4 class="toolbar-title">对象</h4>
+                <div class="tool-item" draggable="true" data-type="node">
+                    📦 节点
+                </div>
+                <div class="tool-item" draggable="true" data-type="connection">
+                    🔗 连线
+                </div>
             </div>
+            <div class="tool-panel-resizer" id="tool-panel-resizer"></div>
         </aside>
 
         <!-- 中间工作区 -->
         <section class="workspace">
             <canvas id="editor-canvas"></canvas>
             <div class="selection-rectangle hidden"></div>
+            <div class="workspace-resizer" id="workspace-resizer"></div>
         </section>
 
         <!-- 右侧属性栏 -->
@@ -69,7 +83,7 @@
                 
                 <div class="form-group">
                     <label for="node-color">节点颜色</label>
-                    <input type="color" id="node-color" value="#ffffff">
+                    <input type="color" id="node-color" class="selector-color-picker" value="#ffffff">
                     <button id="node-color-reset" class="btn-small">重置为默认</button>
                 </div>
 

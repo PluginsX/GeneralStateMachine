@@ -113,13 +113,131 @@ body.light-mode .export-submenu-content {
     display: flex;
     flex: 1;
     overflow: hidden;
+    position: relative;
 }
 
 .tool-panel {
     width: 200px;
+    min-width: 150px;
+    max-width: 400px;
     background-color: #252526;
     border-right: 1px solid #3e3e42;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.toolbar-section {
+    flex: 0 0 auto;
     padding: 10px;
+    min-height: 100px;
+    overflow-y: auto;
+}
+
+.object-section {
+    flex: 1 1 auto;
+    padding: 10px;
+    min-height: 100px;
+    overflow-y: auto;
+}
+
+.toolbar-title {
+    margin: 0 0 10px 0;
+    font-size: 12px;
+    color: #969696;
+    text-transform: uppercase;
+    font-weight: normal;
+}
+
+body.light-mode .toolbar-title {
+    color: #666;
+}
+
+.toolbar-btn {
+    width: 100%;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background-color: #2d2d30;
+    border: 1px solid #3e3e42;
+    color: #e0e0e0;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+    transition: background-color 0.2s;
+}
+
+body.light-mode .toolbar-btn {
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    color: #333;
+}
+
+.toolbar-btn:hover {
+    background-color: #37373d;
+}
+
+body.light-mode .toolbar-btn:hover {
+    background-color: #e0e0e0;
+}
+
+/* 工具栏和对象栏之间的纵向分隔线 */
+.toolbar-resizer {
+    position: relative;
+    height: 10px;
+    cursor: row-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background-color 0.2s;
+    flex: 0 0 auto;
+}
+
+.toolbar-resizer::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 10px;
+    transform: translateY(-50%);
+    background: transparent;
+    transition: background-color 0.2s;
+}
+
+.toolbar-resizer:hover::before,
+.toolbar-resizer.resizing::before {
+    background-color: #007acc;
+}
+
+/* 工具栏和工作区之间的分隔线 */
+.tool-panel-resizer {
+    position: absolute;
+    right: -5px;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    cursor: col-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background-color 0.2s;
+}
+
+.tool-panel-resizer::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    transform: translateX(-50%);
+    background: transparent;
+    transition: background-color 0.2s;
+}
+
+.tool-panel-resizer:hover::before,
+.tool-panel-resizer.resizing::before {
+    background-color: #007acc;
 }
 
 body.light-mode .tool-panel {
@@ -155,8 +273,39 @@ body.light-mode .tool-item:hover {
 .workspace {
     flex: 1;
     position: relative;
+    min-width: 200px;
     overflow: hidden;
     background-color: #1e1e1e;
+}
+
+/* 工作区和属性面板之间的分隔线 */
+.workspace-resizer {
+    position: absolute;
+    right: -5px;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    cursor: col-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background-color 0.2s;
+}
+
+.workspace-resizer::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    transform: translateX(-50%);
+    background: transparent;
+    transition: background-color 0.2s;
+}
+
+.workspace-resizer:hover::before,
+.workspace-resizer.resizing::before {
+    background-color: #007acc;
 }
 
 body.light-mode .workspace {
@@ -179,6 +328,8 @@ body.light-mode .workspace {
 
 .property-panel {
     width: 300px;
+    min-width: 200px;
+    max-width: 600px;
     background-color: #252526;
     border-left: 1px solid #3e3e42;
     padding: 15px;
@@ -285,7 +436,8 @@ body.light-mode .condition-controls button {
 
 .condition-fields {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    overflow: hidden;
+    grid-template-columns: 1fr 1fr;
     gap: 5px;
 }
 
@@ -407,4 +559,71 @@ body.light-mode .context-menu-item:hover {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+}
+
+/* 多连线属性面板样式 */
+.draw-properties-section {
+    padding: 15px;
+    border-bottom: 2px solid #3e3e42;
+    margin-bottom: 15px;
+    background: #252526;
+}
+
+body.light-mode .draw-properties-section {
+    border-bottom: 2px solid #ccc;
+    background: #f9f9f9;
+}
+
+.draw-properties-section h4 {
+    margin: 0 0 10px 0;
+    color: #e0e0e0;
+}
+
+body.light-mode .draw-properties-section h4 {
+    color: #333;
+}
+
+.connection-header {
+    padding: 10px;
+    border-bottom: 1px solid #3e3e42;
+    cursor: pointer;
+    background: #2d2d30;
+    color: #e0e0e0;
+}
+
+body.light-mode .connection-header {
+    border-bottom: 1px solid #ddd;
+    background: #f5f5f5;
+    color: #333;
+}
+
+body.light-mode .connection-header div:last-child {
+    color: #666 !important;
+}
+
+.connection-header:hover {
+    background: #3e3e42;
+}
+
+body.light-mode .connection-header:hover {
+    background: #e5e5e5;
+}
+
+.connection-content {
+    padding: 10px;
+}
+
+.connection-item {
+    margin-bottom: 10px;
+    border: 1px solid #3e3e42;
+}
+
+body.light-mode .connection-item {
+    border: 1px solid #ddd;
+}
+
+.selector-color-picker {
+    height: 25px;
+    padding: 0px 2px !important;
+    margin-bottom: 8px;
 }
