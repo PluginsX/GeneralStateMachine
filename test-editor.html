@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>状态机编辑器 - 重构测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100%;
+            flex: 1;
+        }
+        
+        .main-content {
+            flex: 1;
+            position: relative;
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+        }
+        
+        #toolbar {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .toolbar-group {
+            display: flex;
+            gap: 5px;
+            padding: 5px;
+            background-color: #fff;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .toolbar-button {
+            padding: 6px 12px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .toolbar-button:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .toolbar-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
+        }
+        
+        #property-panel {
+            width: 300px;
+            background-color: #f8f9fa;
+            border-left: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .property-section {
+            margin-bottom: 20px;
+        }
+        
+        .property-section h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #2c3e50;
+        }
+        
+        .property-item {
+            margin-bottom: 12px;
+        }
+        
+        .property-item label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .property-item input,
+        .property-item textarea {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .property-item textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 14px;
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .notification.success {
+            background-color: #4caf50;
+        }
+        
+        .notification.error {
+            background-color: #f44336;
+        }
+        
+        .notification.info {
+            background-color: #2196f3;
+        }
+        
+        .empty-panel {
+            text-align: center;
+            color: #999;
+            padding: 40px 20px;
+        }
+        
+        /* 多元素选中状态 */
+        .multi-selection-info {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .selection-stats {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 4px;
+        }
+        
+        .selection-stats > div {
+            text-align: center;
+        }
+        
+        .selection-stats .count {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .selection-stats .label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        
+        .action-buttons button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .action-buttons .delete-btn {
+            background-color: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar"></div>
+    
+    <div class="app-container">
+        <div class="main-content">
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div id="property-panel"></div>
+    </div>
+    
+    <!-- 通知组件 -->
+    <div id="notification" class="notification"></div>
+    
+    <!-- 导入测试用的测试数据 -->
+    <script>
+        // 生成唯一ID
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+        
+        // 创建测试数据
+        const testData = {
+            version: "1.0",
+            nodes: [
+                {
+                    id: generateId(),
+                    name: "初始状态",
+                    description: "系统的起始状态",
+                    x: 100,
+                    y: 100,
+                    width: 120,
+                    height: 60
+                },
+                {
+                    id: generateId(),
+                    name: "处理中",
+                    description: "数据正在处理",
+                    x: 300,
+                    y: 100,
+                    width: 120,
+                    height: 60
+                },
+                {
+                    id: generateId(),
+                    name: "完成",
+                    description: "处理完成状态",
+                    x: 500,
+                    y: 100,
+                    width: 120,
+                    height: 60
+                },
+                {
+                    id: generateId(),
+                    name: "错误",
+                    description: "处理出错状态",
+                    x: 300,
+                    y: 250,
+                    width: 120,
+                    height: 60
+                }
+            ],
+            connections: [
+                {
+                    id: generateId(),
+                    sourceId: null, // 将在加载时设置
+                    targetId: null, // 将在加载时设置
+                    condition: "开始处理"
+                },
+                {
+                    id: generateId(),
+                    sourceId: null, // 将在加载时设置
+                    targetId: null, // 将在加载时设置
+                    condition: "处理成功"
+                },
+                {
+                    id: generateId(),
+                    sourceId: null, // 将在加载时设置
+                    targetId: null, // 将在加载时设置
+                    condition: "处理失败"
+                },
+                {
+                    id: generateId(),
+                    sourceId: null, // 将在加载时设置
+                    targetId: null, // 将在加载时设置
+                    condition: "重试"
+                }
+            ],
+            viewState: {
+                zoom: 1,
+                panX: 0,
+                panY: 0
+            }
+        };
+        
+        // 设置连线的sourceId和targetId
+        testData.connections[0].sourceId = testData.nodes[0].id;
+        testData.connections[0].targetId = testData.nodes[1].id;
+        
+        testData.connections[1].sourceId = testData.nodes[1].id;
+        testData.connections[1].targetId = testData.nodes[2].id;
+        
+        testData.connections[2].sourceId = testData.nodes[1].id;
+        testData.connections[2].targetId = testData.nodes[3].id;
+        
+        testData.connections[3].sourceId = testData.nodes[3].id;
+        testData.connections[3].targetId = testData.nodes[1].id;
+    </script>
+    
+    <!-- 导入重构后的Editor.js -->
+    <script type="module">
+        // 导入编辑器模块
+        import Editor from './src/Editor.js';
+        
+        // 初始化编辑器
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // 创建编辑器实例
+                const editor = new Editor({
+                    canvasId: 'canvas',
+                    propertyPanelId: 'property-panel',
+                    toolbarId: 'toolbar'
+                });
+                
+                // 加载测试数据
+                editor.loadProject(testData);
+                
+                // 暴露编辑器实例到全局，方便调试
+                window.editor = editor;
+                
+                console.log('编辑器初始化成功！');
+                
+                // 添加测试用的功能测试函数
+                window.testAllFeatures = function() {
+                    console.log('开始测试所有功能...');
+                    
+                    // 1. 测试创建节点
+                    console.log('1. 测试创建节点...');
+                    setTimeout(() => {
+                        editor.handleNewNode();
+                        console.log('节点创建成功');
+                        
+                        // 2. 测试选择
+                        console.log('2. 测试选择...');
+                        setTimeout(() => {
+                            const nodes = editor.nodeManager.getNodes();
+                            if (nodes.length > 0) {
+                                editor.mouseHandler.clearSelection();
+                                editor.mouseHandler.selectedNodes.add(nodes[0]);
+                                editor.mouseHandler.notifySelectionChange();
+                                console.log('节点选择成功');
+                            }
+                            
+                            // 3. 测试缩放
+                            console.log('3. 测试缩放...');
+                            setTimeout(() => {
+                                editor.handleZoomIn();
+                                console.log('缩放成功');
+                                
+                                // 4. 测试平移
+                                console.log('4. 测试平移...');
+                                setTimeout(() => {
+                                    editor.viewManager.pan(50, 50);
+                                    console.log('平移成功');
+                                    
+                                    // 5. 测试重置视图
+                                    console.log('5. 测试重置视图...');
+                                    setTimeout(() => {
+                                        editor.handleResetView();
+                                        console.log('重置视图成功');
+                                        
+                                        // 6. 测试导出
+                                        console.log('6. 测试导出项目...');
+                                        const project = editor.exportProject();
+                                        console.log('项目导出成功，节点数量:', project.nodes.length, '连线数量:', project.connections.length);
+                                        
+                                        console.log('所有功能测试完成！');
+                                    }, 1000);
+                                }, 1000);
+                            }, 1000);
+                        }, 1000);
+                    }, 1000);
+                };
+                
+                console.log('测试函数已准备就绪，可以调用 window.testAllFeatures() 进行功能测试');
+                
+            } catch (error) {
+                console.error('编辑器初始化失败:', error);
+                alert('编辑器初始化失败: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
