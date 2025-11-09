@@ -22,6 +22,30 @@ export default class UIToolbar {
         this.onSave = null;          // 保存回调
         this.onLoad = null;          // 加载回调
         this.onAutoArrange = null;   // 自动排列回调
+        this.onRealTimeArrange = null; // 实时自动排列回调
+        this.onConcentrateArrange = null; // 集中排列回调
+        
+        // 工具可用性状态 - 默认所有工具都是可用的
+        this.toolAvailability = {
+            'new-node': true,
+            'delete-selected': true,
+            'zoom-in': true,
+            'zoom-out': true,
+            'reset-view': true,
+            'auto-arrange': true,
+            'real-time-arrange': true,
+            'concentrate-arrange': true, // 集中排列
+            'export-image': true,
+            'export-markdown': true,
+            'import': true,
+            'save': true,
+            'load': true,
+            'undo': false, // 初始状态禁用
+            'redo': false  // 初始状态禁用
+        };
+        
+        // 保存所有按钮的引用
+        this.buttons = {};
         
         this.init();
     }
@@ -68,6 +92,8 @@ export default class UIToolbar {
         this.addButton(group, 'zoom-out', '缩小', '缩小视图', () => this.onZoomOut?.());
         this.addButton(group, 'reset-view', '重置视图', '重置缩放和平移', () => this.onResetView?.());
         this.addButton(group, 'auto-arrange', '自动排列', '按照树形结构重新排列节点', () => this.onAutoArrange?.());
+        this.addButton(group, 'real-time-arrange', '实时自动排列', '实时自动排列节点', () => this.onRealTimeArrange?.());
+        this.addButton(group, 'concentrate-arrange', '集中排列', '集中排列所有节点', () => this.onConcentrateArrange?.());
         
         this.container.appendChild(group);
     }
@@ -143,23 +169,68 @@ export default class UIToolbar {
         button.className = 'toolbar-button';
         button.textContent = text;
         button.title = title || text;
-        button.addEventListener('click', onClick);
+        
+        // 根据可用性状态设置按钮的禁用状态
+        const isAvailable = this.toolAvailability[id] !== false;
+        button.disabled = !isAvailable;
+        if (!isAvailable) {
+            button.classList.add('disabled');
+        }
+        
+        // 添加点击事件处理，但只有在可用时才执行回调
+        button.addEventListener('click', (e) => {
+            if (this.toolAvailability[id] !== false) {
+                onClick(e);
+            }
+        });
         
         parent.appendChild(button);
+        
+        // 保存按钮引用
+        this.buttons[id] = button;
+        
         return button;
+    }
+    
+    // 更新工具的可用性状态
+    updateToolAvailability(toolId, isAvailable) {
+        if (this.toolAvailability.hasOwnProperty(toolId)) {
+            this.toolAvailability[toolId] = isAvailable;
+            
+            // 更新DOM按钮状态
+            const button = this.buttons[toolId] || document.getElementById(`toolbar-${toolId}`);
+            if (button) {
+                button.disabled = !isAvailable;
+                if (isAvailable) {
+                    button.classList.remove('disabled');
+                } else {
+                    button.classList.add('disabled');
+                }
+            }
+        }
+    }
+    
+    // 更新自动排列按钮状态
+    updateArrangeButtons(isRealTimeActive) {
+        // 当实时排列激活时，禁用单次自动排列
+        this.updateToolAvailability('auto-arrange', !isRealTimeActive);
+        
+        // 更新实时排列按钮的样式（运行时紫色）
+        const realTimeButton = document.getElementById('real-time-arrange')||this.buttons['real-time-arrange'];
+        if (realTimeButton) {
+            if (isRealTimeActive) {
+                realTimeButton.classList.add('active-green');
+            } else {
+                realTimeButton.classList.remove('active-green');
+            }
+        }
     }
     
     // 更新历史按钮状态
     updateHistoryButtons(canUndo, canRedo) {
-        if (this.undoButton) {
-            this.undoButton.disabled = !canUndo;
-            this.undoButton.classList.toggle('disabled', !canUndo);
-        }
-        
-        if (this.redoButton) {
-            this.redoButton.disabled = !canRedo;
-            this.redoButton.classList.toggle('disabled', !canRedo);
-        }
+        // 使用统一的工具可用性更新方法
+        this.updateToolAvailability('undo', canUndo);
+        this.updateToolAvailability('redo', canRedo);
     }
     
     // 设置回调函数
@@ -177,6 +248,8 @@ export default class UIToolbar {
         this.onSave = callbacks.onSave;
         this.onLoad = callbacks.onLoad;
         this.onAutoArrange = callbacks.onAutoArrange;
+        this.onRealTimeArrange = callbacks.onRealTimeArrange;
+        this.onConcentrateArrange = callbacks.onConcentrateArrange;
     }
     
     // 更新工具栏状态
@@ -187,11 +260,7 @@ export default class UIToolbar {
         }
         
         // 更新删除按钮状态
-        const deleteButton = document.getElementById('toolbar-delete-selected');
-        if (deleteButton) {
-            deleteButton.disabled = !hasSelection;
-            deleteButton.classList.toggle('disabled', !hasSelection);
-        }
+        this.updateToolAvailability('delete-selected', hasSelection);
     }
     
     // 显示消息提示

@@ -29,6 +29,7 @@ export default class MouseHandler {
         
         // 回调函数
         this.onNodeClick = null;
+        this.onNodeDoubleClick = null; // 新增双击事件回调
         this.onNodeDrag = null;
         this.onConnectionCreate = null;
         this.onCanvasClick = null;
@@ -40,6 +41,10 @@ export default class MouseHandler {
         
         // 初始化事件监听
         this.initEventListeners();
+        
+        // 双击检测变量
+        this.lastClickTime = 0;
+        this.lastClickedNode = null;
     }
     
     // 初始化事件监听器
@@ -58,6 +63,9 @@ export default class MouseHandler {
         
         // 右键菜单
         this.canvas.addEventListener('contextmenu', this.handleContextMenu.bind(this));
+        
+        // 双击事件
+        this.canvas.addEventListener('dblclick', this.handleDoubleClick.bind(this));
         
         // 滚轮缩放（在CanvasRenderer中处理）
     }
@@ -221,6 +229,22 @@ export default class MouseHandler {
         
         // 调用节点点击回调
         this.onNodeClick?.(node, event);
+    }
+    
+    // 处理双击事件
+    handleDoubleClick(event) {
+        // 获取相对canvas的鼠标位置
+        const rect = this.canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        
+        // 查找点击的节点
+        const clickedNode = this.findNodeAtPosition(x, y);
+        
+        if (clickedNode) {
+            // 如果找到了节点，调用双击回调
+            this.onNodeDoubleClick?.(clickedNode, event);
+        }
     }
     
     // 处理空白区域点击
@@ -450,6 +474,7 @@ export default class MouseHandler {
     // 设置回调函数
     setCallbacks(callbacks) {
         this.onNodeClick = callbacks.onNodeClick;
+        this.onNodeDoubleClick = callbacks.onNodeDoubleClick; // 设置双击回调
         this.onNodeDrag = callbacks.onNodeDrag;
         this.onConnectionCreate = callbacks.onConnectionCreate;
         this.onCanvasClick = callbacks.onCanvasClick;

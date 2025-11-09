@@ -363,3 +363,308 @@ export async function removeDuplicateConnections(editor) {
     }
 }
 
+// 集中排列功能
+export async function concentrateArrange(editor) {
+    // 实现互斥逻辑：如果实时排列正在运行，则先停止它
+    let wasRealTimeActive = false;
+    if (editor.isRealTimeArrangeActive) {
+        wasRealTimeActive = true;
+        editor.stopForceLayout();
+        
+        // 如果编辑器有showNotification方法，则显示通知
+        if (editor.showNotification) {
+            editor.showNotification('已停止实时排列，开始集中排列');
+        }
+    }
+    
+    // 保存历史状态
+    const stateBefore = {
+        nodes: editor.nodes.map(n => deepClone(n)),
+        connections: editor.connections.map(c => deepClone(c))
+    };
+    
+    if (editor.nodes.length === 0) {
+        await AlertDialog('画布中没有节点需要排列');
+        return;
+    }
+    
+    // 1. 分组节点：孤立节点和连通组
+    const { isolatedNodes, connectedGroups } = groupNodesByConnectivity(editor.nodes, editor.connections);
+    
+    // 2. 计算每个组的包围盒
+    const groupBoundingBoxes = [];
+    
+    // 计算连通组的包围盒
+    connectedGroups.forEach(group => {
+        const box = calculateBoundingBox(group);
+        groupBoundingBoxes.push({
+            nodes: group,
+            box
+        });
+    });
+    
+    // 3. 排列孤立节点（矩阵排列）
+    const baseX = 200; // 基础X坐标
+    const baseY = 150; // 基础Y坐标
+    const groupSpacing = 150; // 组间间距，增加到150确保足够空间
+    
+    // 计算孤立节点组的占用空间
+    let isolatedGroupHeight = 0;
+    if (isolatedNodes.length > 0) {
+        arrangeIsolatedNodes(isolatedNodes, baseX, baseY);
+        
+        // 计算排列后孤立节点组的实际高度
+        const isolatedBox = calculateBoundingBox(isolatedNodes);
+        isolatedGroupHeight = isolatedBox.height;
+    }
+    
+    // 4. 排列连通组（纵向排列，考虑每个组的实际高度）
+    let currentY = baseY + isolatedGroupHeight + groupSpacing; // 从孤立节点组下方开始，留出足够间距
+    
+    // 按组的高度从大到小排序，先排列大组，使布局更稳定
+    groupBoundingBoxes.sort((a, b) => b.box.height - a.box.height);
+    
+    groupBoundingBoxes.forEach(({ nodes, box }) => {
+        // 计算组的移动偏移量
+        // 使用原始边界计算移动，而不是带padding的边界
+        const originalWidth = box.originalRight - box.originalLeft;
+        const originalHeight = box.originalBottom - box.originalTop;
+        
+        // 新的组左上角位置
+        const targetLeft = baseX - (originalWidth / 2); // 居中对齐
+        
+        // 计算组的移动向量
+        const translateX = targetLeft - box.originalLeft;
+        const translateY = currentY - box.originalTop;
+        
+        // 移动组内所有节点（保持相对位置）
+        nodes.forEach(node => {
+            node.x += translateX;
+            node.y += translateY;
+        });
+        
+        // 更新下一组的起始Y坐标，基于当前组的实际高度加上组间距
+        currentY += originalHeight + groupSpacing;
+    });
+    
+    // 保存历史状态
+    const stateAfter = {
+        nodes: editor.nodes.map(n => deepClone(n)),
+        connections: editor.connections.map(c => deepClone(c))
+    };
+    
+    editor.historyManager.addHistory('concentrate-arrange', {
+        before: stateBefore,
+        after: stateAfter
+    });
+    
+    editor.scheduleRender();
+    await AlertDialog('集中排列完成');
+}
+
+// 根据连通性分组节点
+function groupNodesByConnectivity(nodes, connections) {
+    const isolatedNodes = [];
+    const connectedGroups = [];
+    const visited = new Set();
+    
+    // 构建节点连接图
+    const nodeGraph = new Map();
+    nodes.forEach(node => {
+        nodeGraph.set(node.id, new Set());
+    });
+    
+    // 添加连接关系
+    connections.forEach(conn => {
+        nodeGraph.get(conn.sourceNodeId).add(conn.targetNodeId);
+        nodeGraph.get(conn.targetNodeId).add(conn.sourceNodeId);
+    });
+    
+    // 检查节点是否有连接
+    function hasConnections(nodeId) {
+        return nodeGraph.get(nodeId).size > 0;
+    }
+    
+    // DFS查找连通组件
+    function findConnectedComponent(startNodeId) {
+        const component = [];
+        const stack = [startNodeId];
+        visited.add(startNodeId);
+        
+        while (stack.length > 0) {
+            const currentId = stack.pop();
+            const currentNode = nodes.find(n => n.id === currentId);
+            if (currentNode) {
+                component.push(currentNode);
+            }
+            
+            // 访问所有未访问的邻居
+            for (const neighborId of nodeGraph.get(currentId)) {
+                if (!visited.has(neighborId)) {
+                    visited.add(neighborId);
+                    stack.push(neighborId);
+                }
+            }
+        }
+        
+        return component;
+    }
+    
+    // 分组节点
+    nodes.forEach(node => {
+        if (!visited.has(node.id)) {
+            if (hasConnections(node.id)) {
+                // 有连接的节点，查找连通组件
+                const component = findConnectedComponent(node.id);
+                connectedGroups.push(component);
+            } else {
+                // 孤立节点
+                isolatedNodes.push(node);
+                visited.add(node.id);
+            }
+        }
+    });
+    
+    return { isolatedNodes, connectedGroups };
+}
+
+// 计算节点组的包围盒
+function calculateBoundingBox(nodes) {
+    if (nodes.length === 0) {
+        return { left: 0, top: 0, width: 0, height: 0 };
+    }
+    
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    
+    nodes.forEach(node => {
+        // 确保节点有默认的宽高值，防止计算错误
+        const nodeWidth = node.width || 150;
+        const nodeHeight = node.height || 80;
+        
+        // 计算节点的实际边界
+        const nodeLeft = node.x - nodeWidth / 2;
+        const nodeTop = node.y - nodeHeight / 2;
+        const nodeRight = node.x + nodeWidth / 2;
+        const nodeBottom = node.y + nodeHeight / 2;
+        
+        // 更新包围盒边界
+        minX = Math.min(minX, nodeLeft);
+        minY = Math.min(minY, nodeTop);
+        maxX = Math.max(maxX, nodeRight);
+        maxY = Math.max(maxY, nodeBottom);
+    });
+    
+    // 添加额外的边距，确保组与组之间有足够的安全距离
+    const padding = 20;
+    return {
+        left: minX - padding,
+        top: minY - padding,
+        width: (maxX - minX) + (padding * 2),
+        height: (maxY - minY) + (padding * 2),
+        centerX: (minX + maxX) / 2,
+        centerY: (minY + maxY) / 2,
+        // 添加原始边界信息，用于精确移动
+        originalLeft: minX,
+        originalTop: minY,
+        originalRight: maxX,
+        originalBottom: maxY
+    };
+}
+
+// 查找与给定节点相连的所有节点（连通组件）
+export function findConnectedNodes(startNode, allNodes, allConnections) {
+    const visited = new Set();
+    const connectedNodes = [];
+    
+    // 构建节点连接图
+    const nodeGraph = new Map();
+    allNodes.forEach(node => {
+        nodeGraph.set(node.id, new Set());
+    });
+    
+    // 添加连接关系（双向）
+    allConnections.forEach(conn => {
+        if (nodeGraph.has(conn.sourceNodeId)) {
+            nodeGraph.get(conn.sourceNodeId).add(conn.targetNodeId);
+        }
+        if (nodeGraph.has(conn.targetNodeId)) {
+            nodeGraph.get(conn.targetNodeId).add(conn.sourceNodeId);
+        }
+    });
+    
+    // DFS查找连通组件
+    function dfs(nodeId) {
+        if (visited.has(nodeId)) return;
+        
+        visited.add(nodeId);
+        const node = allNodes.find(n => n.id === nodeId);
+        if (node) {
+            connectedNodes.push(node);
+        }
+        
+        // 访问所有未访问的邻居
+        const neighbors = nodeGraph.get(nodeId) || new Set();
+        for (const neighborId of neighbors) {
+            dfs(neighborId);
+        }
+    }
+    
+    // 从起始节点开始DFS
+    dfs(startNode.id);
+    
+    return connectedNodes;
+}
+
+// 矩阵排列孤立节点
+function arrangeIsolatedNodes(nodes, startX, startY) {
+    if (nodes.length === 0) return;
+    
+    // 获取节点的平均尺寸或使用默认值
+    const defaultNodeWidth = 180; // 增加默认宽度以确保有足够空间
+    const defaultNodeHeight = 100; // 增加默认高度
+    
+    // 根据节点数量计算合适的矩阵布局
+    // 对于少量节点采用更紧凑的布局，避免浪费空间
+    let nodesPerRow;
+    if (nodes.length <= 4) {
+        // 4个或更少节点时使用2x2矩阵
+        nodesPerRow = 2;
+    } else if (nodes.length <= 9) {
+        // 5-9个节点时使用3x3矩阵
+        nodesPerRow = 3;
+    } else if (nodes.length <= 16) {
+        // 10-16个节点时使用4x4矩阵
+        nodesPerRow = 4;
+    } else {
+        // 更多节点时使用5列矩阵
+        nodesPerRow = 5;
+    }
+    
+    // 增加节点间距，确保节点之间有足够的空间
+    const horizontalSpacing = defaultNodeWidth * 1.2; // 横向间距为节点宽度的1.2倍
+    const verticalSpacing = defaultNodeHeight * 1.5; // 纵向间距为节点高度的1.5倍
+    
+    // 计算总列数和行数
+    const totalRows = Math.ceil(nodes.length / nodesPerRow);
+    
+    nodes.forEach((node, index) => {
+        const row = Math.floor(index / nodesPerRow);
+        const col = index % nodesPerRow;
+        
+        // 居中排列：如果最后一行节点不足，居中显示
+        let adjustedCol = col;
+        if (row === totalRows - 1) {
+            const lastRowNodes = nodes.length % nodesPerRow || nodesPerRow;
+            const offset = (nodesPerRow - lastRowNodes) / 2 * horizontalSpacing;
+            node.x = startX + col * horizontalSpacing + offset;
+        } else {
+            node.x = startX + col * horizontalSpacing;
+        }
+        
+        node.y = startY + row * verticalSpacing;
+    });
+}
+

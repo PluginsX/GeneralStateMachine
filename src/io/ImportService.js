@@ -535,16 +535,30 @@ export default class ImportService {
             
             console.log(`检测到 ${data.Nodes.length} 个状态节点和 ${data.Transitions.length} 个过渡连接`);
             
-            // 验证节点名称格式
+            // 验证节点格式（现在支持对象格式，从Name字段获取名称）
             try {
-                data.Nodes.forEach((nodeName, index) => {
-                    if (typeof nodeName !== 'string' || nodeName.trim() === '') {
-                        throw new Error(`索引${index}处的节点名称无效`);
+                data.Nodes.forEach((node, index) => {
+                    let nodeName;
+                    if (typeof node === 'string') {
+                        // 兼容旧格式：纯字符串节点
+                        nodeName = node;
+                    } else if (typeof node === 'object' && node !== null) {
+                        // 新格式：对象节点，从Name字段获取名称
+                        if (!node.Name || typeof node.Name !== 'string') {
+                            throw new Error(`索引${index}处的节点对象缺少有效的Name字段`);
+                        }
+                        nodeName = node.Name;
+                    } else {
+                        throw new Error(`索引${index}处的节点格式无效，应为字符串或对象`);
+                    }
+                    
+                    if (nodeName.trim() === '') {
+                        throw new Error(`索引${index}处的节点名称为空`);
                     }
                 });
-                console.log('节点名称验证通过');
+                console.log('节点格式验证通过');
             } catch (nodeError) {
-                console.error('节点名称验证失败:', nodeError);
+                console.error('节点验证失败:', nodeError);
                 throw new Error(`节点验证失败: ${nodeError.message}`);
             }
             
@@ -1049,7 +1063,7 @@ export default class ImportService {
      * @param {Array} nodeNames - 节点名称数组
      * @returns {Array} - 节点对象数组
      */
-    createNodesFromStateMachine(nodeNames) {
+    createNodesFromStateMachine(nodeDataList) {
         const nodes = [];
         const nodeNameMap = new Map(); // 名称到节点对象的映射
         
@@ -1060,7 +1074,7 @@ export default class ImportService {
         const verticalSpacing = 150;
         const nodesPerRow = 3;
         
-        nodeNames.forEach((nodeName, index) => {
+        nodeDataList.forEach((nodeData, index) => {
             const row = Math.floor(index / nodesPerRow);
             const col = index % nodesPerRow;
             
@@ -1068,11 +1082,29 @@ export default class ImportService {
             const x = startX + col * horizontalSpacing;
             const y = startY + row * verticalSpacing;
             
+            // 从节点数据中提取名称
+            let nodeName, nodeColor;
+            if (typeof nodeData === 'string') {
+                // 兼容旧格式：纯字符串节点
+                nodeName = nodeData;
+            } else if (typeof nodeData === 'object' && nodeData !== null) {
+                // 新格式：对象节点
+                nodeName = nodeData.Name || 'Unknown';
+                nodeColor = nodeData.color; // 提取颜色信息
+            } else {
+                nodeName = 'Invalid Node';
+            }
+            
             // 创建节点
             const node = new Node(nodeName, x, y);
             node.description = '';
             node.width = 150;
             node.height = 50;
+            
+            // 应用节点颜色（如果有）
+            if (nodeColor && typeof nodeColor === 'string' && nodeColor.startsWith('#')) {
+                node.color = nodeColor;
+            }
             
             nodes.push(node);
             nodeNameMap.set(nodeName, node);

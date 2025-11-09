@@ -1,5 +1,5 @@
 import NodeGraphEditor from './core/editor.js';
-import { mergeNodes, mergeConditions, removeDuplicateConnections } from './utils/automation.js';
+import { mergeNodes, mergeConditions, removeDuplicateConnections, concentrateArrange } from './utils/automation.js';
 
 // 禁用默认右键菜单
 document.addEventListener('DOMContentLoaded', () => {
@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 初始化编辑器
     const editor = new NodeGraphEditor('editor-canvas');
+    // 将编辑器实例赋值给window，以便其他地方可以访问
+    window.editor = editor;
     
     // 初始化UI布局调整功能
     initLayoutResizers();
@@ -34,6 +36,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (removeDuplicateConnectionsBtn) {
         removeDuplicateConnectionsBtn.addEventListener('click', () => {
             removeDuplicateConnections(editor);
+        });
+    }
+    
+    // 绑定集中排列按钮
+    const concentrateArrangeBtn = document.getElementById('concentrate-arrange-btn');
+    if (concentrateArrangeBtn) {
+        concentrateArrangeBtn.addEventListener('click', () => {
+            concentrateArrange(editor);
         });
     }
 });

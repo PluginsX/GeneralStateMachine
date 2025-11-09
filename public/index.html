@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>节点图形化编辑器</title>
     <link rel="stylesheet" href="./assets/styles/global.css">
+    <script src="../src/lib/d3.v7.min.js"></script>
 </head>
 
 <body>
@@ -71,6 +72,8 @@
                 <button id="merge-conditions-btn" class="toolbar-btn">合并条件</button>
                 <button id="remove-duplicate-connections-btn" class="toolbar-btn">删除重复连接</button>
                 <button id="auto-arrange-btn" class="toolbar-btn">自动排列</button>
+                <button id="real-time-arrange" class="toolbar-btn">实时自动排列</button>
+                <button id="concentrate-arrange-btn" class="toolbar-btn">集中排列</button>
             </div>
             <!-- 纵向分隔线 -->
             <div class="toolbar-resizer" id="toolbar-resizer"></div>

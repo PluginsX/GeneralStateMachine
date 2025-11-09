@@ -159,7 +159,7 @@ body.light-mode .export-submenu-content {
     flex: 1 1 auto;
     padding: 10px;
     min-height: 100px;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 .toolbar-title {
@@ -196,6 +196,40 @@ body.light-mode .toolbar-btn {
 
 .toolbar-btn:hover {
     background-color: #37373d;
+}
+
+/* 实时自动排列按钮激活状态 - 修改为紫色 */
+.toolbar-btn.active-green {
+    background-color: #9c27b0;
+    border-color: #7b1fa2;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+body.light-mode .toolbar-btn.active-green {
+    background-color: #9c27b0;
+    border-color: #7b1fa2;
+    color: white;
+}
+
+/* 确保深色模式下也能正确显示激活状态 */
+body.dark-mode .toolbar-btn.active-green {
+    background-color: #9c27b0;
+    border-color: #ba68c8;
+    color: white;
+}
+
+/* 工具栏按钮禁用状态 */
+.toolbar-btn.disabled {
+    color: #000000 !important;
+    cursor: not-allowed !important;
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* 确保工具栏按钮的基础样式包含颜色属性 */
+.toolbar-button {
+    color: #e0e0e0;
 }
 
 body.light-mode .toolbar-btn:hover {

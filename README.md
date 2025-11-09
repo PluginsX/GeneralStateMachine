@@ -7,4 +7,8 @@ WEB端通用状态机编辑器
 仅用于个人学习！
 无任何涉密内容！
 
+WEB应用启动方式
+运行Launcher.bat
+访问http://localhost:8000/public
+
 ```

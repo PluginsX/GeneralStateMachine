@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "type": "UnityAnimatorControllerExporter",
+  "Nodes": [
+    {
+      "Name": "Entry",
+      "color": "#1D7436"
+    },
+    {
+      "Name": "Exit",
+      "color": "#991F1F"
+    },
+    {
+      "Name": "AnyState",
+      "color": "#60BEA6"
+    },
+    {
+      "Name": "Idle/Walk/Run/Sprint"
+    }
+  ],
+  "Transitions": [
+    {
+      "Name": "SubSub_Entry->SubSub_SubSubState",
+      "From": "SubSub_Entry",
+      "To": "SubSub_SubSubState",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Land->Idle/Walk/Run/Sprint",
+      "From": "Land",
+      "To": "Idle/Walk/Run/Sprint",
+      "Conditions": [
+        {
+          "Parameter": "InAir",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": true
+        }
+      ]
+    }
+  ]
+}

@@ -48,6 +48,10 @@ export default class NodeGraphEditor {
         this.zoom = 1.0;
         this.pan = { x: 0, y: 0 };
         this.isPanning = false;
+        
+        // 实时排列相关状态
+        this.forceSimulation = null;
+        this.isRealTimeArrangeActive = false;
         this.panStart = { x: 0, y: 0 };
         this.lastMouseX = 0;
         this.lastMouseY = 0;
@@ -88,6 +92,154 @@ export default class NodeGraphEditor {
         this.setupEventListeners();
         this.setupUIListeners();
         this.scheduleRender();
+        
+        // 初始化时确保按钮状态正确
+        this.updateArrangeButtonState();
+    }
+    
+    // 处理实时自动排列
+    handleRealTimeArrange() {
+        try {
+            // 直接调用节点图编辑器的力导向图排列方法
+            // 此方法负责启动或停止实时排列功能，使用本地D3.js库
+            this.performForceLayoutArrange();
+        } catch (error) {
+            console.error('处理实时排列时发生错误:', error);
+            // 发生错误时，确保状态被正确重置
+            if (this.forceSimulation) {
+                this.stopForceLayout();
+            }
+        }
+    }
+    
+    // 使用D3.js实现力导向图排列
+    performForceLayoutArrange() {
+        // 检查D3.js库是否已经加载
+        if (typeof d3 !== 'undefined') {
+            console.log('开始使用D3.js进行力导向图排列');
+            
+            // 检查是否已有活跃的模拟，避免重复创建
+            if (this.forceSimulation) {
+                this.stopForceLayout();
+                this.showNotification('实时排列已停止');
+                return;
+            }
+            
+            // 获取所有节点
+            const nodes = this.nodes;
+            // 获取所有连接
+            const links = this.connections.map(conn => ({
+                source: conn.sourceNodeId,
+                target: conn.targetNodeId
+            }));
+            
+            if (nodes.length === 0) {
+                this.showNotification('没有节点需要排列');
+                return;
+            }
+            
+            // 准备D3.js数据结构 - 添加默认值以确保与单次排列兼容
+            const nodeMap = new Map();
+            const d3Nodes = nodes.map(node => {
+                const d3Node = {
+                    id: node.id,
+                    x: node.x || 0,
+                    y: node.y || 0,
+                    width: node.width || 150, // 添加默认宽度
+                    height: node.height || 100 // 添加默认高度
+                };
+                nodeMap.set(node.id, d3Node);
+                return d3Node;
+            });
+            
+            // 优化连接数据处理，确保节点ID查找的健壮性
+            const d3Links = links
+                .map(link => {
+                    const sourceNode = nodeMap.get(link.source);
+                    const targetNode = nodeMap.get(link.target);
+                    return {
+                        source: sourceNode,
+                        target: targetNode
+                    };
+                })
+                .filter(link => link.source && link.target); // 确保连接的两端都有效
+            
+            // 创建力导向模拟 - 使用本地D3.js库
+            this.forceSimulation = d3.forceSimulation(d3Nodes)
+                .force("link", d3.forceLink(d3Links).id(d => d.id).distance(150))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("collide", d3.forceCollide().radius(d => Math.max(d.width || 150, d.height || 100) / 2 + 15))
+                .force("center", d3.forceCenter(this.canvas.width / 2, this.canvas.height / 2));
+            
+            // 添加tick事件监听器，实时更新节点位置
+            this.forceSimulation.on("tick", () => {
+                // 更新原始节点位置
+                d3Nodes.forEach(d3Node => {
+                    const originalNode = nodes.find(n => n.id === d3Node.id);
+                    if (originalNode) {
+                        // 只有当节点未被固定时才更新位置
+                        if (d3Node.fx === undefined && d3Node.fy === undefined) {
+                            originalNode.x = d3Node.x;
+                            originalNode.y = d3Node.y;
+                        } else {
+                            // 如果节点被固定，同步原始节点位置
+                            originalNode.x = d3Node.fx !== undefined ? d3Node.fx : d3Node.x;
+                            originalNode.y = d3Node.fy !== undefined ? d3Node.fy : d3Node.y;
+                        }
+                    }
+                });
+                
+                // 调度渲染以显示更新后的位置
+                this.scheduleRender();
+            });
+            
+            // 保存节点映射，用于后续的拖拽处理
+            this.forceSimulation.nodeMap = nodeMap;
+            
+            // 设置模拟状态标记
+            this.isRealTimeArrangeActive = true;
+            
+            // 更新按钮状态
+            this.updateArrangeButtonState();
+            
+            // 显示通知
+            this.showNotification('实时交互式排列已启动');
+        } else {
+            console.error('D3.js库未找到，请确保已正确加载');
+            this.showNotification('D3.js库未找到，无法执行自动排列');
+        }
+    }
+    
+    // 停止力导向图排列
+    stopForceLayout() {
+        if (this.forceSimulation) {
+            this.forceSimulation.stop();
+            this.forceSimulation = null;
+            this.isRealTimeArrangeActive = false;
+            
+            // 更新按钮状态
+            this.updateArrangeButtonState();
+            
+            // 恢复单次自动排列按钮的可用性
+            if (this.toolbar) {
+                this.toolbar.updateToolAvailability('auto-arrange', true);
+            }
+        }
+    }
+    
+    // 更新排列按钮状态
+    updateArrangeButtonState() {
+        // 调用UIToolbar的方法更新按钮状态，保持代码一致性
+        if (this.toolbar) {
+            // 更新按钮状态和可用性
+            this.toolbar.updateArrangeButtons(this.isRealTimeArrangeActive);
+            
+            // 更新按钮文字
+            const button = document.getElementById('real-time-arrange')||this.toolbar.buttons['real-time-arrange'];
+            if (button) {
+                button.textContent = this.isRealTimeArrangeActive ? '停止实时排列' : '实时自动排列';
+            }
+        }
     }
     
     // 设置画布尺寸
@@ -135,6 +287,7 @@ export default class NodeGraphEditor {
         this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
         this.canvas.addEventListener('mouseup', e => this.handleMouseUp(e));
         this.canvas.addEventListener('wheel', e => this.handleWheel(e));
+        this.canvas.addEventListener('dblclick', e => this.handleDoubleClick(e));
         
         // 全局鼠标松开事件（处理在画布外松开鼠标的情况）
         document.addEventListener('mouseup', e => this.handleGlobalMouseUpForPanning(e));
@@ -184,7 +337,16 @@ export default class NodeGraphEditor {
         document.getElementById('zoom-out').addEventListener('click', () => this.zoomOut());
         
         // 自动排列
-        document.getElementById('auto-arrange-btn').addEventListener('click', () => this.arrangeNodesAsTree());
+        document.getElementById('auto-arrange-btn').addEventListener('click', () => this.arrangeNodesWithForceLayout());
+        // 实时自动排列
+        document.getElementById('real-time-arrange').addEventListener('click', () => {
+            try {
+                // 直接调用当前NodeGraphEditor实例的handleRealTimeArrange方法
+                this.handleRealTimeArrange();
+            } catch (error) {
+                console.error('点击实时排列按钮时发生错误:', error);
+            }
+        });
         
         // 属性面板
         document.getElementById('update-node').addEventListener('click', () => this.updateSelectedNode());
@@ -209,21 +371,6 @@ export default class NodeGraphEditor {
                 e.dataTransfer.setData('text/plain', item.dataset.type);
             });
         });
-        
-        // 计算组的外接矩形
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-        
-        group.forEach(node => {
-            minX = Math.min(minX, node.x - nodeWidth / 2);
-            minY = Math.min(minY, node.y - nodeHeight / 2);
-            maxX = Math.max(maxX, node.x + nodeWidth / 2);
-            maxY = Math.max(maxY, node.y + nodeHeight / 2);
-        });
-        
-        return { left: minX, top: minY, right: maxX, bottom: maxY };
     }
     
     // 过滤选中的元素
@@ -526,7 +673,18 @@ export default class NodeGraphEditor {
         // 检查节点是否已经被选中
         const isAlreadySelected = this.selectedElements.some(el => el.id === node.id);
         
-        // 如果节点已经被选中，直接准备拖动（不改变选择状态）
+        // 如果节点已经被选中且按住Ctrl键，取消选择该节点
+        if (isAlreadySelected && (e.ctrlKey || e.metaKey)) {
+            const index = this.selectedElements.findIndex(el => el.id === node.id);
+            if (index !== -1) {
+                this.selectedElements.splice(index, 1);
+                updatePropertyPanel(this);
+                this.scheduleRender();
+            }
+            return;
+        }
+        
+        // 如果节点已经被选中（且没有按住Ctrl键），准备拖动
         if (isAlreadySelected) {
             // 将点击的节点移到最上层（显示层次优化）
             this.bringNodeToFront(node);
@@ -671,11 +829,29 @@ export default class NodeGraphEditor {
             if (selectedNodes.length === 1) {
                 this.draggingElement.x = worldPos.x - this.draggingOffset.x;
                 this.draggingElement.y = worldPos.y - this.draggingOffset.y;
+                
+                // 如果实时排列处于活动状态，固定D3.js模拟中的节点位置
+                if (this.isRealTimeArrangeActive && this.forceSimulation && this.forceSimulation.nodeMap) {
+                    const d3Node = this.forceSimulation.nodeMap.get(this.draggingElement.id);
+                    if (d3Node) {
+                        d3Node.fx = this.draggingElement.x;
+                        d3Node.fy = this.draggingElement.y;
+                    }
+                }
             } else {
                 // 如果有多个节点被选中，移动所有选中的节点
                 selectedNodes.forEach(node => {
                     node.x += deltaX;
                     node.y += deltaY;
+                    
+                    // 如果实时排列处于活动状态，固定D3.js模拟中的节点位置
+                    if (this.isRealTimeArrangeActive && this.forceSimulation && this.forceSimulation.nodeMap) {
+                        const d3Node = this.forceSimulation.nodeMap.get(node.id);
+                        if (d3Node) {
+                            d3Node.fx = node.x;
+                            d3Node.fy = node.y;
+                        }
+                    }
                 });
                 // 更新拖动偏移量，以便下次移动时使用正确的偏移
                 this.draggingOffset.x = worldPos.x - this.draggingElement.x;
@@ -868,6 +1044,28 @@ export default class NodeGraphEditor {
         
         // 停止拖动节点
         if (this.draggingElement) {
+            // 如果实时排列处于活动状态，取消D3.js模拟中的节点固定
+            if (this.isRealTimeArrangeActive && this.forceSimulation && this.forceSimulation.nodeMap) {
+                // 获取所有选中的节点
+                const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
+                
+                // 取消所有选中节点的固定
+                selectedNodes.forEach(node => {
+                    const d3Node = this.forceSimulation.nodeMap.get(node.id);
+                    if (d3Node) {
+                        // 保留当前位置作为初始值，但允许力模型进行调整
+                        d3Node.x = d3Node.fx !== undefined ? d3Node.fx : d3Node.x;
+                        d3Node.y = d3Node.fy !== undefined ? d3Node.fy : d3Node.y;
+                        // 取消固定
+                        d3Node.fx = undefined;
+                        d3Node.fy = undefined;
+                    }
+                });
+                
+                // 重启模拟以允许其他节点调整
+                this.forceSimulation.alpha(0.3).restart();
+            }
+            
             this.draggingElement = null;
         }
         
@@ -2527,13 +2725,19 @@ export default class NodeGraphEditor {
         }
     }
     
-    // 按照3D展UV思想的新算法排列节点
-    arrangeNodesAsTree() {
+    // 使用D3.js实现单次力导向图排列
+    /**
+     * 使用力导向图算法进行单次自动排列
+     */
+    arrangeNodesWithForceLayout() {
         // 确定要排列的节点：如果有选中的节点，则只排列选中的节点，否则排列所有节点
         const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
         const nodesToArrange = selectedNodes.length > 0 ? selectedNodes : this.nodes;
         
-        if (nodesToArrange.length === 0) return;
+        if (nodesToArrange.length === 0) {
+            this.showNotification('没有节点需要排列');
+            return;
+        }
         
         // 保存当前位置以便撤销
         const oldPositions = nodesToArrange.map(node => ({
@@ -2542,46 +2746,78 @@ export default class NodeGraphEditor {
             y: node.y
         }));
         
-        // 节点尺寸估算（用于计算最小间距）
-        const NODE_WIDTH = 180;
-        const NODE_HEIGHT = 80;
-        const MIN_DISTANCE = NODE_WIDTH * 2; // 两个有连线的节点之间的最小距离
-        const GROUP_SPACING = 200; // 组之间的间距
-        const START_X = 100;
-        let currentY = 100;
-        
-        // 1. 识别孤立节点和有连接的节点
-        const { isolatedNodes, connectedNodes } = this.identifyNodeGroups(nodesToArrange);
-        
-        // 2. 排列孤立节点（矩阵排列）
-        if (isolatedNodes.length > 0) {
-            const isolatedBounds = this.arrangeIsolatedNodes(isolatedNodes, START_X, currentY, NODE_WIDTH);
-            currentY = isolatedBounds.bottom + GROUP_SPACING;
+        // 实现互斥逻辑：如果实时排列正在运行，则先停止它
+        let wasRealTimeActive = false;
+        if (this.isRealTimeArrangeActive) {
+            wasRealTimeActive = true;
+            this.stopForceLayout();
+            this.showNotification('已停止实时排列，开始单次自动排列');
         }
         
-        // 3. 将有连接的节点分组（连通分量）
-        const connectedGroups = this.findConnectedGroups(connectedNodes);
-        
-        // 4. 按节点数量由少到多排序组
-        connectedGroups.sort((a, b) => a.length - b.length);
-        
-        // 5. 依次排列每个组
-        for (const group of connectedGroups) {
-            // 为组内节点计算连接数量
-            let nodeConnectionCounts = this.calculateNodeConnectionCounts(group);
+        // 检查D3.js库是否已经加载
+        if (typeof d3 !== 'undefined') {
+            console.log('开始使用D3.js进行单次力导向图排列');
             
-            // 按连接数量分组并排序
-            let nodesByConnectionCount = this.groupNodesByConnectionCount(group, nodeConnectionCounts);
+            // 准备D3.js数据结构 - 确保节点属性有默认值
+            const nodeMap = new Map();
+            const d3Nodes = nodesToArrange.map(node => {
+                const d3Node = {
+                    id: node.id,
+                    x: node.x || Math.random() * 400,
+                    y: node.y || Math.random() * 300,
+                    width: node.width || 180,
+                    height: node.height || 80
+                };
+                nodeMap.set(node.id, d3Node);
+                return d3Node;
+            });
             
-            // 辐射状排列组内节点（按距离根节点的层级）
-            const groupBounds = this.arrangeNodesInRadialPattern(group, nodesByConnectionCount, START_X, currentY, NODE_WIDTH, NODE_HEIGHT, MIN_DISTANCE);
+            // 过滤出与当前节点相关的连接
+            const d3Links = this.connections
+                .filter(conn => nodesToArrange.some(node => 
+                    node.id === conn.sourceNodeId || node.id === conn.targetNodeId
+                ))
+                .map(conn => {
+                    const source = nodeMap.get(conn.sourceNodeId);
+                    const target = nodeMap.get(conn.targetNodeId);
+                    return {
+                        source: source,
+                        target: target
+                    };
+                })
+                .filter(link => link.source && link.target); // 确保源和目标节点都存在
             
-            // 更新下一组的起始Y位置
-            currentY = groupBounds.bottom + GROUP_SPACING;
-                
-            // 将临时数据设置为null，帮助垃圾回收
-            nodeConnectionCounts = null;
-            nodesByConnectionCount = null;
+            // 创建独立的力导向图模拟，使用局部变量避免与实时排列冲突
+            const simulation = d3.forceSimulation(d3Nodes)
+                .force('link', d3.forceLink(d3Links).id(d => d.id).distance(150))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(400, 300))
+                .force('collision', d3.forceCollide().radius(d => 
+                    Math.max((d.width || 180) / 2, (d.height || 80) / 2) + 20
+                ));
+            
+            // 单次迭代：运行模拟一定次数后停止
+            simulation.tick(300); // 运行300次迭代以获得良好的排列
+            
+            // 应用计算出的位置到实际节点
+            d3Nodes.forEach(d3Node => {
+                const node = nodesToArrange.find(n => n.id === d3Node.id);
+                if (node) {
+                    node.x = d3Node.x;
+                    node.y = d3Node.y;
+                }
+            });
+            
+            // 显式停止模拟并清理事件监听器，确保资源释放
+            simulation.stop();
+            simulation.on('tick', null); // 移除任何可能的事件监听器
+            
+            this.showNotification('自动排列完成');
+            
+        } else {
+            console.error('D3.js库未加载，无法执行力导向图排列');
+            // 如果D3.js不可用，回退到简单排列
+            this.simpleArrangeFallback(nodesToArrange);
         }
         
         // 保存历史记录
@@ -2590,11 +2826,25 @@ export default class NodeGraphEditor {
             editor: this
         });
         
-        // 重置视图以显示所有节点
-        this.resetView();
-        
         // 显示操作成功提示
         this.showNotification('节点已自动排列');
+    }
+    
+    // 当D3.js不可用时的简单排列回退方案
+    simpleArrangeFallback(nodes) {
+        const NODE_WIDTH = 180;
+        const NODE_HEIGHT = 80;
+        const SPACING = 50;
+        const START_X = 100;
+        const START_Y = 100;
+        const COLUMNS = 4;
+        
+        nodes.forEach((node, index) => {
+            const col = index % COLUMNS;
+            const row = Math.floor(index / COLUMNS);
+            node.x = START_X + col * (NODE_WIDTH + SPACING);
+            node.y = START_Y + row * (NODE_HEIGHT + SPACING);
+        });
     }
     
     // 识别孤立节点和有连接的节点
@@ -2702,6 +2952,61 @@ export default class NodeGraphEditor {
         });
         
         return groups;
+    }
+    
+    // 处理双击事件
+    handleDoubleClick(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const worldPos = this.screenToWorld(x, y);
+        
+        // 检查是否点击了节点
+        const clickedNode = this.nodes.find(node => 
+            isPointInRect(worldPos.x, worldPos.y, {
+                x: node.x,
+                y: node.y,
+                width: node.width,
+                height: node.height
+            })
+        );
+        
+        if (clickedNode) {
+            // 查找所有连通分量
+            const allGroups = this.findConnectedGroups(this.nodes);
+            
+            // 找到包含点击节点的连通分量
+            const targetGroup = allGroups.find(group => 
+                group.some(node => node.id === clickedNode.id)
+            );
+            
+            if (targetGroup) {
+                // 如果没有按住Ctrl键，则清除当前选择
+                if (!e.ctrlKey && !e.metaKey) {
+                    this.deselectAll();
+                }
+                
+                // 选中连通分量中的所有节点
+                targetGroup.forEach(node => {
+                    // 检查节点是否已经被选中
+                    const isAlreadySelected = this.selectedElements.some(el => el.id === node.id);
+                    if (!isAlreadySelected) {
+                        this.selectedElements.push(node);
+                    }
+                });
+                
+                // 应用筛选器
+                this.filterSelectedElements();
+                
+                // 更新属性面板
+                updatePropertyPanel(this);
+                
+                // 重新渲染
+                this.scheduleRender();
+            }
+        }
+        
+        return true;
     }
     
     // 计算每个节点的连接数量
@@ -2853,6 +3158,11 @@ export default class NodeGraphEditor {
     }
     
     // 计算每个节点的层级
+    /**
+     * 注意：此函数是为真正的树形排列设计的，但目前未被使用
+     * 当前系统使用力导向图算法进行排列，而非树形排列
+     * 建议在确认不再需要真正的树形排列功能后删除此函数
+     */
     calculateNodeLevels(dependencyGraph, roots) {
         const nodeLevels = {};
         const visited = new Set();
@@ -2912,9 +3222,9 @@ export default class NodeGraphEditor {
         notification.textContent = message;
         notification.style.cssText = `
             position: fixed;
-            top: 20px;
-            right: 20px;
-            background-color: #4CAF50;
+            top: 48px;
+            right: 24px;
+            background-color: #36b374ff;
             color: white;
             padding: 12px 24px;
             border-radius: 4px;
