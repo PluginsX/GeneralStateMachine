@@ -1,4 +1,5 @@
 import { isLightMode } from '../ui/theme.js';
+import { PopUp_Window_Parameters, PopUp_Window_Progress } from '../utils/popup.js';
 
 // 导出Markdown
 export const exportMarkdown = (editor) => {
@@ -48,115 +49,192 @@ export const exportMarkdown = (editor) => {
 };
 
 // 导出为图片
-export const exportAsImage = (editor) => {
-    // 创建一个临时canvas用于导出
-    const exportCanvas = document.createElement('canvas');
-    const ctx = exportCanvas.getContext('2d');
+export const exportAsImage = async (editor) => {
+    // 第一步：显示参数输入弹窗
+    const parameters = {
+        '尺寸缩放': 2,  // 默认缩放值为2
+        '透明背景': false  // 默认不透明
+    };
+    const outParameters = {};
     
-    // 计算所有元素的边界框
-    let minX = Infinity, minY = Infinity;
-    let maxX = -Infinity, maxY = -Infinity;
+    const confirmed = await PopUp_Window_Parameters(
+        '导出图片设置',
+        '确定',
+        '取消',
+        parameters,
+        outParameters
+    );
     
-    // 考虑所有节点
-    editor.nodes.forEach(node => {
-        minX = Math.min(minX, node.x);
-        minY = Math.min(minY, node.y);
-        maxX = Math.max(maxX, node.x + node.width);
-        maxY = Math.max(maxY, node.y + node.height);
-    });
-    
-    // 考虑连线的起点和终点
-    editor.connections.forEach(connection => {
-        const sourceNode = editor.nodes.find(n => n.id === connection.sourceNodeId);
-        const targetNode = editor.nodes.find(n => n.id === connection.targetNodeId);
-        
-        if (sourceNode && targetNode) {
-            const startX = sourceNode.x + sourceNode.width / 2;
-            const startY = sourceNode.y + sourceNode.height / 2;
-            const endX = targetNode.x + targetNode.width / 2;
-            const endY = targetNode.y + targetNode.height / 2;
-            
-            minX = Math.min(minX, startX, endX);
-            minY = Math.min(minY, startY, endY);
-            maxX = Math.max(maxX, startX, endX);
-            maxY = Math.max(maxY, startY, endY);
-        }
-    });
-    
-    // 如果没有元素，使用默认尺寸
-    if (editor.nodes.length === 0 && editor.connections.length === 0) {
-        minX = 0;
-        minY = 0;
-        maxX = 800;
-        maxY = 600;
-    } else {
-        // 添加边距
-        const padding = 50;
-        minX -= padding;
-        minY -= padding;
-        maxX += padding;
-        maxY += padding;
+    if (!confirmed) {
+        return; // 用户取消
     }
     
-    // 设置导出canvas尺寸
-    const width = maxX - minX;
-    const height = maxY - minY;
-    exportCanvas.width = width;
-    exportCanvas.height = height;
+    const scale = Math.max(1, Math.floor(outParameters['尺寸缩放'] || 2)); // 确保缩放值至少为1，且为整数
+    const transparentBackground = outParameters['透明背景'] === true; // 获取透明背景选项
     
-    // 保存当前视图状态
-    const originalPan = { ...editor.pan };
-    const originalZoom = editor.zoom;
-    const originalSelectedElements = [...editor.selectedElements];
+    // 第二步：显示进度条弹窗并执行导出
+    const exportSuccess = await PopUp_Window_Progress(
+        '导出图片',
+        '正在导出图片，请稍候...',
+        '取消',
+        async (updateProgress) => {
+            try {
+                // 创建一个临时canvas用于导出
+                const exportCanvas = document.createElement('canvas');
+                const ctx = exportCanvas.getContext('2d');
+                
+                updateProgress(0.1);
+                
+                // 计算所有元素的边界框
+                let minX = Infinity, minY = Infinity;
+                let maxX = -Infinity, maxY = -Infinity;
+                
+                // 考虑所有节点
+                editor.nodes.forEach(node => {
+                    minX = Math.min(minX, node.x);
+                    minY = Math.min(minY, node.y);
+                    maxX = Math.max(maxX, node.x + node.width);
+                    maxY = Math.max(maxY, node.y + node.height);
+                });
+                
+                updateProgress(0.2);
+                
+                // 考虑连线的起点和终点
+                editor.connections.forEach(connection => {
+                    const sourceNode = editor.nodes.find(n => n.id === connection.sourceNodeId);
+                    const targetNode = editor.nodes.find(n => n.id === connection.targetNodeId);
+                    
+                    if (sourceNode && targetNode) {
+                        const startX = sourceNode.x + sourceNode.width / 2;
+                        const startY = sourceNode.y + sourceNode.height / 2;
+                        const endX = targetNode.x + targetNode.width / 2;
+                        const endY = targetNode.y + targetNode.height / 2;
+                        
+                        minX = Math.min(minX, startX, endX);
+                        minY = Math.min(minY, startY, endY);
+                        maxX = Math.max(maxX, startX, endX);
+                        maxY = Math.max(maxY, startY, endY);
+                    }
+                });
+                
+                updateProgress(0.3);
+                
+                // 如果没有元素，使用默认尺寸
+                if (editor.nodes.length === 0 && editor.connections.length === 0) {
+                    minX = 0;
+                    minY = 0;
+                    maxX = 800;
+                    maxY = 600;
+                } else {
+                    // 添加边距
+                    const padding = 50;
+                    minX -= padding;
+                    minY -= padding;
+                    maxX += padding;
+                    maxY += padding;
+                }
+                
+                // 设置导出canvas尺寸（应用缩放）
+                const baseWidth = maxX - minX;
+                const baseHeight = maxY - minY;
+                exportCanvas.width = baseWidth * scale;
+                exportCanvas.height = baseHeight * scale;
+                
+                updateProgress(0.4);
+                
+                // 保存当前视图状态
+                const originalPan = { ...editor.pan };
+                const originalZoom = editor.zoom;
+                const originalSelectedElements = [...editor.selectedElements];
+                
+                // 临时调整视图以适应所有元素
+                editor.pan.x = -minX;
+                editor.pan.y = -minY;
+                editor.zoom = 1;
+                editor.selectedElements = [];
+                
+                updateProgress(0.5);
+                
+                // 渲染到导出canvas
+                // 如果选择透明背景，则不填充背景色，保持透明
+                if (!transparentBackground) {
+                    ctx.fillStyle = isLightMode() ? '#f5f5f5' : '#1e1e1e';
+                    ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+                }
+                
+                // 应用缩放
+                ctx.scale(scale, scale);
+                
+                updateProgress(0.6);
+                
+                // 保存原始上下文状态
+                const originalCtx = editor.ctx;
+                const originalCanvas = editor.canvas;
+                
+                // 临时设置导出canvas为编辑器canvas（用于绘制）
+                editor.ctx = ctx;
+                editor.canvas = exportCanvas;
+                
+                updateProgress(0.7);
+                
+                // 绘制网格和元素
+                // 如果选择透明背景，则不绘制网格
+                if (!transparentBackground) {
+                    editor.drawGrid(ctx, baseWidth, baseHeight, minX, minY, maxX, maxY);
+                }
+                
+                updateProgress(0.8);
+                
+                editor.drawConnections(ctx);
+                editor.nodes.forEach(node => {
+                    node.calculateAutoSize(ctx);
+                    editor.drawNode(ctx, node);
+                });
+                
+                updateProgress(0.9);
+                
+                // 恢复原始上下文
+                editor.ctx = originalCtx;
+                editor.canvas = originalCanvas;
+                
+                // 恢复原始视图状态
+                editor.pan = originalPan;
+                editor.zoom = originalZoom;
+                editor.selectedElements = originalSelectedElements;
+                
+                // 创建下载链接
+                return new Promise((resolve) => {
+                    exportCanvas.toBlob(blob => {
+                        try {
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `节点图导出_${scale}x.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            
+                            updateProgress(1.0);
+                            editor.scheduleRender();
+                            resolve(true);
+                        } catch (error) {
+                            console.error('导出失败:', error);
+                            resolve(false);
+                        }
+                    }, 'image/png');
+                });
+            } catch (error) {
+                console.error('导出过程出错:', error);
+                return false;
+            }
+        }
+    );
     
-    // 临时调整视图以适应所有元素
-    editor.pan.x = -minX;
-    editor.pan.y = -minY;
-    editor.zoom = 1;
-    editor.selectedElements = [];
-    
-    // 渲染到导出canvas
-    ctx.fillStyle = isLightMode() ? '#f5f5f5' : '#1e1e1e';
-    ctx.fillRect(0, 0, width, height);
-    
-    // 保存原始上下文状态
-    const originalCtx = editor.ctx;
-    const originalCanvas = editor.canvas;
-    
-    // 临时设置导出canvas为编辑器canvas（用于绘制）
-    editor.ctx = ctx;
-    editor.canvas = exportCanvas;
-    
-    // 绘制网格和元素
-    editor.drawGrid(ctx, width, height, minX, minY, maxX, maxY);
-    editor.drawConnections(ctx);
-    editor.nodes.forEach(node => {
-        node.calculateAutoSize(ctx);
-        editor.drawNode(ctx, node);
-    });
-    
-    // 恢复原始上下文
-    editor.ctx = originalCtx;
-    editor.canvas = originalCanvas;
-    
-    // 恢复原始视图状态
-    editor.pan = originalPan;
-    editor.zoom = originalZoom;
-    editor.selectedElements = originalSelectedElements;
-    
-    // 创建下载链接
-    exportCanvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '节点图导出.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-    
-    editor.scheduleRender();
+    if (!exportSuccess) {
+        // 导出失败或取消
+        return;
+    }
 };
 
 // 保存项目

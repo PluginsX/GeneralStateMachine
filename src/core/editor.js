@@ -1,6 +1,6 @@
 import { HistoryManager } from '../history/history.js';
 import { exportAsImage, exportMarkdown, saveProject } from '../io/export.js';
-import { handleFileSelect, openProject, handleProjectFileSelect } from '../io/import.js';
+import { handleFileSelect, openProject, handleProjectFileSelect, handleJSONFileSelect, handleYAMLFileSelect } from '../io/import.js';
 import { showConnectionProperties, updatePropertyPanel } from '../ui/panel.js';
 import { isLightMode, toggleTheme } from '../ui/theme.js';
 import { deepClone } from '../utils/common.js';
@@ -157,6 +157,10 @@ export default class NodeGraphEditor {
         document.getElementById('open-project').addEventListener('click', () => openProject(this));
         document.getElementById('import-md').addEventListener('click', () => 
             document.getElementById('file-input').click());
+        document.getElementById('import-json').addEventListener('click', () => 
+            document.getElementById('json-input').click());
+        document.getElementById('import-yaml').addEventListener('click', () => 
+            document.getElementById('yaml-input').click());
         document.getElementById('export-md').addEventListener('click', () => exportMarkdown(this));
         document.getElementById('export-image').addEventListener('click', () => exportAsImage(this));
         document.getElementById('save-project').addEventListener('click', () => saveProject(this));
@@ -192,6 +196,8 @@ export default class NodeGraphEditor {
         
         // 文件输入
         document.getElementById('file-input').addEventListener('change', e => handleFileSelect(e, this));
+        document.getElementById('json-input').addEventListener('change', e => handleJSONFileSelect(e, this));
+        document.getElementById('yaml-input').addEventListener('change', e => handleYAMLFileSelect(e, this));
         document.getElementById('project-input').addEventListener('change', e => handleProjectFileSelect(e, this));
         
         // 工具栏拖拽

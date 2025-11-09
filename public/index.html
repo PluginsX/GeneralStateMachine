@@ -31,8 +31,8 @@
                         <button id="import-menu">导入</button>
                         <div class="export-submenu-content">
                             <button id="import-md">Markdown</button>
-                            <button id="import-md">Json</button>
-                            <button id="import-md">YMAL</button>
+                            <button id="import-json">Json</button>
+                            <button id="import-yaml">YAML</button>
                         </div>
                     </div>
                     
@@ -211,6 +211,10 @@
 
     <!-- 隐藏的文件输入，用于导入Markdown -->
     <input type="file" id="file-input" accept=".md" style="display: none;">
+    <!-- 隐藏的文件输入，用于导入JSON -->
+    <input type="file" id="json-input" accept=".json" style="display: none;">
+    <!-- 隐藏的文件输入，用于导入YAML -->
+    <input type="file" id="yaml-input" accept=".yaml,.yml" style="display: none;">
     <!-- 隐藏的文件输入，用于打开工程文件 -->
     <input type="file" id="project-input" accept=".json" style="display: none;">
 
