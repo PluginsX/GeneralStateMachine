@@ -1,6 +1,9 @@
 // ImportService.js - 导入服务模块
 // 负责处理各种格式的导入功能，包括Markdown和项目文件
 import Condition from '../core/condition.js';
+import Connection from '../core/connection.js';
+import Node from '../core/node.js';
+import { PopUp_Window } from '../utils/popup.js';
 
 export default class ImportService {
     constructor() {
@@ -422,7 +425,7 @@ export default class ImportService {
      * @returns {Object} - 标准化的项目数据
      * @throws {Error} - 当导入失败时抛出错误
      */
-    importFromJSON(jsonData) {
+    async importFromJSON(jsonData) {
         console.log('开始导入JSON数据');
         
         // 参数验证
@@ -454,6 +457,33 @@ export default class ImportService {
             // 检测JSON格式类型
             const formatType = this.detectJSONFormat(data);
             console.log(`检测到JSON格式类型: ${formatType}`);
+            
+            // 获取格式名称用于显示
+            let formatName;
+            switch (formatType) {
+                case 'editor-project':
+                    formatName = '编辑器标准工程文件';
+                    break;
+                case 'unity-animator':
+                    formatName = 'Unity动画状态机导出格式';
+                    break;
+                default:
+                    formatName = '普通JSON格式';
+            }
+            
+            // 显示弹窗提示用户并获取确认
+            const confirmImport = await PopUp_Window(
+                'JSON导入信息',
+                `检测到该json文件为：${formatName}`,
+                '导入',
+                '取消'
+            );
+            
+            // 如果用户取消导入，抛出错误中断操作
+            if (!confirmImport) {
+                console.log('用户取消了JSON导入');
+                throw new Error('导入已取消');
+            }
             
             // 根据格式类型选择对应的导入策略
             switch (formatType) {
@@ -881,15 +911,21 @@ export default class ImportService {
                         return;
                     }
                     
-                    // 创建标准化的连接对象
-                    const normalizedConnection = {
-                        id: this.generateUniqueId(),
-                        sourceId: sourceId,
-                        targetId: targetId,
-                        condition: conn.condition || ''
-                    };
+                    // 创建Connection类实例
+                    const connectionId = this.generateUniqueId();
+                    const newConnection = new Connection(sourceId, targetId);
+                    newConnection.id = connectionId;
                     
-                    validConnections.push(normalizedConnection);
+                    // 处理条件
+                    if (conn.conditions && Array.isArray(conn.conditions)) {
+                        // 如果有conditions数组，使用parseConditions方法处理
+                        newConnection.conditions = this.parseConditions(conn.conditions);
+                    } else if (conn.condition) {
+                        // 兼容旧格式的单个condition字符串
+                        newConnection.condition = conn.condition;
+                    }
+                    
+                    validConnections.push(newConnection);
                     console.debug(`连接 ${index} 处理成功: ${sourceNode.name} -> ${targetNode.name}`);
                     
                 } catch (error) {
@@ -937,15 +973,11 @@ export default class ImportService {
      * @returns {Object} - 节点对象
      */
     createNode(name, description, x, y) {
-        const node = {
-            id: this.generateUniqueId(),
-            name: name || '未命名节点',
-            description: description || '',
-            x: x || 100,
-            y: y || 100,
-            width: 120,
-            height: 60
-        };
+        // 创建Node类的实例
+        const node = new Node(name || '未命名节点', x || 100, y || 100);
+        node.description = description || '';
+        node.width = 120;
+        node.height = 60;
         
         return node;
     }
@@ -958,12 +990,27 @@ export default class ImportService {
      * @returns {Object} - 连线对象
      */
     createConnection(sourceId, targetId, condition) {
-        return {
-            id: this.generateUniqueId(),
-            sourceId: sourceId,
-            targetId: targetId,
-            condition: condition || ''
-        };
+        // 创建Connection类的实例
+        const connection = new Connection(sourceId, targetId);
+        
+        // 如果提供了条件，解析并添加到conditions数组
+        if (condition) {
+            // 如果condition已经是数组，直接使用；否则创建一个包含单个条件的数组
+            const conditionObjects = Array.isArray(condition) ? 
+                condition.map(cond => {
+                    if (typeof cond === 'string') {
+                        // 对于字符串条件，创建新的Condition实例
+                        const c = new Condition();
+                        c.description = cond;
+                        return c;
+                    }
+                    return cond;
+                }) : 
+                [condition];
+            connection.conditions = conditionObjects;
+        }
+        
+        return connection;
     }
 
     /**
@@ -1022,15 +1069,10 @@ export default class ImportService {
             const y = startY + row * verticalSpacing;
             
             // 创建节点
-            const node = {
-                id: this.generateUniqueId(),
-                name: nodeName,
-                description: '',
-                x: x,
-                y: y,
-                width: 150,
-                height: 50
-            };
+            const node = new Node(nodeName, x, y);
+            node.description = '';
+            node.width = 150;
+            node.height = 50;
             
             nodes.push(node);
             nodeNameMap.set(nodeName, node);
@@ -1061,18 +1103,15 @@ export default class ImportService {
                 return;
             }
             
-            // 创建连线
-            const connection = {
-                id: this.generateUniqueId(),
-                sourceId: sourceNode.id,
-                targetNodeId: targetNode.id,
-                name: transition.Name || '',
-                fromSide: 'right',
-                toSide: 'left',
-                conditions: [],
-                defaultConnection: false,
-                lineType: 'solid'
-            };
+            // 创建Connection类的实例
+            const connection = new Connection(sourceNode.id, targetNode.id);
+            
+            // 设置额外属性
+            connection.name = transition.Name || '';
+            connection.fromSide = 'right';
+            connection.toSide = 'left';
+            connection.defaultConnection = false;
+            connection.lineType = 'solid';
             
             // 解析条件
             if (transition.Conditions && Array.isArray(transition.Conditions)) {

@@ -3,6 +3,7 @@ import Condition from '../core/condition.js';
 import Node from '../core/node.js';
 import { extractMermaidCharts, parseMermaidChart, parseMarkdownList } from '../utils/mermaidParser.js';
 import { AlertDialog, ConfirmDialog } from '../utils/popup.js';
+import ImportService from './ImportService.js';
 
 // 导入Markdown
 export const importMarkdown = (content, editor) => {
@@ -229,102 +230,83 @@ export const handleProjectFileSelect = async (e, editor) => {
 // 导入JSON文件（任意JSON格式）
 export const importJSON = async (content, editor) => {
     try {
+        console.log('开始执行importJSON函数');
         // 解析JSON
         const jsonData = typeof content === 'string' ? JSON.parse(content) : content;
+        console.log('JSON解析完成');
+        
+        // 使用ImportService处理不同格式的JSON导入
+        const importService = new ImportService();
+        
+        // 调用带弹窗提示的导入方法
+        console.log('调用importService.importFromJSON');
+        const importResult = await importService.importFromJSON(jsonData);
+        console.log('importFromJSON调用完成，结果:', importResult ? '有返回值' : '无返回值');
+        
+        // 检查importResult是否存在
+        if (!importResult) {
+            console.error('importResult为空或undefined');
+            throw new Error('导入结果为空');
+        }
         
         // 清空现有内容
         editor.nodes = [];
         editor.connections = [];
         editor.selectedElements = [];
         
-        // 将JSON树形结构转换为节点和连接
-        const nodeMap = new Map(); // 存储路径到节点ID的映射
-        let nodeCounter = 0;
-        let x = 200;
-        let y = 100;
-        const nodeSpacingX = 250;
-        const nodeSpacingY = 150;
+        // 应用导入的节点和连接
+        if (importResult.nodes) {
+            editor.nodes = importResult.nodes;
+            console.log('应用了导入的节点，数量:', importResult.nodes.length);
+        } else {
+            console.warn('importResult.nodes不存在');
+        }
         
-        // 创建根节点 "NoneName"
-        const rootNode = new Node('NoneName', x, y);
-        rootNode.description = '';
-        editor.nodes.push(rootNode);
-        nodeMap.set('', rootNode.id);
-        nodeCounter++;
-        y += nodeSpacingY;
+        if (importResult.connections) {
+            editor.connections = importResult.connections;
+            console.log('应用了导入的连接，数量:', importResult.connections.length);
+        } else {
+            console.warn('importResult.connections不存在');
+        }
         
-        // 递归处理JSON对象
-        const processObject = (obj, parentPath, parentNodeId, depth = 0) => {
-            if (typeof obj !== 'object' || obj === null) {
-                return;
+        // 更新视图状态（如果有）
+        if (importResult.viewState) {
+            // 确保editor.viewState已初始化
+            if (!editor.viewState) {
+                console.warn('editor.viewState未初始化，创建空对象');
+                editor.viewState = {};
             }
-            
-            // 处理数组
-            if (Array.isArray(obj)) {
-                obj.forEach((item, index) => {
-                    const key = `[${index}]`;
-                    const currentPath = parentPath ? `${parentPath}.${key}` : key;
-                    
-                    // 创建节点
-                    const node = new Node(key, x + depth * nodeSpacingX, y);
-                    node.description = typeof item === 'object' && item !== null ? '' : String(item);
-                    editor.nodes.push(node);
-                    nodeMap.set(currentPath, node.id);
-                    
-                    // 创建连接
-                    editor.connections.push(new Connection(parentNodeId, node.id));
-                    
-                    nodeCounter++;
-                    if (nodeCounter % 3 === 0) {
-                        y += nodeSpacingY;
-                    }
-                    
-                    // 递归处理对象
-                    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
-                        processObject(item, currentPath, node.id, depth + 1);
-                    }
-                });
-                return;
-            }
-            
-            // 处理对象
-            Object.keys(obj).forEach(key => {
-                const value = obj[key];
-                const currentPath = parentPath ? `${parentPath}.${key}` : key;
-                
-                // 创建节点
-                const node = new Node(key, x + depth * nodeSpacingX, y);
-                // 如果值不是对象，将其作为描述
-                if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-                    node.description = value === null ? 'null' : String(value);
-                } else {
-                    node.description = '';
-                }
-                editor.nodes.push(node);
-                nodeMap.set(currentPath, node.id);
-                
-                // 创建连接
-                editor.connections.push(new Connection(parentNodeId, node.id));
-                
-                nodeCounter++;
-                if (nodeCounter % 3 === 0) {
-                    y += nodeSpacingY;
-                }
-                
-                // 递归处理嵌套对象
-                if (typeof value === 'object' && value !== null) {
-                    processObject(value, currentPath, node.id, depth + 1);
-                }
-            });
-        };
-        
-        // 开始处理
-        processObject(jsonData, '', rootNode.id, 1);
+            Object.assign(editor.viewState, importResult.viewState);
+            console.log('应用了导入的视图状态');
+        } else {
+            console.warn('importResult.viewState不存在');
+        }
         
         editor.deselectAll();
         editor.scheduleRender();
+        console.log('视图更新完成');
+        
+        // 记录导入操作到历史记录
+        if (editor.historyManager) {
+            try {
+                console.log('记录历史操作');
+                editor.historyManager.addHistory('import', { description: '导入JSON' });
+                console.log('历史操作记录成功');
+            } catch (historyError) {
+                console.error('记录历史操作失败:', historyError);
+                // 历史记录失败不应该阻止导入成功
+            }
+        } else {
+            console.warn('editor.historyManager不存在');
+        }
+        
+        console.log('JSON导入完全成功');
     } catch (error) {
-        await AlertDialog('JSON导入失败: ' + error.message);
+        console.error('importJSON捕获到错误:', error);
+        // 如果是用户取消导入，不显示错误消息
+        if (error.message !== '导入已取消') {
+            await AlertDialog('JSON导入失败: ' + error.message);
+        }
     }
 };
 

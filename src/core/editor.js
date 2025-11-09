@@ -183,6 +183,9 @@ export default class NodeGraphEditor {
         document.getElementById('zoom-in').addEventListener('click', () => this.zoomIn());
         document.getElementById('zoom-out').addEventListener('click', () => this.zoomOut());
         
+        // 自动排列
+        document.getElementById('auto-arrange-btn').addEventListener('click', () => this.arrangeNodesAsTree());
+        
         // 属性面板
         document.getElementById('update-node').addEventListener('click', () => this.updateSelectedNode());
         document.getElementById('delete-node').addEventListener('click', () => this.deleteSelectedNodes());
@@ -206,6 +209,21 @@ export default class NodeGraphEditor {
                 e.dataTransfer.setData('text/plain', item.dataset.type);
             });
         });
+        
+        // 计算组的外接矩形
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        
+        group.forEach(node => {
+            minX = Math.min(minX, node.x - nodeWidth / 2);
+            minY = Math.min(minY, node.y - nodeHeight / 2);
+            maxX = Math.max(maxX, node.x + nodeWidth / 2);
+            maxY = Math.max(maxY, node.y + nodeHeight / 2);
+        });
+        
+        return { left: minX, top: minY, right: maxX, bottom: maxY };
     }
     
     // 过滤选中的元素
@@ -2507,5 +2525,434 @@ export default class NodeGraphEditor {
                 this.render(timestamp);
             });
         }
+    }
+    
+    // 按照3D展UV思想的新算法排列节点
+    arrangeNodesAsTree() {
+        // 确定要排列的节点：如果有选中的节点，则只排列选中的节点，否则排列所有节点
+        const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
+        const nodesToArrange = selectedNodes.length > 0 ? selectedNodes : this.nodes;
+        
+        if (nodesToArrange.length === 0) return;
+        
+        // 保存当前位置以便撤销
+        const oldPositions = nodesToArrange.map(node => ({
+            id: node.id,
+            x: node.x,
+            y: node.y
+        }));
+        
+        // 节点尺寸估算（用于计算最小间距）
+        const NODE_WIDTH = 180;
+        const NODE_HEIGHT = 80;
+        const MIN_DISTANCE = NODE_WIDTH * 2; // 两个有连线的节点之间的最小距离
+        const GROUP_SPACING = 200; // 组之间的间距
+        const START_X = 100;
+        let currentY = 100;
+        
+        // 1. 识别孤立节点和有连接的节点
+        const { isolatedNodes, connectedNodes } = this.identifyNodeGroups(nodesToArrange);
+        
+        // 2. 排列孤立节点（矩阵排列）
+        if (isolatedNodes.length > 0) {
+            const isolatedBounds = this.arrangeIsolatedNodes(isolatedNodes, START_X, currentY, NODE_WIDTH);
+            currentY = isolatedBounds.bottom + GROUP_SPACING;
+        }
+        
+        // 3. 将有连接的节点分组（连通分量）
+        const connectedGroups = this.findConnectedGroups(connectedNodes);
+        
+        // 4. 按节点数量由少到多排序组
+        connectedGroups.sort((a, b) => a.length - b.length);
+        
+        // 5. 依次排列每个组
+        for (const group of connectedGroups) {
+            // 为组内节点计算连接数量
+            let nodeConnectionCounts = this.calculateNodeConnectionCounts(group);
+            
+            // 按连接数量分组并排序
+            let nodesByConnectionCount = this.groupNodesByConnectionCount(group, nodeConnectionCounts);
+            
+            // 辐射状排列组内节点（按距离根节点的层级）
+            const groupBounds = this.arrangeNodesInRadialPattern(group, nodesByConnectionCount, START_X, currentY, NODE_WIDTH, NODE_HEIGHT, MIN_DISTANCE);
+            
+            // 更新下一组的起始Y位置
+            currentY = groupBounds.bottom + GROUP_SPACING;
+                
+            // 将临时数据设置为null，帮助垃圾回收
+            nodeConnectionCounts = null;
+            nodesByConnectionCount = null;
+        }
+        
+        // 保存历史记录
+        this.historyManager.addHistory('arrange', {
+            oldPositions: oldPositions,
+            editor: this
+        });
+        
+        // 重置视图以显示所有节点
+        this.resetView();
+        
+        // 显示操作成功提示
+        this.showNotification('节点已自动排列');
+    }
+    
+    // 识别孤立节点和有连接的节点
+    identifyNodeGroups(nodes = null) {
+        // 如果没有提供nodes参数，则使用所有节点
+        const targetNodes = nodes || this.nodes;
+        const connectedNodeIds = new Set();
+        
+        // 收集有连接的节点ID（只考虑与目标节点相关的连接）
+        this.connections.forEach(conn => {
+            // 检查连接的源节点或目标节点是否在目标节点集合中
+            if (targetNodes.some(node => node.id === conn.sourceNodeId || node.id === conn.targetNodeId)) {
+                connectedNodeIds.add(conn.sourceNodeId);
+                connectedNodeIds.add(conn.targetNodeId);
+            }
+        });
+        
+        // 分离孤立节点和有连接的节点
+        const isolatedNodes = [];
+        const connectedNodes = [];
+        
+        targetNodes.forEach(node => {
+            if (connectedNodeIds.has(node.id)) {
+                connectedNodes.push(node);
+            } else {
+                isolatedNodes.push(node);
+            }
+        });
+        
+        return { isolatedNodes, connectedNodes };
+    }
+    
+    // 排列孤立节点为矩阵
+    arrangeIsolatedNodes(isolatedNodes, startX, startY, nodeWidth) {
+        const columns = Math.ceil(Math.sqrt(isolatedNodes.length));
+        const rows = Math.ceil(isolatedNodes.length / columns);
+        const spacing = nodeWidth * 1.5;
+        
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        
+        // 计算矩阵中心偏移，使矩阵居中
+        const totalWidth = (columns - 1) * spacing;
+        const centerOffsetX = totalWidth / 2;
+        
+        isolatedNodes.forEach((node, index) => {
+            const row = Math.floor(index / columns);
+            const col = index % columns;
+            
+            node.x = startX + col * spacing - centerOffsetX;
+            node.y = startY + row * spacing;
+            
+            // 更新边界
+            minX = Math.min(minX, node.x - nodeWidth / 2);
+            minY = Math.min(minY, node.y - 40);
+            maxX = Math.max(maxX, node.x + nodeWidth / 2);
+            maxY = Math.max(maxY, node.y + 40);
+        });
+        
+        return { left: minX, top: minY, right: maxX, bottom: maxY };
+    }
+    
+    // 查找连通分量（互相连接的节点组）
+    findConnectedGroups(nodes) {
+        const nodeMap = new Map();
+        const adjacencyList = new Map();
+        const visited = new Set();
+        const groups = [];
+        
+        // 构建节点映射
+        nodes.forEach(node => {
+            nodeMap.set(node.id, node);
+            adjacencyList.set(node.id, []);
+        });
+        
+        // 构建邻接表（忽略连接方向）
+        this.connections.forEach(conn => {
+            if (nodeMap.has(conn.sourceNodeId) && nodeMap.has(conn.targetNodeId)) {
+                adjacencyList.get(conn.sourceNodeId).push(conn.targetNodeId);
+                adjacencyList.get(conn.targetNodeId).push(conn.sourceNodeId);
+            }
+        });
+        
+        // DFS查找连通分量
+        function dfs(nodeId, currentGroup) {
+            visited.add(nodeId);
+            currentGroup.push(nodeMap.get(nodeId));
+            
+            adjacencyList.get(nodeId).forEach(neighborId => {
+                if (!visited.has(neighborId)) {
+                    dfs(neighborId, currentGroup);
+                }
+            });
+        }
+        
+        // 遍历所有节点，找出所有连通分量
+        nodes.forEach(node => {
+            if (!visited.has(node.id)) {
+                const group = [];
+                dfs(node.id, group);
+                groups.push(group);
+            }
+        });
+        
+        return groups;
+    }
+    
+    // 计算每个节点的连接数量
+    calculateNodeConnectionCounts(nodes) {
+        const connectionCounts = new Map();
+        const nodeIdSet = new Set(nodes.map(n => n.id));
+        
+        // 初始化计数
+        nodes.forEach(node => {
+            connectionCounts.set(node.id, 0);
+        });
+        
+        // 统计经过每个节点的连接数量
+        this.connections.forEach(conn => {
+            if (nodeIdSet.has(conn.sourceNodeId)) {
+                connectionCounts.set(conn.sourceNodeId, connectionCounts.get(conn.sourceNodeId) + 1);
+            }
+            if (nodeIdSet.has(conn.targetNodeId)) {
+                connectionCounts.set(conn.targetNodeId, connectionCounts.get(conn.targetNodeId) + 1);
+            }
+        });
+        
+        return connectionCounts;
+    }
+    
+    // 按连接数量分组并排序节点
+    groupNodesByConnectionCount(nodes, connectionCounts) {
+        const nodesByCount = new Map();
+        
+        // 按连接数量分组
+        nodes.forEach(node => {
+            const count = connectionCounts.get(node.id);
+            if (!nodesByCount.has(count)) {
+                nodesByCount.set(count, []);
+            }
+            nodesByCount.get(count).push(node);
+        });
+        
+        // 对每个连接数量组内的节点按ID排序
+        nodesByCount.forEach((nodeList, count) => {
+            nodeList.sort((a, b) => a.id.localeCompare(b.id));
+        });
+        
+        // 获取降序排列的连接数量
+        const sortedCounts = Array.from(nodesByCount.keys()).sort((a, b) => b - a);
+        
+        return { nodesByCount, sortedCounts };
+    }
+    
+    // 辐射状排列组内节点（按距离根节点的层级）
+    arrangeNodesInRadialPattern(group, nodesByConnectionCount, startX, startY, nodeWidth, nodeHeight, minDistance) {
+        if (group.length === 0) {
+            return { left: 0, top: 0, right: 0, bottom: 0 };
+        }
+        
+        // 找出连接数量最多的节点作为根节点
+        const maxCount = nodesByConnectionCount.sortedCounts[0];
+        const rootNode = nodesByConnectionCount.nodesByCount.get(maxCount)[0];
+        
+        // 设置根节点位置
+        rootNode.x = startX;
+        rootNode.y = startY;
+        
+        // 跟踪已放置的节点
+        const placedNodes = new Set([rootNode.id]);
+        
+        // 构建依赖图（无向图）
+        const dependencyGraph = {};
+        group.forEach(node => {
+            dependencyGraph[node.id] = [];
+        });
+        
+        // 构建连接关系
+        this.connections.forEach(conn => {
+            if (dependencyGraph[conn.sourceNodeId] && dependencyGraph[conn.targetNodeId]) {
+                dependencyGraph[conn.sourceNodeId].push(conn.targetNodeId);
+                dependencyGraph[conn.targetNodeId].push(conn.sourceNodeId);
+            }
+        });
+        
+        // 计算每个节点距离根节点的层级
+        const nodeLevels = this.calculateNodeLevels(dependencyGraph, [rootNode]);
+        
+        // 按层级分组节点
+        const nodesByLevel = {};
+        group.forEach(node => {
+            const level = nodeLevels[node.id] || 0;
+            if (!nodesByLevel[level]) {
+                nodesByLevel[level] = [];
+            }
+            nodesByLevel[level].push(node);
+        });
+        
+        // 获取所有层级并排序
+        const levels = Object.keys(nodesByLevel).map(Number).sort((a, b) => a - b);
+        
+        // 层级半径设置
+        const radiusPerLevel = minDistance * 1.5;
+        
+        // 固定角度间隔（20度，转换为弧度）
+        const angleInterval = (20 * Math.PI) / 180;
+        
+        // 为每一层的节点分配位置
+        levels.forEach(level => {
+            if (level === 0) return; // 根节点已经放置
+            
+            const nodes = nodesByLevel[level];
+            const radius = level * radiusPerLevel;
+            
+            // 从根节点上方开始，顺时针排列
+            let currentAngle = -Math.PI / 2;
+            
+            nodes.forEach(node => {
+                // 只放置未放置的节点
+                if (!placedNodes.has(node.id)) {
+                    node.x = rootNode.x + radius * Math.cos(currentAngle);
+                    node.y = rootNode.y + radius * Math.sin(currentAngle);
+                    
+                    placedNodes.add(node.id);
+                    
+                    // 顺时针增加固定角度
+                    currentAngle += angleInterval;
+                }
+            });
+        });
+        
+        // 计算组的外接矩形
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        
+        group.forEach(node => {
+            minX = Math.min(minX, node.x - nodeWidth / 2);
+            minY = Math.min(minY, node.y - 40);
+            maxX = Math.max(maxX, node.x + nodeWidth / 2);
+            maxY = Math.max(maxY, node.y + 40);
+        });
+        
+        // 如果组只有一个节点，设置一个默认大小的矩形
+        if (group.length === 1) {
+            minX = rootNode.x - nodeWidth;
+            maxX = rootNode.x + nodeWidth;
+            minY = rootNode.y - nodeHeight;
+            maxY = rootNode.y + nodeHeight;
+        }
+        
+        return { left: minX, top: minY, right: maxX, bottom: maxY };
+    }
+    
+    // 计算每个节点的层级
+    calculateNodeLevels(dependencyGraph, roots) {
+        const nodeLevels = {};
+        const visited = new Set();
+        const recursionStack = new Set(); // 用于检测循环依赖
+        
+        // 使用DFS计算层级
+        function dfs(nodeId, currentLevel) {
+            // 检测循环依赖
+            if (recursionStack.has(nodeId)) {
+                console.warn(`检测到循环依赖: ${nodeId}，跳过以避免栈溢出`);
+                return;
+            }
+            
+            if (visited.has(nodeId)) {
+                // 如果节点已访问，检查是否需要更新层级（取较大值）
+                if (nodeLevels[nodeId] < currentLevel) {
+                    nodeLevels[nodeId] = currentLevel;
+                    // 递归更新子节点层级，但避免循环
+                    dependencyGraph[nodeId].forEach(childId => {
+                        if (!recursionStack.has(childId)) {
+                            dfs(childId, currentLevel + 1);
+                        }
+                    });
+                }
+                return;
+            }
+            
+            // 标记当前节点在递归栈中
+            recursionStack.add(nodeId);
+            visited.add(nodeId);
+            nodeLevels[nodeId] = currentLevel;
+            
+            // 递归处理子节点
+            dependencyGraph[nodeId].forEach(childId => {
+                dfs(childId, currentLevel + 1);
+            });
+            
+            // 处理完子节点后，从递归栈中移除当前节点
+            recursionStack.delete(nodeId);
+        }
+        
+        // 从根节点开始DFS
+        roots.forEach(rootNode => {
+            if (rootNode && rootNode.id) { // 确保rootNode有效
+                dfs(rootNode.id, 0);
+            }
+        });
+        
+        return nodeLevels;
+    }
+    
+    // 显示通知
+    showNotification(message) {
+        // 创建通知元素
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            z-index: 1000;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease-out;
+        `;
+        
+        // 添加动画样式
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 添加到文档
+        document.body.appendChild(notification);
+        
+        // 3秒后移除
+        setTimeout(() => {
+            notification.style.animation = 'none';
+            notification.style.transition = 'opacity 0.3s, transform 0.3s';
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                document.body.removeChild(notification);
+                document.head.removeChild(style);
+            }, 300);
+        }, 3000);
     }
 }

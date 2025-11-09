@@ -21,6 +21,7 @@ export default class UIToolbar {
         this.onImport = null;        // 导入回调
         this.onSave = null;          // 保存回调
         this.onLoad = null;          // 加载回调
+        this.onAutoArrange = null;   // 自动排列回调
         
         this.init();
     }
@@ -66,6 +67,7 @@ export default class UIToolbar {
         this.addButton(group, 'zoom-in', '放大', '放大视图', () => this.onZoomIn?.());
         this.addButton(group, 'zoom-out', '缩小', '缩小视图', () => this.onZoomOut?.());
         this.addButton(group, 'reset-view', '重置视图', '重置缩放和平移', () => this.onResetView?.());
+        this.addButton(group, 'auto-arrange', '自动排列', '按照树形结构重新排列节点', () => this.onAutoArrange?.());
         
         this.container.appendChild(group);
     }
@@ -174,6 +176,7 @@ export default class UIToolbar {
         this.onImport = callbacks.onImport;
         this.onSave = callbacks.onSave;
         this.onLoad = callbacks.onLoad;
+        this.onAutoArrange = callbacks.onAutoArrange;
     }
     
     // 更新工具栏状态

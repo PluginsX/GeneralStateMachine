@@ -8,26 +8,6 @@ import Condition from '../core/condition.js';
 export async function mergeNodes(editor) {
     // 检查是否有选中的节点
     const selectedNodes = editor.selectedElements.filter(el => el.type === 'node');
-    if (selectedNodes.length === 0) {
-        await AlertDialog('请先选择一个节点作为合并目标');
-        return;
-    }
-    
-    if (selectedNodes.length > 1) {
-        await AlertDialog('请只选择一个节点作为合并目标');
-        return;
-    }
-    
-    const targetNode = selectedNodes[0];
-    const targetName = targetNode.name;
-    
-    // 查找所有同名节点
-    const nodesToMerge = editor.nodes.filter(node => node.name === targetName && node.id !== targetNode.id);
-    
-    if (nodesToMerge.length === 0) {
-        await AlertDialog(`没有找到其他名为"${targetName}"的节点`);
-        return;
-    }
     
     // 保存历史状态
     const stateBefore = {
@@ -35,25 +15,96 @@ export async function mergeNodes(editor) {
         connections: editor.connections.map(c => deepClone(c))
     };
     
-    // 合并所有同名节点的连接关系到目标节点
-    nodesToMerge.forEach(node => {
-        // 转移所有从该节点出发的连线
-        editor.connections.forEach(conn => {
-            if (conn.sourceNodeId === node.id) {
-                conn.sourceNodeId = targetNode.id;
+    let totalMergedCount = 0;
+    
+    if (selectedNodes.length > 0) {
+        // 情况1：有选中节点 - 根据选中节点的名称合并重名节点
+        // 收集所有选中节点的名称（去重）
+        const selectedNames = [...new Set(selectedNodes.map(node => node.name))];
+        
+        // 对每个选中的节点名称进行合并
+        selectedNames.forEach(targetName => {
+            // 找到第一个该名称的节点作为目标节点（优先使用选中的节点）
+            const targetNode = selectedNodes.find(node => node.name === targetName) || 
+                               editor.nodes.find(node => node.name === targetName);
+            
+            if (targetNode) {
+                // 查找所有同名节点（不包括目标节点本身）
+                const nodesToMerge = editor.nodes.filter(node => 
+                    node.name === targetName && node.id !== targetNode.id
+                );
+                
+                if (nodesToMerge.length > 0) {
+                    // 合并所有同名节点的连接关系到目标节点
+                    nodesToMerge.forEach(node => {
+                        // 转移所有从该节点出发的连线
+                        editor.connections.forEach(conn => {
+                            if (conn.sourceNodeId === node.id) {
+                                conn.sourceNodeId = targetNode.id;
+                            }
+                        });
+                        
+                        // 转移所有到达该节点的连线
+                        editor.connections.forEach(conn => {
+                            if (conn.targetNodeId === node.id) {
+                                conn.targetNodeId = targetNode.id;
+                            }
+                        });
+                        
+                        // 删除该节点
+                        editor.removeNode(node.id);
+                    });
+                    
+                    totalMergedCount += nodesToMerge.length;
+                }
             }
         });
-        
-        // 转移所有到达该节点的连线
-        editor.connections.forEach(conn => {
-            if (conn.targetNodeId === node.id) {
-                conn.targetNodeId = targetNode.id;
-            }
+    } else {
+        // 情况2：无选中节点 - 执行全局重名节点合并
+        // 统计所有节点名称及其出现次数
+        const nameCounts = new Map();
+        editor.nodes.forEach(node => {
+            nameCounts.set(node.name, (nameCounts.get(node.name) || 0) + 1);
         });
         
-        // 删除该节点
-        editor.removeNode(node.id);
-    });
+        // 找出所有需要合并的节点名称（出现次数大于1的）
+        const namesToMerge = Array.from(nameCounts.entries())
+            .filter(([_, count]) => count > 1)
+            .map(([name]) => name);
+        
+        namesToMerge.forEach(targetName => {
+            // 获取所有该名称的节点
+            const nodesWithSameName = editor.nodes.filter(node => node.name === targetName);
+            
+            if (nodesWithSameName.length > 1) {
+                // 使用第一个节点作为目标节点
+                const targetNode = nodesWithSameName[0];
+                const nodesToMerge = nodesWithSameName.slice(1);
+                
+                // 合并所有同名节点的连接关系到目标节点
+                nodesToMerge.forEach(node => {
+                    // 转移所有从该节点出发的连线
+                    editor.connections.forEach(conn => {
+                        if (conn.sourceNodeId === node.id) {
+                            conn.sourceNodeId = targetNode.id;
+                        }
+                    });
+                    
+                    // 转移所有到达该节点的连线
+                    editor.connections.forEach(conn => {
+                        if (conn.targetNodeId === node.id) {
+                            conn.targetNodeId = targetNode.id;
+                        }
+                    });
+                    
+                    // 删除该节点
+                    editor.removeNode(node.id);
+                });
+                
+                totalMergedCount += nodesToMerge.length;
+            }
+        });
+    }
     
     // 保存历史状态
     const stateAfter = {
@@ -67,10 +118,23 @@ export async function mergeNodes(editor) {
     });
     
     // 更新选择
-    editor.selectedElements = [targetNode];
+    if (selectedNodes.length > 0) {
+        // 保留选中的节点（过滤掉已被合并删除的节点）
+        editor.selectedElements = selectedNodes.filter(node => 
+            editor.nodes.some(n => n.id === node.id)
+        );
+    } else {
+        // 无选中节点时，清空选择
+        editor.selectedElements = [];
+    }
+    
     editor.scheduleRender();
     
-    await AlertDialog(`成功合并了 ${nodesToMerge.length} 个同名节点`);
+    if (totalMergedCount > 0) {
+        await AlertDialog(`成功合并了 ${totalMergedCount} 个重名节点`);
+    } else {
+        await AlertDialog('没有找到需要合并的重名节点');
+    }
 }
 
 // 合并条件功能

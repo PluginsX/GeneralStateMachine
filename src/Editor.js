@@ -170,7 +170,8 @@ export default class Editor {
             onExportMarkdown: () => this.handleExportMarkdown(),
             onImport: (file) => this.handleImportFile(file),
             onSave: () => this.handleSave(),
-            onLoad: () => this.handleLoad()
+            onLoad: () => this.handleLoad(),
+            onAutoArrange: () => this.handleAutoArrange()
         });
     }
     
@@ -710,6 +711,138 @@ export default class Editor {
                 connections: this.mouseHandler.getSelectedConnections()
             }
         };
+    }
+    
+    // 处理自动排列
+    handleAutoArrange() {
+        const nodes = this.nodeManager.getNodes();
+        if (nodes.length === 0) {
+            this.toolbar.showInfo('没有节点需要排列');
+            return;
+        }
+        
+        // 记录历史
+        this.historyManager.addHistory('arrange-nodes', {
+            nodes: nodes.map(node => ({ ...node }))
+        });
+        
+        // 执行树形排列
+        this.arrangeNodesAsTree();
+        
+        this.toolbar.showSuccess('节点已自动排列');
+    }
+    
+    // 树形排列算法
+    arrangeNodesAsTree() {
+        const nodes = this.nodeManager.getNodes();
+        const connections = this.connectionManager.getConnections();
+        
+        // 构建节点映射和依赖关系
+        const nodeMap = new Map();
+        const nodeDependencies = new Map();
+        const nodeDependents = new Map();
+        
+        nodes.forEach(node => {
+            nodeMap.set(node.id, node);
+            nodeDependencies.set(node.id, new Set()); // 依赖的节点（上游）
+            nodeDependents.set(node.id, new Set()); // 被依赖的节点（下游）
+        });
+        
+        connections.forEach(conn => {
+            if (nodeMap.has(conn.sourceNodeId) && nodeMap.has(conn.targetNodeId)) {
+                nodeDependencies.get(conn.targetNodeId).add(conn.sourceNodeId);
+                nodeDependents.get(conn.sourceNodeId).add(conn.targetNodeId);
+            }
+        });
+        
+        // 找到根节点（没有入边的节点）
+        const rootNodes = [];
+        nodes.forEach(node => {
+            if (nodeDependencies.get(node.id).size === 0) {
+                rootNodes.push(node.id);
+            }
+        });
+        
+        // 如果没有根节点，选择一个入度最少的节点作为根
+        if (rootNodes.length === 0 && nodes.length > 0) {
+            let minInDegree = Infinity;
+            let rootId = null;
+            
+            nodes.forEach(node => {
+                const inDegree = nodeDependencies.get(node.id).size;
+                if (inDegree < minInDegree) {
+                    minInDegree = inDegree;
+                    rootId = node.id;
+                }
+            });
+            
+            if (rootId) {
+                rootNodes.push(rootId);
+            }
+        }
+        
+        // 如果仍然没有根节点，使用第一个节点
+        if (rootNodes.length === 0 && nodes.length > 0) {
+            rootNodes.push(nodes[0].id);
+        }
+        
+        // 计算节点层级和位置
+        const nodeLevels = new Map();
+        const levelNodes = new Map();
+        const maxLevel = this.calculateNodeLevels(rootNodes, nodeDependents, nodeLevels, levelNodes, 0);
+        
+        // 计算每层的节点数量和间距
+        const horizontalSpacing = 200;
+        const verticalSpacing = 150;
+        const startX = 50;
+        const startY = 100;
+        
+        // 排列每个层级的节点
+        levelNodes.forEach((levelNodeList, level) => {
+            const count = levelNodeList.length;
+            const totalWidth = (count - 1) * horizontalSpacing;
+            const firstX = startX + level * horizontalSpacing - totalWidth / 2;
+            
+            levelNodeList.forEach((nodeId, index) => {
+                const node = nodeMap.get(nodeId);
+                node.x = firstX + index * horizontalSpacing;
+                node.y = startY + level * verticalSpacing;
+            });
+        });
+        
+        // 重置视图，让所有节点可见
+        this.resetView();
+        
+        // 触发重新渲染
+        this.render();
+    }
+    
+    // 计算节点的层级
+    calculateNodeLevels(nodeIds, nodeDependents, nodeLevels, levelNodes, currentLevel) {
+        if (nodeIds.length === 0) return currentLevel - 1;
+        
+        let maxLevel = currentLevel;
+        
+        // 记录当前层级的节点
+        if (!levelNodes.has(currentLevel)) {
+            levelNodes.set(currentLevel, []);
+        }
+        
+        nodeIds.forEach(nodeId => {
+            // 如果节点已经被处理过，跳过
+            if (nodeLevels.has(nodeId)) return;
+            
+            // 设置节点层级
+            nodeLevels.set(nodeId, currentLevel);
+            levelNodes.get(currentLevel).push(nodeId);
+            
+            // 处理子节点
+            const children = Array.from(nodeDependents.get(nodeId) || []);
+            const childLevel = this.calculateNodeLevels(children, nodeDependents, nodeLevels, levelNodes, currentLevel + 1);
+            maxLevel = Math.max(maxLevel, childLevel);
+        });
+        
+        return maxLevel;
     }
     
     // 销毁编辑器
