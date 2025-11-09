@@ -1,0 +1,99 @@
+{
+  "version": "1.0",
+  "type": "UnityAnimatorControllerExporter",
+  "Nodes": [
+    "State_Idle",
+    "State_Walk",
+    "State_Run",
+    "State_Sprint"
+  ],
+  "Transitions": [
+    {
+      "Name": "State_Idle->State_Walk",
+      "From": "State_Idle",
+      "To": "State_Walk",
+      "Conditions": [
+        {
+          "Parameter": "MoveSpeed",
+          "Type": "Float",
+          "Compare": "Greater",
+          "Value": 0.0
+        },
+        {
+          "Parameter": "MotionFlag",
+          "Type": "Int",
+          "Compare": "Equal",
+          "Value": 1
+        },
+        {
+          "Parameter": "Walk",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": true
+        },
+        {
+          "Parameter": "Jump",
+          "Type": "Trigger"
+        }
+      ]
+    },
+    {
+      "Name": "State_Walk->State_Run",
+      "From": "State_Walk",
+      "To": "State_Run",
+      "Conditions": [
+        {
+          "Parameter": "MoveSpeed",
+          "Type": "Float",
+          "Compare": "Greater",
+          "Value": 0.0
+        },
+        {
+          "Parameter": "MotionFlag",
+          "Type": "Int",
+          "Compare": "Equal",
+          "Value": 1
+        },
+        {
+          "Parameter": "Walk",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": true
+        },
+        {
+          "Parameter": "Jump",
+          "Type": "Trigger"
+        }
+      ]
+    },
+    {
+      "Name": "State_Run->State_Sprint",
+      "From": "State_Run",
+      "To": "State_Sprint",
+      "Conditions": [
+        {
+          "Parameter": "MoveSpeed",
+          "Type": "Float",
+          "Compare": "Greater",
+          "Value": 0.0
+        },
+        {
+          "Parameter": "MotionFlag",
+          "Type": "Int",
+          "Compare": "Equal",
+          "Value": 1
+        },
+        {
+          "Parameter": "Walk",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": true
+        },
+        {
+          "Parameter": "Jump",
+          "Type": "Trigger"
+        }
+      ]
+    }
+  ]
+}
