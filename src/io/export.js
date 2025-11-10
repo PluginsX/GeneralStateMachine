@@ -2,11 +2,11 @@ import { isLightMode } from '../ui/theme.js';
 import { PopUp_Window_Parameters, PopUp_Window_Progress } from '../utils/popup.js';
 
 // 导出Markdown
-export const exportMarkdown = (editor) => {
+export const exportMarkdown = async (editor) => {
     let mdContent = '# 节点图导出\n\n';
     
     // 导出节点
-    editor.nodes.forEach(node => {
+    editor.nodes.forEach((node) => {
         mdContent += `## ${node.name}\n`;
         if (node.description) {
             mdContent += `${node.description}\n\n`;
@@ -238,7 +238,7 @@ export const exportAsImage = async (editor) => {
 };
 
 // 保存项目
-export const saveProject = (editor) => {
+export const saveProject = async (editor) => {
     const projectData = {
         // 项目文件识别字段
         version: '1.0',
@@ -274,6 +274,7 @@ export const saveProject = (editor) => {
     };
     
     const json = JSON.stringify(projectData, null, 2);
+    
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

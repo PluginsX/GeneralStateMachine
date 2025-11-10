@@ -7,6 +7,7 @@ import { deepClone } from '../utils/common.js';
 import { showContextMenu } from '../utils/dom.js';
 import { doRectsOverlap, isPointInRect, isPointNearLine } from '../utils/math.js';
 import { ConfirmDialog } from '../utils/popup.js';
+import { VisibilityCuller, LODManager, QuadTree, PerformanceMonitor, perfLog } from '../utils/performance.js';
 import Condition from './condition.js';
 import Connection from './connection.js';
 import Node from './node.js';
@@ -72,6 +73,13 @@ export default class NodeGraphEditor {
         this.renderDelay = 16; // ~60FPS
         this.renderCount = 0;
         
+        // 性能优化工具
+        this.visibilityCuller = new VisibilityCuller(this.canvas, this.pan, this.zoom);
+        this.lodManager = new LODManager();
+        this.performanceMonitor = new PerformanceMonitor();
+        this.quadTree = null; // 延迟初始化（节点数 > 500 时）
+        this.useQuadTree = false; // 是否使用四叉树
+        
         // 节点悬浮提示框
         this.hoveredNode = null;
         this.hoverStartTime = 0;
@@ -95,6 +103,11 @@ export default class NodeGraphEditor {
         
         // 初始化时确保按钮状态正确
         this.updateArrangeButtonState();
+        
+        // 初始化状态栏（延迟执行确保DOM已加载）
+        setTimeout(() => {
+            this.updateStatusBar();
+        }, 100);
     }
     
     // 处理实时自动排列
@@ -125,13 +138,27 @@ export default class NodeGraphEditor {
                 return;
             }
             
-            // 获取所有节点
-            const nodes = this.nodes;
-            // 获取所有连接
-            const links = this.connections.map(conn => ({
-                source: conn.sourceNodeId,
-                target: conn.targetNodeId
-            }));
+            // 判断是否有选中的节点
+            const selectedNodes = this.selectedElements.filter(el => el instanceof Node);
+            
+            // 确定要排列的节点：如果有选中的节点，则仅使用选中的节点；否则使用全局节点
+            let nodes;
+            if (selectedNodes.length > 0) {
+                // 仅模拟选中的节点
+                nodes = selectedNodes;
+            } else {
+                // 没有选中任何节点，或选中的只有连接没有节点，则模拟全局节点
+                nodes = this.nodes;
+            }
+            
+            // 获取与这些节点相关的连接（只包含两端都在节点列表中的连接）
+            const nodeIds = new Set(nodes.map(n => n.id));
+            const links = this.connections
+                .filter(conn => nodeIds.has(conn.sourceNodeId) && nodeIds.has(conn.targetNodeId))
+                .map(conn => ({
+                    source: conn.sourceNodeId,
+                    target: conn.targetNodeId
+                }));
             
             if (nodes.length === 0) {
                 this.showNotification('没有节点需要排列');
@@ -527,7 +554,8 @@ export default class NodeGraphEditor {
         // 计算合适的缩放比例（留出一些边距）
         const scaleX = (canvasWidth * 0.9) / contentWidth;
         const scaleY = (canvasHeight * 0.9) / contentHeight;
-        this.zoom = Math.min(scaleX, scaleY, 1.0); // 不放大超过1.0
+        // 限制缩放范围在 0.1 (10%) 到 5.0 (500%) 之间
+        this.zoom = Math.max(0.1, Math.min(scaleX, scaleY, 5.0));
         
         // 计算中心点
         const centerX = (minX + maxX) / 2;
@@ -1757,8 +1785,29 @@ export default class NodeGraphEditor {
         const canvasWidth = this.canvas.width;
         const canvasHeight = this.canvas.height;
 
-        // 以 world-space 网格为准，gridSize 为世界单位
-        var gridSize = 20;
+        // 根据LOD级别调整栅格密度
+        // LOD0 (zoom >= 1.0): 高密度，gridSize = 20
+        // LOD1 (0.6 <= zoom < 1.0): 中密度，gridSize = 40
+        // LOD2 (0.4 <= zoom < 0.6): 低密度，gridSize = 80
+        // LOD3 (zoom < 0.4): 极低密度，gridSize = 200
+        let gridSize;
+        const lodLevel = this.lodManager.getLODLevel(this.zoom);
+        switch (lodLevel) {
+            case 'LOD0':
+                gridSize = 20;  // 高密度
+                break;
+            case 'LOD1':
+                gridSize = 40;  // 中密度
+                break;
+            case 'LOD2':
+                gridSize = 80;  // 低密度
+                break;
+            case 'LOD3':
+                gridSize = 200; // 极低密度
+                break;
+            default:
+                gridSize = 20;
+        }
 
         // 计算可见世界坐标范围（多加一个格子缓冲，避免边缘空白）
         const visibleLeft = -this.pan.x/this.zoom - gridSize;
@@ -1772,8 +1821,29 @@ export default class NodeGraphEditor {
         const startY = Math.floor(visibleTop / gridSize) * gridSize;
         const endY = Math.ceil(visibleBottom / gridSize) * gridSize;
 
+        // 根据LOD级别调整栅格线透明度
+        let gridAlpha;
+        switch (lodLevel) {
+            case 'LOD0':
+                gridAlpha = 0.05;  // 高精度：正常透明度
+                break;
+            case 'LOD1':
+                gridAlpha = 0.03;  // 中精度：稍低透明度
+                break;
+            case 'LOD2':
+                gridAlpha = 0.02;  // 低精度：更低透明度
+                break;
+            case 'LOD3':
+                gridAlpha = 0.01;  // 占位符：极低透明度
+                break;
+            default:
+                gridAlpha = 0.05;
+        }
+
         // 绘制主网格线
-        ctx.strokeStyle = isLightMode() ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)';
+        ctx.strokeStyle = isLightMode() 
+            ? `rgba(0, 0, 0, ${gridAlpha})` 
+            : `rgba(255, 255, 255, ${gridAlpha})`;
         ctx.lineWidth = 1;
         
         // 水平线
@@ -1791,29 +1861,50 @@ export default class NodeGraphEditor {
         }
         ctx.stroke();
 
-        // 绘制较粗的网格线
-        // ctx.strokeStyle = isLightMode() ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
-        // ctx.lineWidth = 1.5;
-        // gridSize = 200;
-
         // 手动恢复状态
         ctx.strokeStyle = originalStrokeStyle;
         ctx.lineWidth = originalLineWidth;
     }
     
 
-    // 绘制节点
+    // 绘制节点（支持LOD分级绘制）
     drawNode(ctx, node) {
         const screenPos = this.worldToScreen(node.x, node.y);
         const width = node.width * this.zoom;
         const height = node.height * this.zoom;
         
-        // 检查节点是否可见
-        if (screenPos.x + width < 0 || screenPos.x > this.canvas.width ||
-            screenPos.y + height < 0 || screenPos.y > this.canvas.height) {
+        // 检查节点是否可见（使用可视性检测器）
+        const visibleBounds = this.visibilityCuller.getVisibleBounds();
+        if (!this.visibilityCuller.isNodeVisible(node, visibleBounds)) {
+            // 每100个节点输出一次被过滤的日志（避免日志过多）
+            if (Math.random() < 0.01) {
+                perfLog(`[性能优化] 节点被可视性检测过滤`);
+            }
             return;
         }
         
+        // 根据缩放比例获取LOD等级
+        const lodLevel = this.lodManager.getLODLevel(this.zoom);
+        
+        // 根据LOD等级选择绘制方法
+        switch (lodLevel) {
+            case 'LOD0':
+                this.drawNodeLOD0(ctx, node, screenPos, width, height);
+                break;
+            case 'LOD1':
+                this.drawNodeLOD1(ctx, node, screenPos, width, height);
+                break;
+            case 'LOD2':
+                this.drawNodeLOD2(ctx, node, screenPos, width, height);
+                break;
+            case 'LOD3':
+                this.drawNodeLOD3(ctx, node, screenPos, width, height);
+                break;
+        }
+    }
+    
+    // LOD0：高精度（完整细节）
+    drawNodeLOD0(ctx, node, screenPos, width, height) {
         // 手动保存所有会修改的状态属性
         const originalFillStyle = ctx.fillStyle;
         const originalStrokeStyle = ctx.strokeStyle;
@@ -1850,7 +1941,6 @@ export default class NodeGraphEditor {
         
         // 如果节点被选中，绘制白色外框
         if (isSelected) {
-            // 移除嵌套的save/restore，直接修改当前状态
             const previousStrokeStyle = ctx.strokeStyle;
             const previousLineWidth = ctx.lineWidth;
             
@@ -1861,7 +1951,6 @@ export default class NodeGraphEditor {
             ctx.roundRect(screenPos.x - padding, screenPos.y - padding, width + padding * 2, height + padding * 2, 4);
             ctx.stroke();
             
-            // 手动恢复这两个属性，避免嵌套的save/restore
             ctx.strokeStyle = previousStrokeStyle;
             ctx.lineWidth = previousLineWidth;
         }
@@ -1877,16 +1966,13 @@ export default class NodeGraphEditor {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // 处理节点名称文本（当没有启用自适应尺寸时，如果名称过长则截断）
+        // 处理节点名称文本
         let displayName = node.name;
         if (!node.autoSize) {
-            // 计算可显示的字符数
-            const maxWidth = node.width * this.zoom * 0.9; // 留10%边距
-            // 字体已经设置，不需要重复设置
+            const maxWidth = node.width * this.zoom * 0.9;
             const metrics = ctx.measureText(displayName);
             
             if (metrics.width > maxWidth) {
-                // 文本过长，需要截断
                 let truncated = '';
                 for (let i = 0; i < displayName.length; i++) {
                     const testText = displayName.substring(0, i + 1) + '...';
@@ -1913,17 +1999,16 @@ export default class NodeGraphEditor {
         
         // 绘制节点描述（如果有描述，显示在名称下方）
         if (node.description) {
-            const descFontSize = fontSize * 0.7; // 描述字体稍小
+            const descFontSize = fontSize * 0.7;
             ctx.font = `${descFontSize}px Arial`;
             ctx.fillStyle = isSelected ? 'rgba(255, 255, 255, 0.8)' : (isLightMode() ? '#666666' : '#969696');
             
             // 截断长描述
             let displayText = node.description;
-            const maxDescWidth = node.width * this.zoom * 0.9; // 留10%边距
+            const maxDescWidth = node.width * this.zoom * 0.9;
             const descMetrics = ctx.measureText(displayText);
             
             if (descMetrics.width > maxDescWidth) {
-                // 文本过长，需要截断
                 let truncated = '';
                 for (let i = 0; i < displayText.length; i++) {
                     const testText = displayText.substring(0, i + 1) + '...';
@@ -1950,6 +2035,121 @@ export default class NodeGraphEditor {
         ctx.font = originalFont;
         ctx.textAlign = originalTextAlign;
         ctx.textBaseline = originalTextBaseline;
+    }
+    
+    // LOD1：中精度（简化细节）
+    drawNodeLOD1(ctx, node, screenPos, width, height) {
+        const originalFillStyle = ctx.fillStyle;
+        const originalStrokeStyle = ctx.strokeStyle;
+        const originalLineWidth = ctx.lineWidth;
+        const originalFont = ctx.font;
+        const originalTextAlign = ctx.textAlign;
+        const originalTextBaseline = ctx.textBaseline;
+        
+        const isSelected = this.selectedElements.some(el => el.id === node.id);
+        
+        // 矩形（无圆角）+ 细线边框
+        if (node.color) {
+            ctx.fillStyle = node.color;
+            const rgb = hexToRgb(node.color);
+            if (rgb) {
+                const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+                ctx.strokeStyle = brightness > 128 ? '#cccccc' : '#4a4a4a';
+            } else {
+                ctx.strokeStyle = isLightMode() ? '#cccccc' : '#4a4a4a';
+            }
+        } else {
+            ctx.fillStyle = isLightMode() ? '#ffffff' : '#2d2d30';
+            ctx.strokeStyle = isLightMode() ? '#cccccc' : '#4a4a4a';
+        }
+        
+        ctx.lineWidth = 0.5; // 细线
+        ctx.fillRect(screenPos.x, screenPos.y, width, height); // 无圆角
+        ctx.strokeRect(screenPos.x, screenPos.y, width, height);
+        
+        // 如果节点被选中，绘制外框
+        if (isSelected) {
+            ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(screenPos.x - 2, screenPos.y - 2, width + 4, height + 4);
+        }
+        
+        // 仅绘制节点名称（无描述）
+        const fontSize = 12 * this.zoom;
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.fillStyle = isSelected ? (isLightMode() ? '#000000' : '#ffffff') : (isLightMode() ? '#333333' : '#e0e0e0');
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        let displayName = node.name;
+        if (displayName.length > 6) {
+            displayName = displayName.slice(0, 6) + '...';
+        }
+        ctx.fillText(displayName, screenPos.x + width / 2, screenPos.y + height / 2);
+        
+        // 恢复状态
+        ctx.fillStyle = originalFillStyle;
+        ctx.strokeStyle = originalStrokeStyle;
+        ctx.lineWidth = originalLineWidth;
+        ctx.font = originalFont;
+        ctx.textAlign = originalTextAlign;
+        ctx.textBaseline = originalTextBaseline;
+    }
+    
+    // LOD2：低精度（纯色矩形 + 文字占位长条）
+    drawNodeLOD2(ctx, node, screenPos, width, height) {
+        const originalFillStyle = ctx.fillStyle;
+        const isSelected = this.selectedElements.some(el => el.id === node.id);
+        
+        // 1. 绘制节点背景（纯色矩形）
+        // 如果节点被选中，使用选中线框的颜色填充整个矩形
+        if (isSelected) {
+            ctx.fillStyle = isLightMode() ? '#000000' : '#ffffff'; // 选中时的线框颜色
+        } else {
+            ctx.fillStyle = node.color || (isLightMode() ? '#eee' : '#444');
+        }
+        ctx.fillRect(screenPos.x, screenPos.y, width, height);
+        
+        // 2. 在原本显示文字的位置绘制一个长条矩形（文字占位符）
+        // 如果节点被选中，文字占位符使用与背景对比的颜色
+        const fontSize = 12 * this.zoom;
+        const rectHeight = fontSize; // 高度保持原本字体的高度
+        const rectWidth = width * 0.5; // 统一宽度，不考虑真实文字宽度
+        
+        // 文字占位符颜色：选中时使用对比色，未选中时使用文字颜色
+        let textColor;
+        if (isSelected) {
+            // 选中时，文字占位符使用与背景对比的颜色（反转）
+            textColor = isLightMode() ? '#ffffff' : '#000000';
+        } else {
+            // 未选中时，使用正常的文字颜色
+            textColor = isLightMode() ? '#333333' : '#e0e0e0';
+        }
+        
+        ctx.fillStyle = textColor;
+        // 矩形居中绘制（以节点中心为基准）
+        const rectX = screenPos.x + width / 2 - rectWidth / 2;
+        const rectY = screenPos.y + height / 2 - rectHeight / 2;
+        ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+        
+        ctx.fillStyle = originalFillStyle;
+    }
+    
+    // LOD3：占位符（保持矩形尺寸比例的纯色矩形）
+    drawNodeLOD3(ctx, node, screenPos, width, height) {
+        const originalFillStyle = ctx.fillStyle;
+        const isSelected = this.selectedElements.some(el => el.id === node.id);
+        
+        // 保持节点原本的矩形尺寸比例，仅绘制纯色矩形（无圆角、无边框、无文字）
+        // 如果节点被选中，使用选中线框的颜色填充整个矩形
+        if (isSelected) {
+            ctx.fillStyle = isLightMode() ? '#000000' : '#ffffff'; // 选中时的线框颜色
+        } else {
+            ctx.fillStyle = node.color || (isLightMode() ? '#ddd' : '#555');
+        }
+        ctx.fillRect(screenPos.x, screenPos.y, width, height);
+        
+        ctx.fillStyle = originalFillStyle;
     }
     
     // 按节点对分组连线
@@ -2099,12 +2299,29 @@ export default class NodeGraphEditor {
         return arrowPositions;
     }
     
-    // 绘制连线组
+    // 绘制连线组（支持LOD和可视性检测）
     drawConnectionGroup(ctx, group) {
         const nodeA = this.nodes.find(n => n.id === group.nodeA);
         const nodeB = this.nodes.find(n => n.id === group.nodeB);
         
         if (!nodeA || !nodeB) return;
+        
+        // 可视性检测
+        const visibleBounds = this.visibilityCuller.getVisibleBounds();
+        const representativeConnection = group.forward[0] || group.backward[0];
+        if (!this.visibilityCuller.isConnectionVisible(representativeConnection, nodeA, nodeB, visibleBounds)) {
+            // 每100个连线组输出一次被过滤的日志（避免日志过多）
+            if (Math.random() < 0.01) {
+                perfLog(`[性能优化] 连线被可视性检测过滤`);
+            }
+            return;
+        }
+        
+        // 根据LOD等级选择绘制方法
+        const lodLevel = this.lodManager.getLODLevel(this.zoom);
+        if (lodLevel === 'LOD3') {
+            return; // LOD3不绘制连线
+        }
         
         // 计算连线的起点和终点
         const startX = nodeA.x + nodeA.width / 2;
@@ -2128,8 +2345,7 @@ export default class NodeGraphEditor {
         const hasBackward = group.backward.length > 0;
         const isBidirectional = hasForward && hasBackward;
         
-        // 获取连线属性（使用第一条连线的属性作为代表）
-        const representativeConnection = group.forward[0] || group.backward[0];
+        // 获取连线属性（使用第一条连线的属性作为代表，已在上面声明）
         const isSelected = this.selectedElements.some(el => 
             (hasForward && group.forward.some(c => c.id === el.id)) ||
             (hasBackward && group.backward.some(c => c.id === el.id))
@@ -2206,7 +2422,7 @@ export default class NodeGraphEditor {
             ctx.globalAlpha = originalGlobalAlpha;
         }
         
-        // 绘制直线连线
+        // 所有LOD级别都使用直线绘制连线
         ctx.beginPath();
         ctx.moveTo(screenStart.x, screenStart.y);
         ctx.lineTo(screenEnd.x, screenEnd.y);
@@ -2224,6 +2440,13 @@ export default class NodeGraphEditor {
         
         // 使用默认箭头尺寸（回退到上一个版本）
         const arrowSize = representativeConnection.arrowSize || 10;
+        
+        // 根据LOD等级决定是否绘制箭头
+        if (!this.lodManager.shouldDrawArrow(this.zoom)) {
+            // LOD2及以下不绘制箭头，直接返回
+            ctx.restore();
+            return;
+        }
         
         // 保存箭头信息用于点击检测
         const arrowInfo = {
@@ -2388,7 +2611,7 @@ export default class NodeGraphEditor {
         }
     }
     
-    // 渲染函数（优化版本 - 实现渲染批处理）
+    // 渲染函数（优化版本 - 实现渲染批处理、可视性检测、LOD分级绘制）
     render(timestamp) {
         // 性能监控开始
         const startTime = performance.now();
@@ -2400,6 +2623,9 @@ export default class NodeGraphEditor {
         }
         
         this.lastRenderTime = timestamp;
+        
+        // 更新可视性检测器的视图参数
+        this.visibilityCuller.updateView(this.pan, this.zoom);
         
         // 1. 首先清空画布
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2415,7 +2641,132 @@ export default class NodeGraphEditor {
         // 4. 判断当前有无选中对象并进行分离
         const hasSelectedElements = this.selectedElements.length > 0;
         
-        // 5. 使用分组方法来处理连线
+        // 5. 可视性检测和空间索引优化
+        const visibleBounds = this.visibilityCuller.getVisibleBounds();
+        // 每10帧输出一次可视区域信息（用于调试）
+        if (this.renderCount % 10 === 0) {
+            // 计算节点实际分布范围
+            let nodeMinX = Infinity, nodeMinY = Infinity, nodeMaxX = -Infinity, nodeMaxY = -Infinity;
+            if (this.nodes.length > 0) {
+                this.nodes.forEach(node => {
+                    nodeMinX = Math.min(nodeMinX, node.x);
+                    nodeMinY = Math.min(nodeMinY, node.y);
+                    nodeMaxX = Math.max(nodeMaxX, node.x + node.width);
+                    nodeMaxY = Math.max(nodeMaxY, node.y + node.height);
+                });
+            }
+            perfLog(`[调试] 可视区域: (${visibleBounds.minX.toFixed(0)}, ${visibleBounds.minY.toFixed(0)}) - (${visibleBounds.maxX.toFixed(0)}, ${visibleBounds.maxY.toFixed(0)}), ` +
+                    `节点范围: (${nodeMinX.toFixed(0)}, ${nodeMinY.toFixed(0)}) - (${nodeMaxX.toFixed(0)}, ${nodeMaxY.toFixed(0)}), ` +
+                    `pan: (${this.pan.x.toFixed(0)}, ${this.pan.y.toFixed(0)}), zoom: ${this.zoom.toFixed(2)}`);
+        }
+        
+        // 如果节点数 > 500，使用四叉树加速查询
+        if (this.nodes.length > 500 && !this.useQuadTree) {
+            perfLog(`[性能优化] 节点数 ${this.nodes.length} > 500，启用四叉树空间索引`);
+            this.useQuadTree = true;
+            // 计算节点边界范围
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            this.nodes.forEach(node => {
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x + node.width);
+                maxY = Math.max(maxY, node.y + node.height);
+            });
+            const bounds = {
+                x: minX - 1000,
+                y: minY - 1000,
+                width: maxX - minX + 2000,
+                height: maxY - minY + 2000
+            };
+            this.quadTree = new QuadTree(bounds);
+            // 将节点插入四叉树
+            this.nodes.forEach(node => {
+                this.quadTree.insert({
+                    x: node.x,
+                    y: node.y,
+                    width: node.width,
+                    height: node.height,
+                    data: node
+                });
+            });
+        } else if (this.nodes.length <= 500 && this.useQuadTree) {
+            perfLog(`[性能优化] 节点数 ${this.nodes.length} <= 500，禁用四叉树空间索引`);
+            this.useQuadTree = false;
+            this.quadTree = null;
+        }
+        
+        // 获取可见节点（使用四叉树或全量遍历）
+        let visibleNodes;
+        const visibilityStartTime = performance.now();
+        if (this.useQuadTree && this.quadTree) {
+            // 重建四叉树（节点位置可能已改变）
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            this.nodes.forEach(node => {
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x + node.width);
+                maxY = Math.max(maxY, node.y + node.height);
+            });
+            const bounds = {
+                x: minX - 1000,
+                y: minY - 1000,
+                width: maxX - minX + 2000,
+                height: maxY - minY + 2000
+            };
+            this.quadTree.clear();
+            this.quadTree.bounds = bounds;
+            this.nodes.forEach(node => {
+                this.quadTree.insert({
+                    x: node.x,
+                    y: node.y,
+                    width: node.width,
+                    height: node.height,
+                    data: node
+                });
+            });
+            // 将visibleBounds转换为四叉树期望的格式 {x, y, width, height}
+            const queryArea = {
+                x: visibleBounds.minX,
+                y: visibleBounds.minY,
+                width: visibleBounds.maxX - visibleBounds.minX,
+                height: visibleBounds.maxY - visibleBounds.minY
+            };
+            visibleNodes = this.quadTree.query(queryArea);
+            const visibilityTime = performance.now() - visibilityStartTime;
+            // 每10帧输出一次查询信息
+            if (this.renderCount % 10 === 0) {
+                // 手动验证几个节点的可见性
+                let manualVisibleCount = 0;
+                const sampleSize = Math.min(10, this.nodes.length);
+                for (let i = 0; i < sampleSize; i++) {
+                    if (this.visibilityCuller.isNodeVisible(this.nodes[i], visibleBounds)) {
+                        manualVisibleCount++;
+                    }
+                }
+                perfLog(`[性能优化] 四叉树查询: 总节点 ${this.nodes.length}, 可见节点 ${visibleNodes.length}, 耗时 ${visibilityTime.toFixed(2)}ms, ` +
+                        `查询区域: (${queryArea.x.toFixed(0)}, ${queryArea.y.toFixed(0)}) 尺寸: (${queryArea.width.toFixed(0)}, ${queryArea.height.toFixed(0)}), ` +
+                        `手动验证前${sampleSize}个节点: ${manualVisibleCount}个可见`);
+            }
+        } else {
+            // 全量遍历（节点数较少时）
+            visibleNodes = this.nodes.filter(node => 
+                this.visibilityCuller.isNodeVisible(node, visibleBounds)
+            );
+            const visibilityTime = performance.now() - visibilityStartTime;
+            // 每10帧输出一次查询信息
+            if (this.renderCount % 10 === 0) {
+                perfLog(`[性能优化] 全量遍历: 总节点 ${this.nodes.length}, 可见节点 ${visibleNodes.length}, 耗时 ${visibilityTime.toFixed(2)}ms`);
+            }
+        }
+        
+        // 获取LOD等级
+        const lodLevel = this.lodManager.getLODLevel(this.zoom);
+        // 每100帧输出一次LOD信息（避免日志过多）
+        if (this.renderCount % 100 === 0) {
+            perfLog(`[性能优化] LOD等级: ${lodLevel} (zoom: ${this.zoom.toFixed(2)})`);
+        }
+        
+        // 6. 使用分组方法来处理连线
         const connectionGroups = this.groupConnectionsByNodePair();
         
         // 按选中状态和类型分组元素，以便批处理绘制
@@ -2426,8 +2777,8 @@ export default class NodeGraphEditor {
             selectedNodes: []
         };
         
-        // 分离节点到不同组
-        this.nodes.forEach(node => {
+        // 分离可见节点到不同组
+        visibleNodes.forEach(node => {
             const isSelected = hasSelectedElements && this.selectedElements.includes(node);
             if (isSelected) {
                 groups.selectedNodes.push(node);
@@ -2455,11 +2806,15 @@ export default class NodeGraphEditor {
             });
         }
         
+        // 统计实际绘制的节点数
+        let drawnNodeCount = 0;
+        
         // 6.2 批量绘制未选中的节点
         if (groups.unselectedNodes.length > 0) {
             // 只设置一次节点绘制的基本状态，避免重复设置
             groups.unselectedNodes.forEach(node => {
                 this.drawNode(this.ctx, node);
+                drawnNodeCount++;
             });
         }
         
@@ -2475,6 +2830,7 @@ export default class NodeGraphEditor {
             // 批量绘制选中的节点
             groups.selectedNodes.forEach(node => {
                 this.drawNode(this.ctx, node);
+                drawnNodeCount++;
             });
         } else if (groups.selectedConnections.length > 0 && hasSelectedElements) {
             // 如果只有选中的连接，绘制这些连接两端的节点
@@ -2494,7 +2850,13 @@ export default class NodeGraphEditor {
             const connectedNodes = this.nodes.filter(node => connectedNodeIds.has(node.id));
             connectedNodes.forEach(node => {
                 this.drawNode(this.ctx, node);
+                drawnNodeCount++;
             });
+        }
+        
+        // 输出可视性检测结果日志（每10帧输出一次）
+        if (this.renderCount % 10 === 0) {
+            perfLog(`[可视性检测] 总节点数: ${this.nodes.length}, 可见节点数: ${visibleNodes.length}, 实际绘制节点数: ${drawnNodeCount}`);
         }
 
         // 7. 绘制节点描述提示框（始终在最上层）
@@ -2546,11 +2908,63 @@ export default class NodeGraphEditor {
         const endTime = performance.now();
         const renderTime = endTime - startTime;
         
-        // 每100帧记录一次性能数据（避免过多日志影响性能）
-        if (this.renderCount % 100 === 0) {
-            console.log(`渲染时间: ${renderTime.toFixed(2)}ms, FPS: ${(1000/renderTime).toFixed(0)}`);
+        // 使用性能监控器记录
+        this.performanceMonitor.recordFrame(renderTime);
+        
+        // 每10帧输出一次详细性能日志
+        if (this.renderCount % 10 === 0) {
+            const fps = 1000 / renderTime;
+            perfLog(`[性能监控] 渲染时间: ${renderTime.toFixed(2)}ms, FPS: ${fps.toFixed(1)}, ` +
+                    `总节点: ${this.nodes.length}, 可见节点: ${visibleNodes.length}, ` +
+                    `总连接: ${this.connections.length}, LOD: ${lodLevel}`);
         }
+        
+        // 更新状态栏信息
+        this.updateStatusBar();
+        
         this.renderCount++;
+    }
+    
+    // 更新状态栏信息
+    updateStatusBar() {
+        const nodeCountEl = document.getElementById('node-count');
+        const connectionCountEl = document.getElementById('connection-count');
+        const selectionInfoEl = document.getElementById('selection-info');
+        
+        if (nodeCountEl) {
+            nodeCountEl.textContent = `节点: ${this.nodes.length}`;
+        }
+        
+        if (connectionCountEl) {
+            connectionCountEl.textContent = `连接: ${this.connections.length}`;
+        }
+        
+        if (selectionInfoEl) {
+            // 准确判断节点和连接
+            const selectedNodes = this.selectedElements.filter(el => {
+                // 节点：有type='node'，或者没有sourceNodeId/targetNodeId属性
+                return el.type === 'node' || (!el.sourceNodeId && !el.targetNodeId && el.id);
+            });
+            const selectedConnections = this.selectedElements.filter(el => {
+                // 连接：有type='connection'，或者有sourceNodeId/targetNodeId属性
+                return el.type === 'connection' || (el.sourceNodeId && el.targetNodeId);
+            });
+            const totalSelected = this.selectedElements.length;
+            
+            if (totalSelected === 0) {
+                selectionInfoEl.textContent = '选中: 0';
+            } else {
+                let info = `选中: ${totalSelected}`;
+                if (selectedNodes.length > 0 && selectedConnections.length > 0) {
+                    info += ` (节点: ${selectedNodes.length}, 连接: ${selectedConnections.length})`;
+                } else if (selectedNodes.length > 0) {
+                    info += ` (节点: ${selectedNodes.length})`;
+                } else if (selectedConnections.length > 0) {
+                    info += ` (连接: ${selectedConnections.length})`;
+                }
+                selectionInfoEl.textContent = info;
+            }
+        }
     }
     
     // 检测节点悬浮
@@ -2730,104 +3144,113 @@ export default class NodeGraphEditor {
      * 使用力导向图算法进行单次自动排列
      */
     arrangeNodesWithForceLayout() {
-        // 确定要排列的节点：如果有选中的节点，则只排列选中的节点，否则排列所有节点
-        const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
-        const nodesToArrange = selectedNodes.length > 0 ? selectedNodes : this.nodes;
-        
-        if (nodesToArrange.length === 0) {
-            this.showNotification('没有节点需要排列');
-            return;
-        }
-        
-        // 保存当前位置以便撤销
-        const oldPositions = nodesToArrange.map(node => ({
-            id: node.id,
-            x: node.x,
-            y: node.y
-        }));
-        
-        // 实现互斥逻辑：如果实时排列正在运行，则先停止它
-        let wasRealTimeActive = false;
-        if (this.isRealTimeArrangeActive) {
-            wasRealTimeActive = true;
-            this.stopForceLayout();
-            this.showNotification('已停止实时排列，开始单次自动排列');
-        }
-        
-        // 检查D3.js库是否已经加载
-        if (typeof d3 !== 'undefined') {
-            console.log('开始使用D3.js进行单次力导向图排列');
-            
-            // 准备D3.js数据结构 - 确保节点属性有默认值
-            const nodeMap = new Map();
-            const d3Nodes = nodesToArrange.map(node => {
-                const d3Node = {
-                    id: node.id,
-                    x: node.x || Math.random() * 400,
-                    y: node.y || Math.random() * 300,
-                    width: node.width || 180,
-                    height: node.height || 80
-                };
-                nodeMap.set(node.id, d3Node);
-                return d3Node;
-            });
-            
-            // 过滤出与当前节点相关的连接
-            const d3Links = this.connections
-                .filter(conn => nodesToArrange.some(node => 
-                    node.id === conn.sourceNodeId || node.id === conn.targetNodeId
-                ))
-                .map(conn => {
-                    const source = nodeMap.get(conn.sourceNodeId);
-                    const target = nodeMap.get(conn.targetNodeId);
-                    return {
-                        source: source,
-                        target: target
-                    };
-                })
-                .filter(link => link.source && link.target); // 确保源和目标节点都存在
-            
-            // 创建独立的力导向图模拟，使用局部变量避免与实时排列冲突
-            const simulation = d3.forceSimulation(d3Nodes)
-                .force('link', d3.forceLink(d3Links).id(d => d.id).distance(150))
-                .force('charge', d3.forceManyBody().strength(-300))
-                .force('center', d3.forceCenter(400, 300))
-                .force('collision', d3.forceCollide().radius(d => 
-                    Math.max((d.width || 180) / 2, (d.height || 80) / 2) + 20
-                ));
-            
-            // 单次迭代：运行模拟一定次数后停止
-            simulation.tick(300); // 运行300次迭代以获得良好的排列
-            
-            // 应用计算出的位置到实际节点
-            d3Nodes.forEach(d3Node => {
-                const node = nodesToArrange.find(n => n.id === d3Node.id);
-                if (node) {
-                    node.x = d3Node.x;
-                    node.y = d3Node.y;
+        (async () => {
+            try {
+                // 确定要排列的节点：如果有选中的节点，则只排列选中的节点，否则排列所有节点
+                const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
+                const nodesToArrange = selectedNodes.length > 0 ? selectedNodes : this.nodes;
+                
+                if (nodesToArrange.length === 0) {
+                    this.showNotification('没有节点需要排列');
+                    return;
                 }
-            });
-            
-            // 显式停止模拟并清理事件监听器，确保资源释放
-            simulation.stop();
-            simulation.on('tick', null); // 移除任何可能的事件监听器
-            
-            this.showNotification('自动排列完成');
-            
-        } else {
-            console.error('D3.js库未加载，无法执行力导向图排列');
-            // 如果D3.js不可用，回退到简单排列
-            this.simpleArrangeFallback(nodesToArrange);
-        }
-        
-        // 保存历史记录
-        this.historyManager.addHistory('arrange', {
-            oldPositions: oldPositions,
-            editor: this
-        });
-        
-        // 显示操作成功提示
-        this.showNotification('节点已自动排列');
+                
+                // 保存当前位置以便撤销
+                const oldPositions = nodesToArrange.map(node => ({
+                    id: node.id,
+                    x: node.x,
+                    y: node.y
+                }));
+                
+                // 实现互斥逻辑：如果实时排列正在运行，则先停止它
+                let wasRealTimeActive = false;
+                if (this.isRealTimeArrangeActive) {
+                    wasRealTimeActive = true;
+                    this.stopForceLayout();
+                    this.showNotification('已停止实时排列，开始单次自动排列');
+                }
+                
+                // 检查D3.js库是否已经加载
+                if (typeof d3 !== 'undefined') {
+                    console.log('开始使用D3.js进行单次力导向图排列');
+                    
+                    // 准备D3.js数据结构 - 确保节点属性有默认值
+                    const nodeMap = new Map();
+                    const d3Nodes = nodesToArrange.map(node => {
+                        const d3Node = {
+                            id: node.id,
+                            x: node.x || Math.random() * 400,
+                            y: node.y || Math.random() * 300,
+                            width: node.width || 180,
+                            height: node.height || 80
+                        };
+                        nodeMap.set(node.id, d3Node);
+                        return d3Node;
+                    });
+                    
+                    // 过滤出与当前节点相关的连接
+                    const d3Links = this.connections
+                        .filter(conn => nodesToArrange.some(node => 
+                            node.id === conn.sourceNodeId || node.id === conn.targetNodeId
+                        ))
+                        .map(conn => {
+                            const source = nodeMap.get(conn.sourceNodeId);
+                            const target = nodeMap.get(conn.targetNodeId);
+                            return {
+                                source: source,
+                                target: target
+                            };
+                        })
+                        .filter(link => link.source && link.target); // 确保源和目标节点都存在
+                    
+                    // 创建独立的力导向图模拟，使用局部变量避免与实时排列冲突
+                    const simulation = d3.forceSimulation(d3Nodes)
+                        .force('link', d3.forceLink(d3Links).id(d => d.id).distance(150))
+                        .force('charge', d3.forceManyBody().strength(-300))
+                        .force('center', d3.forceCenter(400, 300))
+                        .force('collision', d3.forceCollide().radius(d => 
+                            Math.max((d.width || 180) / 2, (d.height || 80) / 2) + 20
+                        ));
+                    
+                    // 单次迭代：运行模拟一定次数后停止
+                    const totalTicks = 300;
+                    for (let i = 0; i < totalTicks; i++) {
+                        simulation.tick();
+                    }
+                    
+                    // 应用计算出的位置到实际节点
+                    d3Nodes.forEach(d3Node => {
+                        const node = nodesToArrange.find(n => n.id === d3Node.id);
+                        if (node) {
+                            node.x = d3Node.x;
+                            node.y = d3Node.y;
+                        }
+                    });
+                    
+                    // 显式停止模拟并清理事件监听器，确保资源释放
+                    simulation.stop();
+                    simulation.on('tick', null); // 移除任何可能的事件监听器
+                    
+                    this.showNotification('自动排列完成');
+                    
+                } else {
+                    console.error('D3.js库未加载，无法执行力导向图排列');
+                    // 如果D3.js不可用，回退到简单排列
+                    this.simpleArrangeFallback(nodesToArrange);
+                }
+                
+                // 保存历史记录
+                this.historyManager.addHistory('arrange', {
+                    oldPositions: oldPositions,
+                    editor: this
+                });
+                
+                // 显示操作成功提示
+                this.showNotification('节点已自动排列');
+            } catch (error) {
+                console.error('自动排列失败:', error);
+            }
+        })();
     }
     
     // 当D3.js不可用时的简单排列回退方案

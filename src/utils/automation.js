@@ -177,101 +177,101 @@ export async function mergeConditions(editor) {
         if (connections.length <= 1) {
             return; // 没有需要合并的连线
         }
-        
-        // 找出所有连线的条件
-        const allConditions = connections.map(conn => ({
-            conn,
-            conditions: conn.conditions.map(c => JSON.stringify(c))
-        }));
-        
-        // 找出所有连线的共同条件
-        const commonConditionsMap = new Map();
-        
-        // 遍历所有连线对，找出共同条件
-        for (let i = 0; i < connections.length; i++) {
-            for (let j = i + 1; j < connections.length; j++) {
-                const conn1 = connections[i];
-                const conn2 = connections[j];
-                
-                // 找出两个连线的共同条件
-                const common = conn1.conditions.filter(c1 => 
-                    conn2.conditions.some(c2 => 
-                        c1.parameter === c2.parameter && 
-                        c1.operator === c2.operator && 
-                        c1.value === c2.value
-                    )
+            
+            // 找出所有连线的条件
+            const allConditions = connections.map(conn => ({
+                conn,
+                conditions: conn.conditions.map(c => JSON.stringify(c))
+            }));
+            
+            // 找出所有连线的共同条件
+            const commonConditionsMap = new Map();
+            
+            // 遍历所有连线对，找出共同条件
+            for (let i = 0; i < connections.length; i++) {
+                for (let j = i + 1; j < connections.length; j++) {
+                    const conn1 = connections[i];
+                    const conn2 = connections[j];
+                    
+                    // 找出两个连线的共同条件
+                    const common = conn1.conditions.filter(c1 => 
+                        conn2.conditions.some(c2 => 
+                            c1.parameter === c2.parameter && 
+                            c1.operator === c2.operator && 
+                            c1.value === c2.value
+                        )
+                    );
+                    
+                    // 为每个共同条件创建键
+                    common.forEach(cond => {
+                        const key = JSON.stringify(cond);
+                        if (!commonConditionsMap.has(key)) {
+                            commonConditionsMap.set(key, {
+                                condition: cond,
+                                connections: new Set()
+                            });
+                        }
+                        commonConditionsMap.get(key).connections.add(conn1);
+                        commonConditionsMap.get(key).connections.add(conn2);
+                    });
+                }
+            }
+            
+            // 如果没有共同条件，停止递归
+            if (commonConditionsMap.size === 0) {
+                return;
+            }
+            
+            // 找出包含最多连线的共同条件
+            let bestCommon = null;
+            let maxConnections = 0;
+            
+            commonConditionsMap.forEach((value, key) => {
+                if (value.connections.size > maxConnections) {
+                    maxConnections = value.connections.size;
+                    bestCommon = {
+                        condition: value.condition,
+                        connections: Array.from(value.connections)
+                    };
+                }
+            });
+            
+            if (!bestCommon || bestCommon.connections.length < 2) {
+                return; // 没有足够的共同条件
+            }
+            
+            // 创建新节点（直接添加到数组，避免重复历史记录）
+            const newNodeName = `${node.name}_${nodeCounter++}`;
+            const newNode = new Node(newNodeName, node.x + 200, node.y);
+            newNode.description = `由合并条件自动创建的节点`;
+            newNode.width = 150;
+            newNode.height = 50;
+            newNode.autoSize = false;
+            editor.nodes.push(newNode);
+            
+            // 创建从当前节点到新节点的连线（包含共同条件）
+            const newConnection = new Connection(node.id, newNode.id);
+            newConnection.conditions = [JSON.parse(JSON.stringify(bestCommon.condition))];
+            editor.connections.push(newConnection);
+            
+            // 更新所有包含共同条件的连线
+            bestCommon.connections.forEach(conn => {
+                // 移除共同条件
+                conn.conditions = conn.conditions.filter(c => 
+                    !(c.parameter === bestCommon.condition.parameter &&
+                      c.operator === bestCommon.condition.operator &&
+                      c.value === bestCommon.condition.value)
                 );
                 
-                // 为每个共同条件创建键
-                common.forEach(cond => {
-                    const key = JSON.stringify(cond);
-                    if (!commonConditionsMap.has(key)) {
-                        commonConditionsMap.set(key, {
-                            condition: cond,
-                            connections: new Set()
-                        });
-                    }
-                    commonConditionsMap.get(key).connections.add(conn1);
-                    commonConditionsMap.get(key).connections.add(conn2);
-                });
-            }
-        }
-        
-        // 如果没有共同条件，停止递归
-        if (commonConditionsMap.size === 0) {
-            return;
-        }
-        
-        // 找出包含最多连线的共同条件
-        let bestCommon = null;
-        let maxConnections = 0;
-        
-        commonConditionsMap.forEach((value, key) => {
-            if (value.connections.size > maxConnections) {
-                maxConnections = value.connections.size;
-                bestCommon = {
-                    condition: value.condition,
-                    connections: Array.from(value.connections)
-                };
-            }
-        });
-        
-        if (!bestCommon || bestCommon.connections.length < 2) {
-            return; // 没有足够的共同条件
-        }
-        
-        // 创建新节点（直接添加到数组，避免重复历史记录）
-        const newNodeName = `${node.name}_${nodeCounter++}`;
-        const newNode = new Node(newNodeName, node.x + 200, node.y);
-        newNode.description = `由合并条件自动创建的节点`;
-        newNode.width = 150;
-        newNode.height = 50;
-        newNode.autoSize = false;
-        editor.nodes.push(newNode);
-        
-        // 创建从当前节点到新节点的连线（包含共同条件）
-        const newConnection = new Connection(node.id, newNode.id);
-        newConnection.conditions = [JSON.parse(JSON.stringify(bestCommon.condition))];
-        editor.connections.push(newConnection);
-        
-        // 更新所有包含共同条件的连线
-        bestCommon.connections.forEach(conn => {
-            // 移除共同条件
-            conn.conditions = conn.conditions.filter(c => 
-                !(c.parameter === bestCommon.condition.parameter &&
-                  c.operator === bestCommon.condition.operator &&
-                  c.value === bestCommon.condition.value)
-            );
+                // 将连线的源节点改为新节点
+                conn.sourceNodeId = newNode.id;
+            });
             
-            // 将连线的源节点改为新节点
-            conn.sourceNodeId = newNode.id;
-        });
+            // 递归处理新节点的连线
+            const newConnections = editor.connections.filter(conn => conn.sourceNodeId === newNode.id);
+            mergeConditionsRecursive(newNode, newConnections);
+        }
         
-        // 递归处理新节点的连线
-        const newConnections = editor.connections.filter(conn => conn.sourceNodeId === newNode.id);
-        mergeConditionsRecursive(newNode, newConnections);
-    }
-    
     // 开始合并
     mergeConditionsRecursive(currentNode, currentConnections);
     
@@ -307,7 +307,7 @@ export async function removeDuplicateConnections(editor) {
     const duplicateConnections = [];
     
     // 遍历所有连接
-    editor.connections.forEach(connection => {
+    editor.connections.forEach((connection) => {
         // 创建连接的唯一标识：起始节点ID + 终止节点ID + 条件的JSON字符串
         // 首先确保条件数组的一致性，按相同顺序排序条件以正确比较
         const sortedConditions = [...connection.conditions].sort((a, b) => {
@@ -332,10 +332,10 @@ export async function removeDuplicateConnections(editor) {
     });
     
     // 删除所有重复连接
-    duplicateConnections.forEach(connId => {
-        const index = editor.connections.findIndex(c => c.id === connId);
-        if (index !== -1) {
-            editor.connections.splice(index, 1);
+    duplicateConnections.forEach((connId) => {
+        const connectionIndex = editor.connections.findIndex(c => c.id === connId);
+        if (connectionIndex !== -1) {
+            editor.connections.splice(connectionIndex, 1);
             
             // 从选中元素中移除
             editor.selectedElements = editor.selectedElements.filter(el => el.id !== connId);
@@ -395,7 +395,7 @@ export async function concentrateArrange(editor) {
     const groupBoundingBoxes = [];
     
     // 计算连通组的包围盒
-    connectedGroups.forEach(group => {
+    connectedGroups.forEach((group) => {
         const box = calculateBoundingBox(group);
         groupBoundingBoxes.push({
             nodes: group,
@@ -459,6 +459,7 @@ export async function concentrateArrange(editor) {
     });
     
     editor.scheduleRender();
+    
     await AlertDialog('集中排列完成');
 }
 

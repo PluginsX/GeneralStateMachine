@@ -2,7 +2,7 @@ import Connection from '../core/connection.js';
 import Condition from '../core/condition.js';
 import Node from '../core/node.js';
 import { extractMermaidCharts, parseMermaidChart, parseMarkdownList } from '../utils/mermaidParser.js';
-import { AlertDialog, ConfirmDialog } from '../utils/popup.js';
+import { AlertDialog, ConfirmDialog, PopUp_Window } from '../utils/popup.js';
 import ImportService from './ImportService.js';
 
 // 导入Markdown
@@ -144,6 +144,69 @@ export const openProject = async (editor) => {
     input.click();
 };
 
+// 加载项目数据（核心逻辑，可被打开工程和导入JSON复用）
+export const loadProjectData = async (projectData, editor) => {
+    // 验证项目文件格式
+    if (!projectData.type || projectData.type !== 'node-graph-editor-project') {
+        throw new Error('这不是一个有效的项目文件');
+    }
+    
+    // 清空现有内容
+    editor.nodes = [];
+    editor.connections = [];
+    editor.selectedElements = [];
+    
+    // 导入节点
+    if (projectData.nodes && Array.isArray(projectData.nodes)) {
+        projectData.nodes.forEach((nodeData) => {
+            const node = new Node(nodeData.name, nodeData.x, nodeData.y);
+            node.id = nodeData.id;
+            node.description = nodeData.description || '';
+            node.width = nodeData.width || 150;
+            node.height = nodeData.height || 50;
+            node.autoSize = nodeData.autoSize || false;
+            node.color = nodeData.color || null;
+            editor.nodes.push(node);
+        });
+    }
+    
+    // 导入连接
+    if (projectData.connections && Array.isArray(projectData.connections)) {
+        projectData.connections.forEach((connData) => {
+            const connection = new Connection(connData.sourceNodeId, connData.targetNodeId);
+            connection.id = connData.id;
+            
+            // 导入条件
+            if (connData.conditions && Array.isArray(connData.conditions)) {
+                connData.conditions.forEach(condData => {
+                    const condition = new Condition();
+                    condition.type = condData.type;
+                    condition.key = condData.key;
+                    condition.operator = condData.operator;
+                    condition.value = condData.value;
+                    connection.conditions.push(condition);
+                });
+            }
+            
+            // 导入连接属性
+            connection.color = connData.color || null;
+            connection.lineWidth = connData.lineWidth || null;
+            connection.lineType = connData.lineType || 'solid';
+            connection.arrowSize = connData.arrowSize || null;
+            connection.arrowColor = connData.arrowColor || null;
+            
+            editor.connections.push(connection);
+        });
+    }
+    
+    editor.deselectAll();
+    editor.scheduleRender();
+    // 更新状态栏
+    if (editor.updateStatusBar) {
+        editor.updateStatusBar();
+    }
+};
+
 // 处理项目文件选择
 export const handleProjectFileSelect = async (e, editor) => {
     const file = e.target.files[0];
@@ -155,66 +218,12 @@ export const handleProjectFileSelect = async (e, editor) => {
             const jsonContent = event.target.result;
             const projectData = JSON.parse(jsonContent);
             
-            // 验证项目文件格式
-            if (!projectData.type || projectData.type !== 'node-graph-editor-project') {
-                await AlertDialog('这不是一个有效的项目文件');
-                return;
-            }
-            
-            // 清空现有内容
-            editor.nodes = [];
-            editor.connections = [];
-            editor.selectedElements = [];
-            
-            // 导入节点
-            if (projectData.nodes && Array.isArray(projectData.nodes)) {
-                projectData.nodes.forEach(nodeData => {
-                    const node = new Node(nodeData.name, nodeData.x, nodeData.y);
-                    node.id = nodeData.id;
-                    node.description = nodeData.description || '';
-                    node.width = nodeData.width || 150;
-                    node.height = nodeData.height || 50;
-                    node.autoSize = nodeData.autoSize || false;
-                    node.color = nodeData.color || null;
-                    editor.nodes.push(node);
-                });
-            }
-            
-            // 导入连接
-            if (projectData.connections && Array.isArray(projectData.connections)) {
-                projectData.connections.forEach(connData => {
-                    const connection = new Connection(connData.sourceNodeId, connData.targetNodeId);
-                    connection.id = connData.id;
-                    
-                    // 导入条件
-                    if (connData.conditions && Array.isArray(connData.conditions)) {
-                        connData.conditions.forEach(condData => {
-                            const condition = new Condition();
-                            condition.type = condData.type;
-                            condition.key = condData.key;
-                            condition.operator = condData.operator;
-                            condition.value = condData.value;
-                            connection.conditions.push(condition);
-                        });
-                    }
-                    
-                    // 导入连接属性
-                    connection.color = connData.color || null;
-                    connection.lineWidth = connData.lineWidth || null;
-                    connection.lineType = connData.lineType || 'solid';
-                    connection.arrowSize = connData.arrowSize || null;
-                    connection.arrowColor = connData.arrowColor || null;
-                    
-                    editor.connections.push(connection);
-                });
-            }
-            
-            editor.deselectAll();
-            editor.scheduleRender();
+            // 使用统一的加载项目数据函数
+            await loadProjectData(projectData, editor);
             
         } catch (error) {
-                await AlertDialog('打开项目失败: ' + error.message);
-            }
+            await AlertDialog('打开项目失败: ' + error.message);
+        }
     };
     
     if (file.name.endsWith('.json')) {
@@ -231,11 +240,48 @@ export const handleProjectFileSelect = async (e, editor) => {
 export const importJSON = async (content, editor) => {
     try {
         console.log('开始执行importJSON函数');
+        
         // 解析JSON
         const jsonData = typeof content === 'string' ? JSON.parse(content) : content;
         console.log('JSON解析完成');
         
-        // 使用ImportService处理不同格式的JSON导入
+        // 检测是否为项目工程文件格式
+        if (jsonData.type === 'node-graph-editor-project') {
+            console.log('检测到项目工程文件格式');
+            
+            // 显示弹窗提示用户并获取确认（与ImportService保持一致）
+            const confirmImport = await PopUp_Window(
+                'JSON导入信息',
+                '检测到该json文件为：编辑器标准工程文件',
+                '导入',
+                '取消'
+            );
+            
+            // 如果用户取消导入，抛出错误中断操作
+            if (!confirmImport) {
+                console.log('用户取消了JSON导入');
+                throw new Error('导入已取消');
+            }
+            
+            // 用户确认后，直接复用打开工程的逻辑，无需通过ImportService
+            await loadProjectData(jsonData, editor);
+            
+            // 记录导入操作到历史记录
+            if (editor.historyManager) {
+                try {
+                    console.log('记录历史操作');
+                    editor.historyManager.addHistory('import', { description: '导入项目工程文件' });
+                    console.log('历史操作记录成功');
+                } catch (historyError) {
+                    console.error('记录历史操作失败:', historyError);
+                }
+            }
+            
+            console.log('项目工程文件导入成功');
+            return;
+        }
+        
+        // 对于其他格式（Unity状态机、普通JSON），使用ImportService处理
         const importService = new ImportService();
         
         // 调用带弹窗提示的导入方法
@@ -284,29 +330,34 @@ export const importJSON = async (content, editor) => {
         
         editor.deselectAll();
         editor.scheduleRender();
+        // 更新状态栏
+        if (editor.updateStatusBar) {
+            editor.updateStatusBar();
+        }
         console.log('视图更新完成');
         
-        // 记录导入操作到历史记录
+        // 记录导入操作到历史记录（仅在非项目工程文件格式时记录，项目工程文件格式已在loadProjectData中记录）
         if (editor.historyManager) {
             try {
-                console.log('记录历史操作');
-                editor.historyManager.addHistory('import', { description: '导入JSON' });
-                console.log('历史操作记录成功');
+                // 检查是否已经记录过历史（项目工程文件格式已在loadProjectData中记录）
+                // 这里只记录非项目工程文件格式的导入
+                if (jsonData.type !== 'node-graph-editor-project') {
+                    console.log('记录历史操作');
+                    editor.historyManager.addHistory('import', { description: '导入JSON' });
+                    console.log('历史操作记录成功');
+                }
             } catch (historyError) {
                 console.error('记录历史操作失败:', historyError);
                 // 历史记录失败不应该阻止导入成功
             }
-        } else {
-            console.warn('editor.historyManager不存在');
         }
-        
         console.log('JSON导入完全成功');
     } catch (error) {
         console.error('importJSON捕获到错误:', error);
-        // 如果是用户取消导入，不显示错误消息
         if (error.message !== '导入已取消') {
             await AlertDialog('JSON导入失败: ' + error.message);
         }
+        throw error;
     }
 };
 
@@ -648,7 +699,10 @@ export const importYAML = async (content, editor) => {
         // 使用与JSON相同的转换逻辑
         await importJSON(yamlData, editor);
     } catch (error) {
-        await AlertDialog('YAML导入失败: ' + error.message);
+        if (error.message !== '导入已取消') {
+            await AlertDialog('YAML导入失败: ' + error.message);
+        }
+        throw error;
     }
 };
 

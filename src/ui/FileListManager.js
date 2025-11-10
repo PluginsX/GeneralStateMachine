@@ -6,8 +6,9 @@ class FileListManager {
     constructor() {
         this.projectFilesList = document.getElementById('project-files-list');
         this.importFilesList = document.getElementById('import-files-list');
-        this.projectsDir = '../../Sample/project/';
-        this.importsDir = '../../Sample/import/';
+        // 更新路径为 sample/Project 和 sample/Import
+        this.projectsDir = '../sample/Project/';
+        this.importsDir = '../sample/Import/';
     }
 
     /**
@@ -19,19 +20,73 @@ class FileListManager {
     }
 
     /**
+     * 从目录获取文件列表
+     * @param {string} dirPath - 目录路径
+     * @returns {Promise<Array<string>>} 文件列表
+     */
+    async fetchFileList(dirPath) {
+        try {
+            // 尝试获取目录列表（Python http.server 会返回 HTML 目录列表）
+            const response = await fetch(dirPath);
+            if (!response.ok) {
+                throw new Error(`无法访问目录: ${dirPath}`);
+            }
+            
+            const html = await response.text();
+            
+            // 解析 HTML 目录列表，提取文件名
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const links = doc.querySelectorAll('a');
+            
+            const files = [];
+            links.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && href !== '../' && !href.endsWith('/')) {
+                    try {
+                        // 尝试解码 URL 编码的文件名
+                        let fileName = href;
+                        // 如果包含 % 编码，进行解码
+                        if (href.includes('%')) {
+                            fileName = decodeURIComponent(href);
+                        }
+                        // 过滤掉父目录链接和其他非文件项
+                        if (fileName && fileName !== '..' && !fileName.endsWith('/')) {
+                            files.push(fileName);
+                        }
+                    } catch (e) {
+                        // 如果解码失败，使用原始 href
+                        if (href && href !== '../' && !href.endsWith('/')) {
+                            files.push(href);
+                        }
+                    }
+                }
+            });
+            
+            // 去重并排序
+            return [...new Set(files)].sort();
+        } catch (error) {
+            console.error('获取文件列表失败:', error);
+            return [];
+        }
+    }
+
+    /**
      * 加载演示项目文件列表
      */
     async loadProjectFiles() {
         if (!this.projectFilesList) return;
 
         try {
-            // 直接使用预定义的文件列表
-            const files = [
-                'Avatar_Girl_Sword_SkirkNew.json',
-                '控制器模板.json'
-            ];
+            // 从目录动态读取文件列表
+            const files = await this.fetchFileList(this.projectsDir);
+            
+            if (files.length === 0) {
+                this.projectFilesList.innerHTML = '<div style="padding: 10px; color: #969696; text-align: center;">暂无项目文件</div>';
+                return;
+            }
 
-            // 直接渲染文件列表，不进行验证
+            // 渲染文件列表
             this.renderFileList(this.projectFilesList, files, 'project');
         } catch (error) {
             console.error('加载项目文件列表失败:', error);
@@ -46,14 +101,15 @@ class FileListManager {
         if (!this.importFilesList) return;
 
         try {
-            // 直接使用预定义的文件列表
-            const files = [
-                'Avatar_Girl_Sword_SkirkNew.json',
-                'Avatar_Girl_Sword_SkirkNew_ActionSubs.json',
-                'Avatar_Girl_Sword_SkirkNew_BeHit.json'
-            ];
+            // 从目录动态读取文件列表
+            const files = await this.fetchFileList(this.importsDir);
+            
+            if (files.length === 0) {
+                this.importFilesList.innerHTML = '<div style="padding: 10px; color: #969696; text-align: center;">暂无导入文件</div>';
+                return;
+            }
 
-            // 直接渲染文件列表，不进行验证
+            // 渲染文件列表
             this.renderFileList(this.importFilesList, files, 'import');
         } catch (error) {
             console.error('加载导入文件列表失败:', error);
@@ -160,8 +216,10 @@ class FileListManager {
                 throw new Error('编辑器实例未找到');
             }
             
+            // 对文件名进行 URL 编码，确保中文文件名能正确访问
+            const encodedFileName = encodeURIComponent(fileName);
             // 从服务器获取文件内容
-            const response = await fetch(this.projectsDir + fileName);
+            const response = await fetch(this.projectsDir + encodedFileName);
             if (!response.ok) {
                 throw new Error(`无法获取项目文件: ${fileName}`);
             }
@@ -191,8 +249,10 @@ class FileListManager {
                 throw new Error('编辑器实例未找到');
             }
             
+            // 对文件名进行 URL 编码，确保中文文件名能正确访问
+            const encodedFileName = encodeURIComponent(fileName);
             // 从服务器获取文件内容
-            const response = await fetch(this.importsDir + fileName);
+            const response = await fetch(this.importsDir + encodedFileName);
             if (!response.ok) {
                 throw new Error(`无法获取导入文件: ${fileName}`);
             }
