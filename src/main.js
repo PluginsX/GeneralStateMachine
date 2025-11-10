@@ -1,5 +1,7 @@
 import NodeGraphEditor from './core/editor.js';
 import { mergeNodes, mergeConditions, removeDuplicateConnections, concentrateArrange } from './utils/automation.js';
+import WelcomeScreen from './ui/WelcomeScreen.js';
+import FileListManager from './ui/FileListManager.js';
 
 // 禁用默认右键菜单
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,6 +11,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const editor = new NodeGraphEditor('editor-canvas');
     // 将编辑器实例赋值给window，以便其他地方可以访问
     window.editor = editor;
+    
+    // 初始化欢迎页面
+    const welcomeScreen = new WelcomeScreen();
+    welcomeScreen.init();
+    // 将欢迎页面实例赋值给window，以便其他地方可以访问
+    window.welcomeScreen = welcomeScreen;
+    
+    // 初始化文件列表管理器
+    const fileListManager = new FileListManager();
+    fileListManager.init();
+    // 将文件列表管理器实例赋值给window，以便其他地方可以访问
+    window.fileListManager = fileListManager;
     
     // 初始化UI布局调整功能
     initLayoutResizers();
