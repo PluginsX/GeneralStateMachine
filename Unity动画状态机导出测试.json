@@ -1,0 +1,284 @@
+{
+  "version": "1.0",
+  "type": "UnityAnimatorControllerExporter",
+  "Nodes": [
+    {
+      "Name": "Entry",
+      "color": "#1D7436"
+    },
+    {
+      "Name": "Exit",
+      "color": "#991F1F"
+    },
+    {
+      "Name": "AnyState",
+      "color": "#60BEA6"
+    },
+    {
+      "Name": "Idle/Walk/Run/Sprint"
+    },
+    {
+      "Name": "New State"
+    },
+    {
+      "Name": "Anim_Sprint_Start"
+    },
+    {
+      "Name": "Anim_Sprint_Stop"
+    },
+    {
+      "Name": "Anim_Sprint_Stop 0"
+    },
+    {
+      "Name": "Anim_Sprint_Start 0"
+    },
+    {
+      "Name": "Falling"
+    },
+    {
+      "Name": "Land"
+    },
+    {
+      "Name": "Anim_Sprint"
+    },
+    {
+      "Name": "Skill_Entry",
+      "color": "#1D7436"
+    },
+    {
+      "Name": "Skill_Exit",
+      "color": "#991F1F"
+    },
+    {
+      "Name": "Skill_Take 001 1"
+    },
+    {
+      "Name": "Skill_Take 001 0"
+    },
+    {
+      "Name": "Skill_Take 001"
+    },
+    {
+      "Name": "Skill_Attack"
+    }
+  ],
+  "Transitions": [
+    {
+      "Name": "Skill_Entry->Skill_Attack",
+      "From": "Skill_Entry",
+      "To": "Skill_Attack",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Skill_Take 001 1->Skill_Exit",
+      "From": "Skill_Take 001 1",
+      "To": "Skill_Exit",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Skill_Take 001 0->Skill_Take 001 1",
+      "From": "Skill_Take 001 0",
+      "To": "Skill_Take 001 1",
+      "Conditions": [
+        {
+          "Parameter": "Attack",
+          "Type": "Trigger"
+        }
+      ]
+    },
+    {
+      "Name": "Skill_Take 001 0->Skill_Exit",
+      "From": "Skill_Take 001 0",
+      "To": "Skill_Exit",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Skill_Take 001->Skill_Take 001 0",
+      "From": "Skill_Take 001",
+      "To": "Skill_Take 001 0",
+      "Conditions": [
+        {
+          "Parameter": "Attack",
+          "Type": "Trigger"
+        }
+      ]
+    },
+    {
+      "Name": "Skill_Take 001->Skill_Exit",
+      "From": "Skill_Take 001",
+      "To": "Skill_Exit",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Skill_Attack->Skill_Take 001",
+      "From": "Skill_Attack",
+      "To": "Skill_Take 001",
+      "Conditions": [
+        {
+          "Parameter": "Attack",
+          "Type": "Trigger"
+        }
+      ]
+    },
+    {
+      "Name": "Skill_Attack->Skill_Exit",
+      "From": "Skill_Attack",
+      "To": "Skill_Exit",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Entry->Idle/Walk/Run/Sprint",
+      "From": "Entry",
+      "To": "Idle/Walk/Run/Sprint",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "AnyState->Anim_Sprint_Start 0",
+      "From": "AnyState",
+      "To": "Anim_Sprint_Start 0",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "AnyState->Anim_Sprint_Stop 0",
+      "From": "AnyState",
+      "To": "Anim_Sprint_Stop 0",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "AnyState->New State",
+      "From": "AnyState",
+      "To": "New State",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Idle/Walk/Run/Sprint->Anim_Sprint_Start",
+      "From": "Idle/Walk/Run/Sprint",
+      "To": "Anim_Sprint_Start",
+      "Conditions": [
+        {
+          "Parameter": "Sprint",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": true
+        }
+      ]
+    },
+    {
+      "Name": "Idle/Walk/Run/Sprint->Anim_Sprint_Stop",
+      "From": "Idle/Walk/Run/Sprint",
+      "To": "Anim_Sprint_Stop",
+      "Conditions": [
+        {
+          "Parameter": "Sprint",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": false
+        },
+        {
+          "Parameter": "MoveSpeed",
+          "Type": "Float",
+          "Compare": "Greater",
+          "Value": 7.000000
+        }
+      ]
+    },
+    {
+      "Name": "Idle/Walk/Run/Sprint->Skill_Entry",
+      "From": "Idle/Walk/Run/Sprint",
+      "To": "Skill_Entry",
+      "Conditions": [
+        {
+          "Parameter": "Attack",
+          "Type": "Trigger"
+        }
+      ]
+    },
+    {
+      "Name": "Idle/Walk/Run/Sprint->Falling",
+      "From": "Idle/Walk/Run/Sprint",
+      "To": "Falling",
+      "Conditions": [
+        {
+          "Parameter": "Jump",
+          "Type": "Trigger"
+        }
+      ]
+    },
+    {
+      "Name": "Anim_Sprint_Start->Idle/Walk/Run/Sprint",
+      "From": "Anim_Sprint_Start",
+      "To": "Idle/Walk/Run/Sprint",
+      "Conditions": [
+        {
+          "Parameter": "Sprint",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": true
+        }
+      ]
+    },
+    {
+      "Name": "Anim_Sprint_Start->Anim_Sprint",
+      "From": "Anim_Sprint_Start",
+      "To": "Anim_Sprint",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Anim_Sprint_Stop->Idle/Walk/Run/Sprint",
+      "From": "Anim_Sprint_Stop",
+      "To": "Idle/Walk/Run/Sprint",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Falling->Land",
+      "From": "Falling",
+      "To": "Land",
+      "Conditions": [
+        {
+          "Parameter": "IsGrounded",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": true
+        }
+      ]
+    },
+    {
+      "Name": "Land->Idle/Walk/Run/Sprint",
+      "From": "Land",
+      "To": "Idle/Walk/Run/Sprint",
+      "Conditions": [
+      ]
+    },
+    {
+      "Name": "Anim_Sprint->Anim_Sprint_Stop",
+      "From": "Anim_Sprint",
+      "To": "Anim_Sprint_Stop",
+      "Conditions": [
+        {
+          "Parameter": "Sprint",
+          "Type": "Bool",
+          "Compare": "Equal",
+          "Value": false
+        }
+      ]
+    },
+    {
+      "Name": "Skill_Exit->Idle/Walk/Run/Sprint",
+      "From": "Skill_Exit",
+      "To": "Idle/Walk/Run/Sprint",
+      "Conditions": [
+      ]
+    }
+  ]
+}
