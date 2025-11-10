@@ -1,8 +1,10 @@
 
 // 连接类
+import { generateId } from '../utils/common.js';
+
 export default class Connection {
     constructor(sourceNodeId, targetNodeId) {
-        this.id = crypto.randomUUID();
+        this.id = generateId();
         this.type = 'connection';
         this.sourceNodeId = sourceNodeId;
         this.targetNodeId = targetNodeId;

@@ -1,8 +1,10 @@
 // 连线数据模型
 // 仅包含数据结构和基础操作，不包含业务逻辑
+import { generateId } from '../../utils/common.js';
+
 export default class Connection {
     constructor(sourceNodeId, targetNodeId, fromSide, toSide) {
-        this.id = crypto.randomUUID();
+        this.id = generateId();
         this.type = 'connection';
         this.sourceNodeId = sourceNodeId;
         this.targetNodeId = targetNodeId;

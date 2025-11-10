@@ -1,5 +1,16 @@
 // 通用工具函数
-export const generateId = () => crypto.randomUUID();
+export const generateId = () => {
+    if (crypto && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    } else {
+        // 兼容性降级方案
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+};
 
 // 深拷贝函数
 export function deepClone(obj, hash = new WeakMap()) {

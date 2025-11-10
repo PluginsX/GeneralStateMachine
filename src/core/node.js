@@ -1,7 +1,9 @@
+import { generateId } from '../utils/common.js';
+
 // 节点类
 export default class Node {
     constructor(name, x, y) {
-        this.id = crypto.randomUUID();
+        this.id = generateId();
         this.type = 'node';
         this.name = name || '新节点';
         this.description = '';
