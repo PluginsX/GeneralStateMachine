@@ -3397,49 +3397,79 @@ export default class NodeGraphEditor {
                         .filter(link => link.source && link.target); // 确保源和目标节点都存在
                     
                     // 创建独立的力导向图模拟，使用局部变量避免与实时排列冲突
+                    // 单次排列优化：使用更强的力和更快的收敛速度
                     const simulation = d3.forceSimulation(d3Nodes)
                         .force('link', d3.forceLink(d3Links).id(d => d.id).distance(150))
-                        .force('charge', d3.forceManyBody().strength(-300))
+                        .force('charge', d3.forceManyBody().strength(-500)) // 增强电荷力，加快收敛
                         .force('center', d3.forceCenter(400, 300))
                         .force('collision', d3.forceCollide().radius(d => 
                             Math.max((d.width || 180) / 2, (d.height || 80) / 2) + 20
-                        ));
+                        ))
+                        .alphaTarget(0) // 设置目标alpha为0，让模拟自然收敛
+                        .alphaDecay(0.05); // 加快alpha衰减速度（默认0.0228），让模拟更快收敛
                     
-                    // 单次迭代：运行模拟一定次数后停止
-                    const totalTicks = 300;
-                    for (let i = 0; i < totalTicks; i++) {
-                        simulation.tick();
-                    }
-                    
-                    // 应用计算出的位置到实际节点
-                    d3Nodes.forEach(d3Node => {
-                        const node = nodesToArrange.find(n => n.id === d3Node.id);
-                        if (node) {
-                            node.x = d3Node.x;
-                            node.y = d3Node.y;
-                        }
+                    // 使用异步方式运行模拟，避免阻塞主线程
+                    // 单次排列应该比实时排列快得多，所以使用更少的迭代和更高的停止阈值
+                    return new Promise((resolve) => {
+                        let tickCount = 0;
+                        const maxTicks = 100; // 减少最大迭代次数（从300降到100），单次排列不需要太多迭代
+                        const minAlpha = 0.01; // 提高停止阈值（从0.001提高到0.01），更快停止
+                        
+                        // 使用tick事件来异步执行
+                        simulation.on('tick', () => {
+                            tickCount++;
+                            const alpha = simulation.alpha();
+                            
+                            // 如果alpha足够小或达到最大迭代次数，停止模拟
+                            if (alpha < minAlpha || tickCount >= maxTicks) {
+                                simulation.stop();
+                                
+                                // 应用计算出的位置到实际节点
+                                d3Nodes.forEach(d3Node => {
+                                    const node = nodesToArrange.find(n => n.id === d3Node.id);
+                                    if (node) {
+                                        node.x = d3Node.x;
+                                        node.y = d3Node.y;
+                                    }
+                                });
+                                
+                                // 清理事件监听器
+                                simulation.on('tick', null);
+                                
+                                // 触发一次渲染
+                                this.scheduleRender();
+                                
+                                resolve();
+                            }
+                        });
+                        
+                        // 启动模拟
+                        simulation.restart();
+                    }).then(() => {
+                        // 保存历史记录
+                        this.historyManager.addHistory('arrange', {
+                            oldPositions: oldPositions,
+                            editor: this
+                        });
+                        
+                        // 显示操作成功提示
+                        this.showNotification('节点已自动排列');
                     });
-                    
-                    // 显式停止模拟并清理事件监听器，确保资源释放
-                    simulation.stop();
-                    simulation.on('tick', null); // 移除任何可能的事件监听器
-                    
-                    this.showNotification('自动排列完成');
                     
                 } else {
                     console.error('D3.js库未加载，无法执行力导向图排列');
                     // 如果D3.js不可用，回退到简单排列
                     this.simpleArrangeFallback(nodesToArrange);
+                    
+                    // 保存历史记录
+                    this.historyManager.addHistory('arrange', {
+                        oldPositions: oldPositions,
+                        editor: this
+                    });
+                    
+                    // 显示操作成功提示
+                    this.showNotification('节点已自动排列');
                 }
-                
-                // 保存历史记录
-                this.historyManager.addHistory('arrange', {
-                    oldPositions: oldPositions,
-                    editor: this
-                });
-                
-                // 显示操作成功提示
-                this.showNotification('节点已自动排列');
             } catch (error) {
                 console.error('自动排列失败:', error);
             }
