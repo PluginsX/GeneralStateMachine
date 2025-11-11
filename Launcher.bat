@@ -4,7 +4,7 @@ chcp 65001 >nul
 REM 设置控制台字体为支持中文的字体模式
 mode con cp select=65001 >nul
 echo 正在启动本地服务器...
-start /b python -m http.server 8000 --bind 0.0.0.0
+start /b python -m http.server 8000 --bind localhost
 
 echo 等待服务器启动...
 timeout /t 2 /nobreak >nul

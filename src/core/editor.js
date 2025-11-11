@@ -90,6 +90,11 @@ export default class NodeGraphEditor {
         this.boundHandleGlobalMouseMove = this.handleGlobalMouseMove.bind(this);
         this.boundHandleGlobalMouseUp = this.handleGlobalMouseUp.bind(this);
         
+        // 用户输入状态检测
+        this.isUserActive = true;
+        this.lastUserInputTime = Date.now();
+        this.noInputThreshold = 10000; // 10秒无输入阈值
+        
         // 初始化
         this.init();
     }
@@ -108,6 +113,46 @@ export default class NodeGraphEditor {
         setTimeout(() => {
             this.updateStatusBar();
         }, 100);
+        
+        // 设置页面可见性检测
+        document.addEventListener('visibilitychange', () => {
+            this.isUserActive = !document.hidden;
+            if (this.isUserActive) {
+                this.updateUserInputStatus();
+            }
+        });
+        
+        // 设置窗口焦点检测
+        window.addEventListener('focus', () => {
+            this.isUserActive = true;
+            this.updateUserInputStatus();
+        });
+        
+        window.addEventListener('blur', () => {
+            this.isUserActive = false;
+        });
+        
+        // 定期检查用户输入状态
+        setInterval(() => this.checkUserInputState(), 500);
+    }
+    
+    // 更新用户输入状态
+    updateUserInputStatus() {
+        this.lastUserInputTime = Date.now();
+        this.isUserActive = true;
+    }
+    
+    // 检查用户输入状态
+    checkUserInputState() {
+        const currentTime = Date.now();
+        const timeSinceLastInput = currentTime - this.lastUserInputTime;
+        
+        // 如果超过阈值且页面不可见或未聚焦，则认为用户不活动
+        if (timeSinceLastInput > this.noInputThreshold || !this.isUserActive) {
+            this.isUserActive = false;
+        } else {
+            this.isUserActive = true;
+        }
     }
     
     // 处理实时自动排列
@@ -198,23 +243,80 @@ export default class NodeGraphEditor {
                 .force("collide", d3.forceCollide().radius(d => Math.max(d.width || 150, d.height || 100) / 2 + 15))
                 .force("center", d3.forceCenter(this.canvas.width / 2, this.canvas.height / 2));
             
+            // 初始化节点位置历史记录，用于计算运动变化量
+            const nodePositionHistory = new Map();
+            nodes.forEach(node => {
+                nodePositionHistory.set(node.id, { x: node.x, y: node.y });
+            });
+            
+            // 设置运动检测阈值和计数器
+            const MOTION_THRESHOLD = 0.5; // 运动变化量阈值
+            const STATIC_TICK_COUNT = 20; // 连续静止的tick次数阈值
+            let staticTickCounter = 0;
+            
             // 添加tick事件监听器，实时更新节点位置
             this.forceSimulation.on("tick", () => {
-                // 更新原始节点位置
+                // 计算所有节点的平均运动变化量
+                let totalMotion = 0;
+                let nodeCount = 0;
+                
+                // 更新原始节点位置并计算运动变化
                 d3Nodes.forEach(d3Node => {
                     const originalNode = nodes.find(n => n.id === d3Node.id);
                     if (originalNode) {
-                        // 只有当节点未被固定时才更新位置
-                        if (d3Node.fx === undefined && d3Node.fy === undefined) {
-                            originalNode.x = d3Node.x;
-                            originalNode.y = d3Node.y;
-                        } else {
-                            // 如果节点被固定，同步原始节点位置
-                            originalNode.x = d3Node.fx !== undefined ? d3Node.fx : d3Node.x;
-                            originalNode.y = d3Node.fy !== undefined ? d3Node.fy : d3Node.y;
-                        }
+                        // 记录当前位置
+                        const currentX = d3Node.fx !== undefined ? d3Node.fx : d3Node.x;
+                        const currentY = d3Node.fy !== undefined ? d3Node.fy : d3Node.y;
+                        
+                        // 计算运动距离
+                        const history = nodePositionHistory.get(originalNode.id);
+                        const dx = currentX - history.x;
+                        const dy = currentY - history.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // 累计总运动距离
+                        totalMotion += distance;
+                        nodeCount++;
+                        
+                        // 更新历史位置
+                        history.x = currentX;
+                        history.y = currentY;
+                        
+                        // 更新节点位置
+                        originalNode.x = currentX;
+                        originalNode.y = currentY;
                     }
                 });
+                
+                // 计算平均运动变化量
+                const avgMotion = nodeCount > 0 ? totalMotion / nodeCount : 0;
+                
+                // 检查是否接近静态
+                if (avgMotion < MOTION_THRESHOLD) {
+                    staticTickCounter++;
+                    
+                    // 如果连续多个tick都接近静态，且用户不活动时才自动停止模拟
+                    if (staticTickCounter >= STATIC_TICK_COUNT && !this.isUserActive) {
+                        console.log(`检测到节点运动变化过小（平均${avgMotion.toFixed(3)}px）且用户不活动，自动停止实时模拟`);
+                        this.stopForceLayout();
+                        this.showNotification('检测到节点接近静止且用户不活动，已自动停止实时排列');
+                        return;
+                    }
+                } else {
+                    // 有明显运动，重置计数器
+                    staticTickCounter = 0;
+                }
+                
+                // 记录当前alpha值（D3.js内置的活跃度指标）
+                const currentAlpha = this.forceSimulation.alpha();
+                
+                // 当alpha值过低且用户不活动时，才考虑停止（D3.js的自然衰减）
+                if (currentAlpha < 0.005 && !this.isUserActive) {
+                    console.log(`D3.js模拟alpha值过低（${currentAlpha.toFixed(4)}）且用户不活动，自动停止实时模拟`);
+                    this.stopForceLayout();
+                    this.showNotification('模拟已自然收敛且用户不活动，已自动停止实时排列');
+                    return;
+                }
                 
                 // 调度渲染以显示更新后的位置
                 this.scheduleRender();
@@ -571,6 +673,7 @@ export default class NodeGraphEditor {
     
     // 处理鼠标按下事件
     handleMouseDown(e) {
+        this.updateUserInputStatus();
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -814,6 +917,7 @@ export default class NodeGraphEditor {
     
     // 处理鼠标移动事件
     handleMouseMove(e) {
+        this.updateUserInputStatus();
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -898,6 +1002,7 @@ export default class NodeGraphEditor {
     
     // 处理鼠标松开事件
     handleMouseUp(e) {
+        this.updateUserInputStatus();
         // 只处理左键和中键的松开事件（右键用于上下文菜单）
         if (e.button === 0 || e.button === 1) {
             // 如果是拖动，不执行单击逻辑
@@ -919,6 +1024,7 @@ export default class NodeGraphEditor {
     
     // 处理键盘按下事件
     handleKeyDown(e) {
+        this.updateUserInputStatus();
         // 如果正在输入框中输入，忽略快捷键
         const activeElement = document.activeElement;
         if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
@@ -1056,6 +1162,7 @@ export default class NodeGraphEditor {
     
     // 处理全局鼠标松开事件（用于在画布外松开鼠标时停止平移）
     handleGlobalMouseUpForPanning(e) {
+        this.updateUserInputStatus();
         // 只处理左键和中键的松开事件，且不在框选状态下
         if ((e.button === 0 || e.button === 1) && !this.isSelecting) {
             this.stopPanningAndDragging();
@@ -1102,6 +1209,7 @@ export default class NodeGraphEditor {
     
     // 处理全局鼠标移动（框选）
     handleGlobalMouseMove(e) {
+        this.updateUserInputStatus();
         if (!this.isSelecting) return;
         
         const rect = this.canvas.getBoundingClientRect();
@@ -1124,6 +1232,7 @@ export default class NodeGraphEditor {
     
     // 处理全局鼠标释放（框选结束）
     handleGlobalMouseUp(e) {
+        this.updateUserInputStatus();
         if (!this.isSelecting) return;
         
         // 移除全局事件监听
@@ -1156,6 +1265,7 @@ export default class NodeGraphEditor {
     
     // 处理鼠标离开事件
     handleMouseLeave(e) {
+        this.updateUserInputStatus();
         // 框选过程中鼠标离开画布时不结束框选
         if (this.isSelecting) return;
         
@@ -1168,6 +1278,7 @@ export default class NodeGraphEditor {
     
     // 处理滚轮事件（缩放）
     handleWheel(e) {
+        this.updateUserInputStatus();
         e.preventDefault();
         
         const rect = this.canvas.getBoundingClientRect();
@@ -1248,6 +1359,7 @@ export default class NodeGraphEditor {
     
     // 处理右键点击
     handleRightClick(worldPos, screenX, screenY, clientX, clientY) {
+        this.updateUserInputStatus();
         // 检查是否点击了节点
         const clickedNode = this.nodes.find(node => 
             isPointInRect(worldPos.x, worldPos.y, {
