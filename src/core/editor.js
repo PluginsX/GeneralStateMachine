@@ -95,6 +95,11 @@ export default class NodeGraphEditor {
         this.lastUserInputTime = Date.now();
         this.noInputThreshold = 10000; // 10秒无输入阈值
         
+        // 可视对象缓存
+        this.visibleNodes = [];
+        this.visibleConnections = [];
+        this.lastVisibleBounds = null;
+        
         // 初始化
         this.init();
     }
@@ -152,6 +157,46 @@ export default class NodeGraphEditor {
             this.isUserActive = false;
         } else {
             this.isUserActive = true;
+        }
+    }
+    
+    /**
+     * 更新可视对象缓存
+     */
+    updateVisibleObjects() {
+        // 更新可视性检测器的视图状态
+        this.visibilityCuller.updateView(this.pan, this.zoom);
+        
+        // 获取当前可视区域
+        const visibleBounds = this.visibilityCuller.getVisibleBounds();
+        
+        // 检查是否需要更新（视图变化时才更新）
+        if (this.lastVisibleBounds && 
+            Math.abs(this.lastVisibleBounds.minX - visibleBounds.minX) < 1 &&
+            Math.abs(this.lastVisibleBounds.minY - visibleBounds.minY) < 1 &&
+            Math.abs(this.lastVisibleBounds.maxX - visibleBounds.maxX) < 1 &&
+            Math.abs(this.lastVisibleBounds.maxY - visibleBounds.maxY) < 1) {
+            return; // 可视区域变化很小，不需要重新计算
+        }
+        
+        this.lastVisibleBounds = visibleBounds;
+        
+        // 过滤出可见的节点
+        this.visibleNodes = this.nodes.filter(node => 
+            this.visibilityCuller.isNodeVisible(node, visibleBounds)
+        );
+        
+        // 过滤出可见的连线
+        this.visibleConnections = [];
+        const nodeMap = new Map(this.nodes.map(node => [node.id, node]));
+        
+        for (const connection of this.connections) {
+            const sourceNode = nodeMap.get(connection.source);
+            const targetNode = nodeMap.get(connection.target);
+            if (sourceNode && targetNode && 
+                this.visibilityCuller.isConnectionVisible(connection, sourceNode, targetNode, visibleBounds)) {
+                this.visibleConnections.push(connection);
+            }
         }
     }
     
@@ -710,7 +755,7 @@ export default class NodeGraphEditor {
             // 如果正在创建连接，需要特殊处理
             if (this.creatingConnection) {
                 // 检查是否点击了节点
-                const clickedNode = this.nodes.find(node => 
+                const clickedNode = this.visibleNodes.find(node => 
                     isPointInRect(worldPos.x, worldPos.y, {
                         x: node.x,
                         y: node.y,
@@ -732,7 +777,7 @@ export default class NodeGraphEditor {
             
             // 正常情况下的左键处理（非连接创建状态）
             // 检查是否点击了节点
-            const clickedNode = this.nodes.find(node => 
+            const clickedNode = this.visibleNodes.find(node => 
                 isPointInRect(worldPos.x, worldPos.y, {
                     x: node.x,
                     y: node.y,
@@ -1391,8 +1436,8 @@ export default class NodeGraphEditor {
     
     // 获取指定位置的连线（支持双向连线的左右区域分别点击，支持箭头点击）
     getConnectionAtPosition(pos) {
-        // 按节点对分组连线
-        const connectionGroups = this.groupConnectionsByNodePair();
+        // 按节点对分组可视连线
+        const connectionGroups = this.groupConnectionsByNodePair(this.visibleConnections);
         
         for (const group of connectionGroups) {
             const nodeA = this.nodes.find(n => n.id === group.nodeA);
@@ -1496,7 +1541,7 @@ export default class NodeGraphEditor {
         
         // 根据筛选器类型选择元素
         if (this.selectionFilter === 'all' || this.selectionFilter === 'nodes') {
-            this.nodes.forEach(node => {
+            this.visibleNodes.forEach(node => {
                 const nodeRect = {
                     x: node.x,
                     y: node.y,
@@ -1511,7 +1556,7 @@ export default class NodeGraphEditor {
         }
         
         if (this.selectionFilter === 'all' || this.selectionFilter === 'connections') {
-            this.connections.forEach(connection => {
+            this.visibleConnections.forEach(connection => {
                 const sourceNode = this.nodes.find(n => n.id === connection.sourceNodeId);
                 const targetNode = this.nodes.find(n => n.id === connection.targetNodeId);
                 
@@ -2265,10 +2310,11 @@ export default class NodeGraphEditor {
     }
     
     // 按节点对分组连线
-    groupConnectionsByNodePair() {
+    groupConnectionsByNodePair(connections = null) {
         const groups = new Map();
+        const targetConnections = connections || this.connections;
         
-        this.connections.forEach(connection => {
+        targetConnections.forEach(connection => {
             const sourceNode = this.nodes.find(n => n.id === connection.sourceNodeId);
             const targetNode = this.nodes.find(n => n.id === connection.targetNodeId);
             
@@ -2680,8 +2726,8 @@ export default class NodeGraphEditor {
     
     // 绘制连线（已移至render方法中，此方法保留用于向后兼容）
     drawConnections(ctx) {
-        // 按节点对分组连线
-        const connectionGroups = this.groupConnectionsByNodePair();
+        // 按节点对分组可视连线
+        const connectionGroups = this.groupConnectionsByNodePair(this.visibleConnections);
         
         // 绘制每个连线组
         connectionGroups.forEach(group => {
@@ -2736,8 +2782,8 @@ export default class NodeGraphEditor {
         
         this.lastRenderTime = timestamp;
         
-        // 更新可视性检测器的视图参数
-        this.visibilityCuller.updateView(this.pan, this.zoom);
+        // 更新可视对象缓存
+        this.updateVisibleObjects();
         
         // 1. 首先清空画布
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2745,8 +2791,8 @@ export default class NodeGraphEditor {
         // 2. 绘制栅格（只需要一次状态保存/恢复）
         this.drawGrid(this.ctx);
         
-        // 3. 预计算所有节点的自动尺寸，避免在渲染循环中重复计算
-        this.nodes.forEach(node => {
+        // 3. 预计算可见节点的自动尺寸，避免在渲染循环中重复计算
+        this.visibleNodes.forEach(node => {
             node.calculateAutoSize(this.ctx);
         });
         
@@ -3083,8 +3129,8 @@ export default class NodeGraphEditor {
     checkNodeHover(worldPos, screenX, screenY) {
         // 查找鼠标下方的节点（从后往前，优先检测最上层的节点）
         let hoveredNode = null;
-        for (let i = this.nodes.length - 1; i >= 0; i--) {
-            const node = this.nodes[i];
+        for (let i = this.visibleNodes.length - 1; i >= 0; i--) {
+            const node = this.visibleNodes[i];
             if (isPointInRect(worldPos.x, worldPos.y, node.x, node.y, node.width, node.height)) {
                 hoveredNode = node;
                 break;
@@ -3384,12 +3430,12 @@ export default class NodeGraphEditor {
     
     // 识别孤立节点和有连接的节点
     identifyNodeGroups(nodes = null) {
-        // 如果没有提供nodes参数，则使用所有节点
-        const targetNodes = nodes || this.nodes;
+        // 如果没有提供nodes参数，则使用可视节点
+        const targetNodes = nodes || this.visibleNodes;
         const connectedNodeIds = new Set();
         
         // 收集有连接的节点ID（只考虑与目标节点相关的连接）
-        this.connections.forEach(conn => {
+        this.visibleConnections.forEach(conn => {
             // 检查连接的源节点或目标节点是否在目标节点集合中
             if (targetNodes.some(node => node.id === conn.sourceNodeId || node.id === conn.targetNodeId)) {
                 connectedNodeIds.add(conn.sourceNodeId);
@@ -3555,7 +3601,7 @@ export default class NodeGraphEditor {
         });
         
         // 统计经过每个节点的连接数量
-        this.connections.forEach(conn => {
+        this.visibleConnections.forEach(conn => {
             if (nodeIdSet.has(conn.sourceNodeId)) {
                 connectionCounts.set(conn.sourceNodeId, connectionCounts.get(conn.sourceNodeId) + 1);
             }

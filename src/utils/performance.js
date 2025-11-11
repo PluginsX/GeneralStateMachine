@@ -6,7 +6,7 @@
  * 设置为 false 可禁用所有性能优化相关的日志输出
  * 修改此变量即可控制全局日志开关
  */
-export const PERFORMANCE_LOG_ENABLED = false;
+export const PERFORMANCE_LOG_ENABLED = true;
 
 /**
  * 可视性检测器
