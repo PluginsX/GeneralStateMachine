@@ -145,29 +145,103 @@ body.light-mode .export-submenu-content {
     position: relative;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
-.toolbar-section {
-    flex: 0 0 auto;
+/* 卷展栏样式 */
+.collapsible-section {
+    border-bottom: 1px solid #3e3e42;
+}
+
+body.light-mode .collapsible-section {
+    border-bottom: 1px solid #ddd;
+}
+
+.collapsible-header {
     padding: 10px;
-    min-height: 100px;
-    overflow: hidden;
+    cursor: pointer;
+    background: #2d2d30;
+    color: #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+body.light-mode .collapsible-header {
+    background: #f5f5f5;
+    color: #333;
+}
+
+.collapsible-header:hover {
+    background: #3e3e42;
+}
+
+body.light-mode .collapsible-header:hover {
+    background: #e5e5e5;
+}
+
+.collapsible-title {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    color: #969696;
+}
+
+body.light-mode .collapsible-title {
+    color: #666;
+}
+
+.collapsible-icon {
+    font-size: 10px;
+    color: #969696;
+    transition: transform 0.2s;
+}
+
+body.light-mode .collapsible-icon {
+    color: #666;
+}
+
+.collapsible-header.collapsed .collapsible-icon {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    padding: 10px;
+    display: block;
+    background: #252526;
+}
+
+body.light-mode .collapsible-content {
+    background: #ffffff;
+}
+
+.collapsible-content.collapsed {
+    display: none;
+}
+
+/* 移除卷展栏中最后一个按钮的 margin-bottom */
+.collapsible-content .toolbar-btn:last-child {
+    margin-bottom: 0;
+}
+
+.collapsible-content .tool-item:last-child {
+    margin-bottom: 0;
+}
+
+/* 保留旧的类名以兼容（已废弃） */
+.toolbar-section {
+    display: none;
 }
 
 .object-section {
-    flex: 1 1 auto;
-    padding: 10px;
-    min-height: 100px;
-    overflow: hidden;
+    display: none;
 }
 
 .toolbar-title {
-    margin: 0 0 10px 0;
-    font-size: 12px;
-    color: #969696;
-    text-transform: uppercase;
-    font-weight: normal;
+    display: none;
 }
 
 body.light-mode .toolbar-title {
@@ -236,32 +310,9 @@ body.light-mode .toolbar-btn:hover {
     background-color: #e0e0e0;
 }
 
-/* 工具栏和对象栏之间的纵向分隔线 */
+/* 工具栏和对象栏之间的纵向分隔线（已移除） */
 .toolbar-resizer {
-    position: relative;
-    height: 10px;
-    cursor: row-resize;
-    z-index: 10;
-    background: transparent;
-    transition: background-color 0.2s;
-    flex: 0 0 auto;
-}
-
-.toolbar-resizer::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 10px;
-    transform: translateY(-50%);
-    background: #3e3e42;
-    transition: background-color 0.2s;
-}
-
-.toolbar-resizer:hover::before,
-.toolbar-resizer.resizing::before {
-    background-color: #007acc;
+    display: none;
 }
 
 /* 工具栏和工作区之间的分隔线 */

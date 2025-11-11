@@ -111,28 +111,38 @@
     <div class="main-content">
         <!-- 左侧工具栏 -->
         <aside class="tool-panel">
-            <!-- 工具栏（上方） -->
-            <div class="toolbar-section">
-                <h4 class="toolbar-title">工具</h4>
-                <button id="merge-nodes-btn" class="toolbar-btn">合并节点</button>
-                <button id="merge-conditions-btn" class="toolbar-btn">合并条件</button>
-                <button id="remove-duplicate-connections-btn" class="toolbar-btn">删除重复连接</button>
-                <button id="auto-arrange-btn" class="toolbar-btn">自动排列</button>
-                <button id="real-time-arrange" class="toolbar-btn">实时自动排列</button>
-                <button id="concentrate-arrange-btn" class="toolbar-btn">集中排列</button>
-            </div>
-            <!-- 纵向分隔线 -->
-            <div class="toolbar-resizer" id="toolbar-resizer"></div>
-            <!-- 对象栏（下方） -->
-            <div class="object-section">
-                <h4 class="toolbar-title">对象</h4>
-                <div class="tool-item" draggable="true" data-type="node">
-                    📦 节点
+            <!-- 工具卷展栏 -->
+            <div class="collapsible-section">
+                <div class="collapsible-header" id="tools-header">
+                    <span class="collapsible-title">工具</span>
+                    <span class="collapsible-icon">▼</span>
                 </div>
-                <div class="tool-item" draggable="true" data-type="connection">
-                    🔗 连线
+                <div class="collapsible-content" id="tools-content">
+                    <button id="merge-nodes-btn" class="toolbar-btn">合并节点</button>
+                    <button id="merge-conditions-btn" class="toolbar-btn">合并条件</button>
+                    <button id="remove-duplicate-connections-btn" class="toolbar-btn">删除重复连接</button>
+                    <button id="auto-arrange-btn" class="toolbar-btn">自动排列</button>
+                    <button id="real-time-arrange" class="toolbar-btn">实时自动排列</button>
+                    <button id="concentrate-arrange-btn" class="toolbar-btn">集中排列</button>
                 </div>
             </div>
+            
+            <!-- 对象卷展栏 -->
+            <div class="collapsible-section">
+                <div class="collapsible-header" id="objects-header">
+                    <span class="collapsible-title">对象</span>
+                    <span class="collapsible-icon">▼</span>
+                </div>
+                <div class="collapsible-content" id="objects-content">
+                    <div class="tool-item" draggable="true" data-type="node">
+                        📦 节点
+                    </div>
+                    <div class="tool-item" draggable="true" data-type="connection">
+                        🔗 连线
+                    </div>
+                </div>
+            </div>
+            
             <div class="tool-panel-resizer" id="tool-panel-resizer"></div>
         </aside>
 

@@ -27,8 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始化UI布局调整功能
     initLayoutResizers();
     
-    // 初始化工具栏纵向布局调整功能
-    initToolbarResizer();
+    // 初始化工具栏纵向布局调整功能（已移除，改用卷展栏）
+    // initToolbarResizer();
+    
+    // 初始化卷展栏功能
+    initCollapsibleSections();
     
     // 绑定自动化工具按钮
     const mergeNodesBtn = document.getElementById('merge-nodes-btn');
@@ -151,59 +154,41 @@ function initLayoutResizers() {
     document.addEventListener('mouseleave', handleMouseUp); // 鼠标离开窗口时也停止调整
 }
 
-// 初始化工具栏纵向布局调整器
-function initToolbarResizer() {
-    const toolbarSection = document.querySelector('.toolbar-section');
-    const objectSection = document.querySelector('.object-section');
-    const toolbarResizer = document.getElementById('toolbar-resizer');
+// 初始化卷展栏功能
+function initCollapsibleSections() {
+    // 工具卷展栏
+    const toolsHeader = document.getElementById('tools-header');
+    const toolsContent = document.getElementById('tools-content');
     
-    if (!toolbarSection || !objectSection || !toolbarResizer) {
-        console.warn('工具栏布局调整器初始化失败：缺少必要的DOM元素');
-        return;
+    if (toolsHeader && toolsContent) {
+        toolsHeader.addEventListener('click', () => {
+            const isCollapsed = toolsContent.classList.contains('collapsed');
+            if (isCollapsed) {
+                toolsContent.classList.remove('collapsed');
+                toolsHeader.classList.remove('collapsed');
+            } else {
+                toolsContent.classList.add('collapsed');
+                toolsHeader.classList.add('collapsed');
+            }
+        });
     }
     
-    let isResizing = false;
-    let startY = 0;
-    let startToolbarHeight = 0;
+    // 对象卷展栏
+    const objectsHeader = document.getElementById('objects-header');
+    const objectsContent = document.getElementById('objects-content');
     
-    toolbarResizer.addEventListener('mousedown', (e) => {
-        isResizing = true;
-        startY = e.clientY;
-        startToolbarHeight = toolbarSection.offsetHeight;
-        toolbarResizer.classList.add('resizing');
-        document.body.style.cursor = 'row-resize';
-        document.body.style.userSelect = 'none';
-        e.preventDefault();
-        e.stopPropagation();
-    });
-    
-    const handleMouseMove = (e) => {
-        if (!isResizing) return;
-        
-        const deltaY = e.clientY - startY;
-        const newHeight = startToolbarHeight + deltaY;
-        const minHeight = 80;
-        const maxHeight = window.innerHeight - 200; // 留出一些空间给对象栏
-        
-        if (newHeight >= minHeight && newHeight <= maxHeight) {
-            toolbarSection.style.height = newHeight + 'px';
-            toolbarSection.style.flex = '0 0 auto';
-        }
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    
-    const handleMouseUp = () => {
-        if (isResizing) {
-            isResizing = false;
-            toolbarResizer.classList.remove('resizing');
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-        }
-    };
-    
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('mouseleave', handleMouseUp);
+    if (objectsHeader && objectsContent) {
+        objectsHeader.addEventListener('click', () => {
+            const isCollapsed = objectsContent.classList.contains('collapsed');
+            if (isCollapsed) {
+                objectsContent.classList.remove('collapsed');
+                objectsHeader.classList.remove('collapsed');
+            } else {
+                objectsContent.classList.add('collapsed');
+                objectsHeader.classList.add('collapsed');
+            }
+        });
+    }
 }
 
 // 初始化设置菜单
