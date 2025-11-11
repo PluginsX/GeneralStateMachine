@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "description": "自定义快捷键配置示例",
+  "shortcuts": {
+    "edit": {
+      "delete": {
+        "keys": ["X"],
+        "description": "删除选中对象（自定义为X键）",
+        "command": "editor.deleteSelected"
+      }
+    },
+    "view": {
+      "zoomIn": {
+        "keys": ["Ctrl+=", "Meta+="],
+        "description": "放大（移除+和=键）",
+        "command": "editor.zoomIn"
+      }
+    }
+  }
+}
+

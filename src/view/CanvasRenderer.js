@@ -1,10 +1,10 @@
-// Canvas渲染器 - 视图层
+// Canvas渲染器 - 视图层（纯渲染，无业务逻辑）
 // 负责Canvas绘制：网格、节点、连线绘制
 export default class CanvasRenderer {
     constructor(canvas, editorState) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
-        this.editorState = editorState;
+        this.editorState = editorState; // EditorStateModel实例
         this.cellSize = 20; // 网格大小
         
         // 样式配置

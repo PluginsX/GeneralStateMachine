@@ -1,0 +1,224 @@
+/* 快捷键设置面板样式 */
+.shortcut-settings-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 800px;
+    max-width: 90vw;
+    max-height: 80vh;
+    background: var(--bg-color, #ffffff);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.shortcut-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color, #ccc);
+    background: var(--header-bg, #f5f5f5);
+}
+
+.shortcut-settings-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-color, #333);
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.close-btn:hover {
+    background: var(--hover-bg, #e0e0e0);
+}
+
+.shortcut-settings-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.shortcut-settings-toolbar {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-color, #ccc);
+    display: flex;
+    gap: 10px;
+}
+
+.shortcut-settings-toolbar button {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    background: var(--button-bg, #f5f5f5);
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.shortcut-settings-toolbar button:hover {
+    background: var(--button-hover-bg, #e0e0e0);
+}
+
+.shortcut-settings-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.shortcut-category {
+    margin-bottom: 24px;
+}
+
+.shortcut-category h4 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--category-color, #2196f3);
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--category-border, #2196f3);
+}
+
+.shortcut-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.shortcut-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid var(--item-border, #e0e0e0);
+    border-radius: 4px;
+    background: var(--item-bg, #fafafa);
+}
+
+.shortcut-item:hover {
+    background: var(--item-hover-bg, #f0f0f0);
+}
+
+.shortcut-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.shortcut-description {
+    font-weight: 500;
+    color: var(--text-color, #333);
+}
+
+.shortcut-command {
+    font-size: 12px;
+    color: var(--text-secondary, #666);
+    font-family: monospace;
+}
+
+.shortcut-keys {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.key-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: var(--key-bg, #e0e0e0);
+    border: 1px solid var(--key-border, #ccc);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+    font-weight: 500;
+    color: var(--key-color, #333);
+    min-width: 40px;
+    text-align: center;
+}
+
+.btn-edit {
+    padding: 4px 12px;
+    border: 1px solid var(--button-border, #2196f3);
+    border-radius: 4px;
+    background: var(--button-primary-bg, #2196f3);
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.btn-edit:hover {
+    background: var(--button-primary-hover, #1976d2);
+}
+
+.key-input {
+    padding: 6px 12px;
+    border: 1px solid var(--input-border, #ccc);
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: monospace;
+    min-width: 200px;
+}
+
+.btn-save, .btn-cancel {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.btn-save {
+    background: var(--success-bg, #4caf50);
+    color: white;
+    border-color: var(--success-bg, #4caf50);
+}
+
+.btn-save:hover {
+    background: var(--success-hover, #45a049);
+}
+
+.btn-cancel {
+    background: var(--cancel-bg, #f5f5f5);
+}
+
+.btn-cancel:hover {
+    background: var(--cancel-hover, #e0e0e0);
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+    .shortcut-settings-panel {
+        --bg-color: #2d2d30;
+        --border-color: #3e3e42;
+        --text-color: #e0e0e0;
+        --text-secondary: #969696;
+        --header-bg: #252526;
+        --item-bg: #1e1e1e;
+        --item-hover-bg: #2a2a2a;
+        --key-bg: #3e3e42;
+        --key-border: #4a4a4a;
+        --key-color: #e0e0e0;
+        --button-bg: #3e3e42;
+        --button-hover-bg: #4a4a4a;
+    }
+}
+

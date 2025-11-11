@@ -1,0 +1,150 @@
+{
+  "version": "1.0",
+  "description": "默认快捷键配置",
+  "shortcuts": {
+    "edit": {
+      "delete": {
+        "keys": ["Delete", "Backspace"],
+        "description": "删除选中对象",
+        "command": "editor.deleteSelected"
+      },
+      "copy": {
+        "keys": ["Ctrl+C", "Meta+C"],
+        "description": "复制选中对象",
+        "command": "editor.copySelected"
+      },
+      "paste": {
+        "keys": ["Ctrl+V", "Meta+V"],
+        "description": "粘贴对象",
+        "command": "editor.paste"
+      },
+      "duplicate": {
+        "keys": ["Ctrl+D", "Meta+D"],
+        "description": "复制选中对象到鼠标位置",
+        "command": "editor.duplicateSelected"
+      },
+      "selectAll": {
+        "keys": ["Ctrl+A", "Meta+A"],
+        "description": "全选",
+        "command": "editor.selectAll"
+      },
+      "deselectAll": {
+        "keys": ["Escape"],
+        "description": "取消选择",
+        "command": "editor.deselectAll"
+      }
+    },
+    "history": {
+      "undo": {
+        "keys": ["Ctrl+Z", "Meta+Z"],
+        "description": "撤销",
+        "command": "editor.undo"
+      },
+      "redo": {
+        "keys": ["Ctrl+Y", "Meta+Y", "Ctrl+Shift+Z", "Meta+Shift+Z"],
+        "description": "重做",
+        "command": "editor.redo"
+      }
+    },
+    "view": {
+      "zoomIn": {
+        "keys": ["+", "=", "Ctrl+=", "Meta+="],
+        "description": "放大",
+        "command": "editor.zoomIn"
+      },
+      "zoomOut": {
+        "keys": ["-", "Ctrl+-", "Meta+-"],
+        "description": "缩小",
+        "command": "editor.zoomOut"
+      },
+      "resetView": {
+        "keys": ["f", "F"],
+        "description": "重置视图（居中显示）",
+        "command": "editor.resetView"
+      },
+      "fitToScreen": {
+        "keys": ["Ctrl+0", "Meta+0"],
+        "description": "适应屏幕",
+        "command": "editor.fitToScreen"
+      }
+    },
+    "file": {
+      "new": {
+        "keys": ["Ctrl+N", "Meta+N"],
+        "description": "新建项目",
+        "command": "editor.newProject"
+      },
+      "open": {
+        "keys": ["Ctrl+O", "Meta+O"],
+        "description": "打开项目",
+        "command": "editor.openProject"
+      },
+      "save": {
+        "keys": ["Ctrl+S", "Meta+S"],
+        "description": "保存项目",
+        "command": "editor.saveProject"
+      },
+      "import": {
+        "keys": ["Ctrl+I", "Meta+I"],
+        "description": "导入",
+        "command": "editor.import"
+      },
+      "export": {
+        "keys": ["Ctrl+E", "Meta+E"],
+        "description": "导出",
+        "command": "editor.export"
+      }
+    },
+    "node": {
+      "create": {
+        "keys": ["n", "N"],
+        "description": "创建新节点",
+        "command": "editor.createNode"
+      },
+      "delete": {
+        "keys": ["Delete", "Backspace"],
+        "description": "删除选中节点",
+        "command": "editor.deleteSelectedNodes"
+      },
+      "duplicate": {
+        "keys": ["Ctrl+D", "Meta+D"],
+        "description": "复制节点",
+        "command": "editor.duplicateNodes"
+      }
+    },
+    "connection": {
+      "cancelCreation": {
+        "keys": ["Escape"],
+        "description": "取消连线创建",
+        "command": "editor.cancelConnectionCreation"
+      }
+    },
+    "layout": {
+      "arrange": {
+        "keys": ["Ctrl+R", "Meta+R"],
+        "description": "自动排列节点",
+        "command": "editor.arrangeNodes"
+      },
+      "realTimeArrange": {
+        "keys": ["Ctrl+Shift+R", "Meta+Shift+R"],
+        "description": "实时自动排列",
+        "command": "editor.toggleRealTimeArrange"
+      }
+    }
+  },
+  "contexts": {
+    "global": {
+      "description": "全局快捷键（任何情况下都可用）",
+      "shortcuts": ["edit.delete", "edit.copy", "edit.paste", "history.undo", "history.redo", "view.zoomIn", "view.zoomOut", "view.resetView", "file.new", "file.open", "file.save"]
+    },
+    "canvas": {
+      "description": "画布上的快捷键",
+      "shortcuts": ["edit.selectAll", "edit.deselectAll", "node.create", "connection.cancelCreation"]
+    },
+    "input": {
+      "description": "输入框中的快捷键（禁用大部分快捷键）",
+      "shortcuts": ["edit.delete"]
+    }
+  }
+}
+

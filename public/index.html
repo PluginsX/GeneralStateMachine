@@ -5,6 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>通用状态机系统</title>
+    <!-- 标准ICO格式作为回退 -->
+    <link rel="icon" href="./assets/images/favicon.ico" sizes="any">
+    <!-- SVG格式（现代浏览器支持） -->
+    <link rel="icon" href="./assets/images/favicon.svg" type="image/svg+xml">
+    <!-- Apple设备支持 -->
+    <link rel="apple-touch-icon" href="./assets/images/apple-touch-icon.png">
+    <!-- Safari pinned tab -->
+    <link rel="mask-icon" href="./assets/images/safari.svg" color="#1454ec">
     <link rel="stylesheet" href="./assets/styles/global.css">
     <script src="../src/lib/d3.v7.min.js"></script>
 </head>
@@ -52,7 +60,15 @@
                     <button id="save-project">保存工程</button>
                 </div>
             </div>
-            
+            <!-- 文件菜单 -->
+            <div class="export-submenu">
+                <button id="file-menu">设置</button>
+                <div class="export-submenu-content">
+                    <button id="Hotkey-settings">热键设置</button>
+                    <button id="Style-settings">配色设置</button>
+                    <button id="Layout-settings">布局设置</button>
+                </div>
+            </div>
             <!-- 工具菜单 -->
             <div class="export-submenu">
                 <button id="tools-menu">工具</button>
