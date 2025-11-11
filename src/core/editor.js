@@ -191,8 +191,8 @@ export default class NodeGraphEditor {
         const nodeMap = new Map(this.nodes.map(node => [node.id, node]));
         
         for (const connection of this.connections) {
-            const sourceNode = nodeMap.get(connection.source);
-            const targetNode = nodeMap.get(connection.target);
+            const sourceNode = nodeMap.get(connection.sourceNodeId);
+            const targetNode = nodeMap.get(connection.targetNodeId);
             if (sourceNode && targetNode && 
                 this.visibilityCuller.isConnectionVisible(connection, sourceNode, targetNode, visibleBounds)) {
                 this.visibleConnections.push(connection);
