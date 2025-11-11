@@ -162,16 +162,17 @@ export default class NodeGraphEditor {
     
     /**
      * 更新可视对象缓存
+     * @param {boolean} forceUpdate - 是否强制更新（即使可视区域没有变化）
      */
-    updateVisibleObjects() {
+    updateVisibleObjects(forceUpdate = false) {
         // 更新可视性检测器的视图状态
         this.visibilityCuller.updateView(this.pan, this.zoom);
         
         // 获取当前可视区域
         const visibleBounds = this.visibilityCuller.getVisibleBounds();
         
-        // 检查是否需要更新（视图变化时才更新）
-        if (this.lastVisibleBounds && 
+        // 检查是否需要更新（视图变化时才更新，除非强制更新）
+        if (!forceUpdate && this.lastVisibleBounds && 
             Math.abs(this.lastVisibleBounds.minX - visibleBounds.minX) < 1 &&
             Math.abs(this.lastVisibleBounds.minY - visibleBounds.minY) < 1 &&
             Math.abs(this.lastVisibleBounds.maxX - visibleBounds.maxX) < 1 &&
@@ -589,6 +590,8 @@ export default class NodeGraphEditor {
         }
         
         this.selectedElements = [];
+        // 强制更新可见对象列表，确保撤销操作后的对象状态正确
+        this.updateVisibleObjects(true);
         updatePropertyPanel(this);
         this.scheduleRender();
     }
@@ -629,6 +632,8 @@ export default class NodeGraphEditor {
         }
         
         this.selectedElements = [];
+        // 强制更新可见对象列表，确保重做操作后的对象状态正确
+        this.updateVisibleObjects(true);
         updatePropertyPanel(this);
         this.scheduleRender();
     }
@@ -1201,6 +1206,8 @@ export default class NodeGraphEditor {
         // 选中新创建的元素
         this.selectedElements = [...newNodes];
         
+        // 强制更新可见对象列表，确保导入的对象可以被鼠标事件检测到
+        this.updateVisibleObjects(true);
         updatePropertyPanel(this);
         this.scheduleRender();
     }
@@ -1677,6 +1684,8 @@ export default class NodeGraphEditor {
         this.nodes.push(node);
         this.historyManager.addHistory('add-node', node.clone());
         this.selectedElements = [node];
+        // 强制更新可见对象列表，确保新节点可以被鼠标事件检测到
+        this.updateVisibleObjects(true);
         updatePropertyPanel(this);
         this.scheduleRender();
     }
@@ -1708,6 +1717,8 @@ export default class NodeGraphEditor {
             el => el.id !== nodeId && !connectedConnections.some(c => c.id === el.id)
         );
         
+        // 强制更新可见对象列表，确保删除的节点和连接从可见列表中移除
+        this.updateVisibleObjects(true);
         updatePropertyPanel(this);
         this.scheduleRender();
     }
@@ -1717,6 +1728,8 @@ export default class NodeGraphEditor {
         this.connections.push(connection);
         this.historyManager.addHistory('add-connection', connection.clone());
         this.selectedElements = [connection];
+        // 强制更新可见对象列表，确保新连接可以被鼠标事件检测到
+        this.updateVisibleObjects(true);
         updatePropertyPanel(this);
         this.scheduleRender();
     }
@@ -1730,6 +1743,8 @@ export default class NodeGraphEditor {
             // 更新选择
             this.selectedElements = this.selectedElements.filter(el => el.id !== connectionId);
             
+            // 强制更新可见对象列表，确保删除的连接从可见列表中移除
+            this.updateVisibleObjects(true);
             updatePropertyPanel(this);
             this.scheduleRender();
         }
