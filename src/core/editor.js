@@ -2512,9 +2512,6 @@ export default class NodeGraphEditor {
         
         // 根据LOD等级选择绘制方法
         const lodLevel = this.lodManager.getLODLevel(this.zoom);
-        if (lodLevel === 'LOD3') {
-            return; // LOD3不绘制连线
-        }
         
         // 计算连线的起点和终点
         const startX = nodeA.x + nodeA.width / 2;
@@ -2545,6 +2542,69 @@ export default class NodeGraphEditor {
         );
         
         ctx.save();
+        
+        // LOD3级别：简化绘制（纯粹的一根实线）
+        if (lodLevel === 'LOD3') {
+            // 设置实线样式（不考虑lineType和lineWidth）
+            ctx.setLineDash([]);
+            ctx.lineWidth = 1.0; // 固定线宽
+            
+            // 如果选中，先绘制高亮效果
+            if (isSelected) {
+                // 计算需要高亮的线段
+                let highlightStart = screenStart;
+                let highlightEnd = screenEnd;
+                
+                if (isBidirectional) {
+                    // 判断选中的是哪一侧
+                    const forwardSelected = group.forward.some(c => 
+                        this.selectedElements.some(el => el.id === c.id));
+                    const backwardSelected = group.backward.some(c => 
+                        this.selectedElements.some(el => el.id === c.id));
+                    
+                    if (forwardSelected && !backwardSelected) {
+                        // 只高亮从A节点到中心点的线段
+                        highlightStart = screenStart;
+                        highlightEnd = { x: midScreenX, y: midScreenY };
+                    } else if (backwardSelected && !forwardSelected) {
+                        // 只高亮从中心点到B节点的线段
+                        highlightStart = { x: midScreenX, y: midScreenY };
+                        highlightEnd = screenEnd;
+                    }
+                    // 如果两侧都选中或都不选中，高亮整条线
+                }
+                
+                // 绘制高亮效果
+                const originalStrokeStyle = ctx.strokeStyle;
+                const originalLineWidth = ctx.lineWidth;
+                const originalGlobalAlpha = ctx.globalAlpha;
+                
+                // light-mode时为蓝色，非light-mode时为纯白色
+                ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
+                ctx.lineWidth = 1.0; // 高亮线宽
+                ctx.globalAlpha = 1.0;
+                ctx.beginPath();
+                ctx.moveTo(highlightStart.x, highlightStart.y);
+                ctx.lineTo(highlightEnd.x, highlightEnd.y);
+                ctx.stroke();
+                
+                // 恢复状态
+                ctx.strokeStyle = originalStrokeStyle;
+                ctx.lineWidth = originalLineWidth;
+                ctx.globalAlpha = originalGlobalAlpha;
+            }
+            
+            // 绘制连线（考虑原本的颜色）
+            ctx.strokeStyle = representativeConnection.color || 
+                (isLightMode() ? '#666666' : '#969696');
+            ctx.beginPath();
+            ctx.moveTo(screenStart.x, screenStart.y);
+            ctx.lineTo(screenEnd.x, screenEnd.y);
+            ctx.stroke();
+            
+            ctx.restore();
+            return; // LOD3不绘制箭头，直接返回
+        }
         
         // 判断选中的是哪一侧（对向连线时）
         let selectedSide = null;
