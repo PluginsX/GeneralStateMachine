@@ -460,7 +460,10 @@ export async function concentrateArrange(editor) {
     
     editor.scheduleRender();
     
-    await AlertDialog('集中排列完成');
+    // 集中排列完成后自动重置视图，让所有节点居中显示
+    if (editor.resetView && typeof editor.resetView === 'function') {
+        editor.resetView();
+    }
 }
 
 // 根据连通性分组节点

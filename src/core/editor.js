@@ -404,16 +404,36 @@ export default class NodeGraphEditor {
     
     // 更新排列按钮状态
     updateArrangeButtonState() {
-        // 调用UIToolbar的方法更新按钮状态，保持代码一致性
-        if (this.toolbar) {
-            // 更新按钮状态和可用性
-            this.toolbar.updateArrangeButtons(this.isRealTimeArrangeActive);
-            
+        // 直接获取按钮元素（不依赖toolbar）
+        const button = document.getElementById('real-time-arrange');
+        
+        if (button) {
             // 更新按钮文字
-            const button = document.getElementById('real-time-arrange')||this.toolbar.buttons['real-time-arrange'];
-            if (button) {
-                button.textContent = this.isRealTimeArrangeActive ? '停止实时排列' : '实时自动排列';
+            button.textContent = this.isRealTimeArrangeActive ? '停止实时排列' : '实时自动排列';
+            
+            // 更新按钮样式（添加/移除 active-green 类）
+            if (this.isRealTimeArrangeActive) {
+                button.classList.add('active-green');
+            } else {
+                button.classList.remove('active-green');
             }
+        }
+        
+        // 同时更新单次自动排列按钮的可用性
+        const autoArrangeBtn = document.getElementById('auto-arrange-btn');
+        if (autoArrangeBtn) {
+            if (this.isRealTimeArrangeActive) {
+                autoArrangeBtn.classList.add('disabled');
+                autoArrangeBtn.disabled = true;
+            } else {
+                autoArrangeBtn.classList.remove('disabled');
+                autoArrangeBtn.disabled = false;
+            }
+        }
+        
+        // 如果toolbar存在，也调用它的方法（保持兼容性）
+        if (this.toolbar && typeof this.toolbar.updateArrangeButtons === 'function') {
+            this.toolbar.updateArrangeButtons(this.isRealTimeArrangeActive);
         }
     }
     
