@@ -65,6 +65,8 @@ export const importMarkdown = (content, editor) => {
     }
     
     editor.deselectAll();
+    // 强制更新可视对象缓存，确保导入的对象可以被鼠标事件检测到
+    editor.updateVisibleObjects(true);
     editor.scheduleRender();
 };
 
@@ -200,6 +202,8 @@ export const loadProjectData = async (projectData, editor) => {
     }
     
     editor.deselectAll();
+    // 强制更新可视对象缓存，确保导入的对象可以被鼠标事件检测到
+    editor.updateVisibleObjects(true);
     editor.scheduleRender();
     // 更新状态栏
     if (editor.updateStatusBar) {
@@ -329,6 +333,8 @@ export const importJSON = async (content, editor) => {
         }
         
         editor.deselectAll();
+        // 强制更新可视对象缓存，确保导入的对象可以被鼠标事件检测到
+        editor.updateVisibleObjects(true);
         editor.scheduleRender();
         // 更新状态栏
         if (editor.updateStatusBar) {
