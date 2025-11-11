@@ -23,6 +23,14 @@ export default class KeyboardHandler {
         // 尝试加载自定义配置
         await this.shortcutManager.loadCustomConfig();
         
+        // 验证配置已加载
+        if (!this.shortcutManager.config) {
+            console.error('KeyboardHandler: ShortcutManager config not loaded!');
+        } else {
+            console.log('KeyboardHandler: ShortcutManager initialized with', 
+                       this.shortcutManager.keyBindings.size, 'key bindings');
+        }
+        
         // 初始化事件监听
         this.initEventListeners();
     }
@@ -75,13 +83,11 @@ export default class KeyboardHandler {
         }, '缩小');
         
         this.commandService.registerCommand('editor.resetView', () => {
-            // TODO: 实现重置视图
-            console.log('重置视图');
+            this.handleResetView();
         }, '重置视图');
         
         this.commandService.registerCommand('editor.fitToScreen', () => {
-            // TODO: 实现适应屏幕
-            console.log('适应屏幕');
+            this.handleFitToScreen();
         }, '适应屏幕');
         
         // 文件命令
@@ -98,35 +104,29 @@ export default class KeyboardHandler {
         }, '保存项目');
         
         this.commandService.registerCommand('editor.import', () => {
-            // TODO: 实现导入
-            console.log('导入');
+            this.handleImport();
         }, '导入');
         
         this.commandService.registerCommand('editor.export', () => {
-            // TODO: 实现导出
-            console.log('导出');
+            this.handleExport();
         }, '导出');
         
         // 节点命令
         this.commandService.registerCommand('editor.createNode', () => {
-            // TODO: 实现在鼠标位置创建节点
-            console.log('创建节点');
+            this.handleCreateNode();
         }, '创建新节点');
         
         this.commandService.registerCommand('editor.deleteSelectedNodes', () => {
-            // TODO: 实现删除选中节点
-            console.log('删除选中节点');
+            this.handleDeleteSelectedNodes();
         }, '删除选中节点');
         
         this.commandService.registerCommand('editor.duplicateNodes', () => {
-            // TODO: 实现复制节点
-            console.log('复制节点');
+            this.handleDuplicateNodes();
         }, '复制节点');
         
         // 连线命令
         this.commandService.registerCommand('editor.cancelConnectionCreation', () => {
-            // TODO: 实现取消连线创建
-            console.log('取消连线创建');
+            this.handleCancelConnectionCreation();
         }, '取消连线创建');
         
         // 布局命令
@@ -141,19 +141,50 @@ export default class KeyboardHandler {
     
     // 初始化事件监听器
     initEventListeners() {
-        document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        // 使用捕获阶段（true），确保在浏览器默认行为之前处理
+        document.addEventListener('keydown', (e) => this.handleKeyDown(e), true);
     }
     
     // 处理键盘按下事件
     handleKeyDown(event) {
+        // 如果正在输入框中，只处理特定快捷键
+        const activeElement = document.activeElement;
+        const isInput = activeElement && 
+            (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || 
+             activeElement.isContentEditable);
+        
         // 使用ShortcutManager处理
-        const handled = this.shortcutManager.handleKeyDown(event);
+        const handled = this.shortcutManager.handleKeyDown(event, isInput ? 'input' : null);
         
         if (handled) {
-            // 某些快捷键需要阻止默认行为
+            // 如果快捷键被处理，阻止所有默认行为
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
+        
+        // 即使没有匹配的快捷键，也要检查是否需要阻止浏览器默认行为
+        // 这可以防止某些浏览器快捷键在编辑器中触发
+        if (!isInput) {
+            // 在画布上，阻止常见的浏览器快捷键
             const key = event.key.toLowerCase();
-            if (['s', 'o', 'i', 'e', 'n'].includes(key) && (event.ctrlKey || event.metaKey)) {
-                event.preventDefault();
+            const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+            
+            // 阻止常见的浏览器快捷键（如果它们可能干扰编辑器）
+            if (hasModifier) {
+                // Ctrl/Cmd + 字母键
+                if ((event.ctrlKey || event.metaKey) && /^[a-z]$/.test(key)) {
+                    // 这些快捷键在编辑器中可能有用途，但如果没有匹配，不阻止
+                    // 只阻止明确会干扰的快捷键
+                    const browserShortcuts = ['w', 't', 'r', 'u']; // Ctrl+W关闭标签页等
+                    if (browserShortcuts.includes(key)) {
+                        event.preventDefault();
+                    }
+                }
+                // F5刷新等
+                if (key === 'f5') {
+                    event.preventDefault();
+                }
             }
         }
     }
@@ -179,20 +210,234 @@ export default class KeyboardHandler {
     
     // 处理复制
     handleCopy() {
-        // TODO: 实现复制功能
-        console.log('复制');
+        const editorState = this.editorController.getViewModel().getEditorState();
+        const nodeViewModel = this.editorController.getViewModel().getNodeViewModel();
+        const connectionViewModel = this.editorController.getViewModel().getConnectionViewModel();
+        
+        // 收集选中的节点和连线
+        const selectedNodes = [];
+        const selectedConnections = [];
+        
+        // 复制选中的节点
+        editorState.selectedNodeIds.forEach(nodeId => {
+            const node = nodeViewModel.getNode(nodeId);
+            if (node) {
+                selectedNodes.push(deepClone(node));
+            }
+        });
+        
+        // 复制选中的连线（只复制两端节点都选中的连线）
+        const selectedNodeIdsSet = new Set(editorState.selectedNodeIds);
+        editorState.selectedConnectionIds.forEach(connectionId => {
+            const connection = connectionViewModel.getConnection(connectionId);
+            if (connection) {
+                selectedConnections.push(deepClone(connection));
+            }
+        });
+        
+        // 同时复制选中节点之间的连线
+        connectionViewModel.getAllConnections().forEach(connection => {
+            if (selectedNodeIdsSet.has(connection.sourceNodeId) && 
+                selectedNodeIdsSet.has(connection.targetNodeId) &&
+                !selectedConnections.find(c => c.id === connection.id)) {
+                selectedConnections.push(deepClone(connection));
+            }
+        });
+        
+        if (selectedNodes.length > 0 || selectedConnections.length > 0) {
+            this.clipboardService.copy({
+                nodes: selectedNodes,
+                connections: selectedConnections,
+                timestamp: Date.now()
+            });
+            console.log(`已复制 ${selectedNodes.length} 个节点和 ${selectedConnections.length} 条连线`);
+        }
     }
     
     // 处理粘贴
     handlePaste() {
-        // TODO: 实现粘贴功能
-        console.log('粘贴');
+        if (!this.clipboardService.hasData()) {
+            // 尝试从系统剪贴板读取
+            this.clipboardService.readFromSystem().then(data => {
+                if (data) {
+                    this.pasteData(data);
+                }
+            });
+            return;
+        }
+        
+        const data = this.clipboardService.get();
+        this.pasteData(data);
+    }
+    
+    // 执行粘贴操作
+    pasteData(data) {
+        if (!data || !data.nodes || data.nodes.length === 0) {
+            return;
+        }
+        
+        const nodeViewModel = this.editorController.getViewModel().getNodeViewModel();
+        const connectionViewModel = this.editorController.getViewModel().getConnectionViewModel();
+        const editorState = this.editorController.getViewModel().getEditorState();
+        
+        // 计算偏移量（粘贴到鼠标位置）
+        const offsetX = this.lastMousePosition.x;
+        const offsetY = this.lastMousePosition.y;
+        
+        // 计算原始节点的最小边界
+        let minX = Infinity, minY = Infinity;
+        data.nodes.forEach(node => {
+            minX = Math.min(minX, node.x);
+            minY = Math.min(minY, node.y);
+        });
+        
+        // 计算偏移量（使第一个节点在鼠标位置）
+        const deltaX = offsetX - minX;
+        const deltaY = offsetY - minY;
+        
+        // 创建节点ID映射（旧ID -> 新ID）
+        const nodeIdMap = new Map();
+        const newNodes = [];
+        
+        // 粘贴节点
+        data.nodes.forEach(nodeData => {
+            const newNode = nodeViewModel.addNode(
+                nodeData.name,
+                nodeData.x + deltaX,
+                nodeData.y + deltaY
+            );
+            
+            // 复制其他属性
+            if (nodeData.description !== undefined) newNode.description = nodeData.description;
+            if (nodeData.width !== undefined) newNode.width = nodeData.width;
+            if (nodeData.height !== undefined) newNode.height = nodeData.height;
+            if (nodeData.autoSize !== undefined) newNode.autoSize = nodeData.autoSize;
+            if (nodeData.color !== undefined) newNode.color = nodeData.color;
+            
+            nodeIdMap.set(nodeData.id, newNode.id);
+            newNodes.push(newNode);
+        });
+        
+        // 粘贴连线
+        if (data.connections) {
+            data.connections.forEach(connectionData => {
+                const newSourceId = nodeIdMap.get(connectionData.sourceNodeId);
+                const newTargetId = nodeIdMap.get(connectionData.targetNodeId);
+                
+                if (newSourceId && newTargetId) {
+                    const newConnection = connectionViewModel.addConnection(
+                        newSourceId,
+                        newTargetId,
+                        connectionData.fromSide || 'right',
+                        connectionData.toSide || 'left'
+                    );
+                    
+                    // 复制其他属性
+                    if (newConnection && connectionData.conditions) {
+                        newConnection.conditions = deepClone(connectionData.conditions);
+                    }
+                    if (newConnection && connectionData.color !== undefined) {
+                        newConnection.color = connectionData.color;
+                    }
+                }
+            });
+        }
+        
+        // 选中新粘贴的节点
+        editorState.clearSelection();
+        newNodes.forEach(node => {
+            nodeViewModel.selectNode(node.id, true);
+        });
+        
+        this.editorController.getCanvasView().scheduleRender();
+        console.log(`已粘贴 ${newNodes.length} 个节点`);
     }
     
     // 处理复制到鼠标位置
     handleDuplicate() {
-        // TODO: 实现复制到鼠标位置
-        console.log('复制到鼠标位置');
+        const editorState = this.editorController.getViewModel().getEditorState();
+        const nodeViewModel = this.editorController.getViewModel().getNodeViewModel();
+        const connectionViewModel = this.editorController.getViewModel().getConnectionViewModel();
+        
+        if (editorState.selectedNodeIds.size === 0) {
+            return;
+        }
+        
+        // 获取选中的节点
+        const selectedNodes = [];
+        editorState.selectedNodeIds.forEach(nodeId => {
+            const node = nodeViewModel.getNode(nodeId);
+            if (node) {
+                selectedNodes.push(node);
+            }
+        });
+        
+        if (selectedNodes.length === 0) return;
+        
+        // 计算选中节点的边界框
+        let minX = Infinity, minY = Infinity;
+        selectedNodes.forEach(node => {
+            minX = Math.min(minX, node.x);
+            minY = Math.min(minY, node.y);
+        });
+        
+        // 计算偏移量（复制到鼠标位置）
+        const offsetX = this.lastMousePosition.x - minX;
+        const offsetY = this.lastMousePosition.y - minY;
+        
+        // 创建节点ID映射
+        const nodeIdMap = new Map();
+        const newNodes = [];
+        
+        // 复制节点
+        selectedNodes.forEach(node => {
+            const newNode = nodeViewModel.addNode(
+                node.name,
+                node.x + offsetX,
+                node.y + offsetY
+            );
+            
+            // 复制属性
+            newNode.description = node.description;
+            newNode.width = node.width;
+            newNode.height = node.height;
+            newNode.autoSize = node.autoSize;
+            newNode.color = node.color;
+            
+            nodeIdMap.set(node.id, newNode.id);
+            newNodes.push(newNode);
+        });
+        
+        // 复制选中节点之间的连线
+        const selectedNodeIdsSet = new Set(editorState.selectedNodeIds);
+        connectionViewModel.getAllConnections().forEach(connection => {
+            if (selectedNodeIdsSet.has(connection.sourceNodeId) && 
+                selectedNodeIdsSet.has(connection.targetNodeId)) {
+                const newSourceId = nodeIdMap.get(connection.sourceNodeId);
+                const newTargetId = nodeIdMap.get(connection.targetNodeId);
+                
+                if (newSourceId && newTargetId) {
+                    const newConnection = connectionViewModel.addConnection(
+                        newSourceId,
+                        newTargetId,
+                        connection.fromSide,
+                        connection.toSide
+                    );
+                    
+                    if (newConnection && connection.conditions) {
+                        newConnection.conditions = deepClone(connection.conditions);
+                    }
+                }
+            }
+        });
+        
+        // 选中新复制的节点
+        editorState.clearSelection();
+        newNodes.forEach(node => {
+            nodeViewModel.selectNode(node.id, true);
+        });
+        
+        this.editorController.getCanvasView().scheduleRender();
     }
     
     // 处理全选
@@ -214,6 +459,143 @@ export default class KeyboardHandler {
     handleDeselectAll() {
         const editorState = this.editorController.getViewModel().getEditorState();
         editorState.clearSelection();
+        this.editorController.getCanvasView().scheduleRender();
+    }
+    
+    // 处理重置视图
+    handleResetView() {
+        const canvasViewModel = this.editorController.getViewModel().getCanvasViewModel();
+        const nodeViewModel = this.editorController.getViewModel().getNodeViewModel();
+        const connectionViewModel = this.editorController.getViewModel().getConnectionViewModel();
+        const canvas = this.editorController.getCanvasView().getCanvas();
+        
+        const nodes = nodeViewModel.getAllNodes();
+        const connections = connectionViewModel.getAllConnections();
+        
+        // 居中显示所有元素
+        canvasViewModel.centerView(nodes, connections, canvas.width, canvas.height);
+        this.editorController.getCanvasView().scheduleRender();
+    }
+    
+    // 处理适应屏幕
+    handleFitToScreen() {
+        // 和重置视图功能相同
+        this.handleResetView();
+    }
+    
+    // 处理导入
+    async handleImport() {
+        try {
+            const ImportService = (await import('../io/ImportService.js')).default;
+            const importService = new ImportService();
+            
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,.md,.yaml,.yml';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    try {
+                        const projectData = await importService.importFromFile(file);
+                        
+                        if (projectData) {
+                            const viewModel = this.editorController.getViewModel();
+                            
+                            // 转换数据格式以匹配ViewModel的loadFromData格式
+                            const data = {
+                                nodes: projectData.nodes || [],
+                                connections: projectData.connections || []
+                            };
+                            
+                            viewModel.loadFromData(data);
+                            this.editorController.getCanvasView().scheduleRender();
+                            console.log('导入成功');
+                        }
+                    } catch (error) {
+                        console.error('导入失败:', error);
+                        alert('导入失败: ' + error.message);
+                    }
+                }
+            };
+            input.click();
+        } catch (error) {
+            console.error('导入功能加载失败:', error);
+            alert('导入功能暂不可用');
+        }
+    }
+    
+    // 处理导出
+    async handleExport() {
+        try {
+            const ExportService = (await import('../io/ExportService.js')).default;
+            const viewModel = this.editorController.getViewModel();
+            const data = viewModel.exportData();
+            
+            // 导出为JSON
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `project_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            console.log('导出成功');
+        } catch (error) {
+            console.error('导出失败:', error);
+            alert('导出失败: ' + error.message);
+        }
+    }
+    
+    // 处理创建节点
+    handleCreateNode() {
+        const nodeViewModel = this.editorController.getViewModel().getNodeViewModel();
+        const editorState = this.editorController.getViewModel().getEditorState();
+        
+        // 在鼠标位置创建新节点
+        const newNode = nodeViewModel.addNode('新节点', this.lastMousePosition.x, this.lastMousePosition.y);
+        
+        // 选中新创建的节点
+        editorState.clearSelection();
+        nodeViewModel.selectNode(newNode.id, false);
+        
+        this.editorController.getCanvasView().scheduleRender();
+    }
+    
+    // 处理删除选中节点
+    handleDeleteSelectedNodes() {
+        // 和deleteSelected功能相同，但只删除节点
+        const editorState = this.editorController.getViewModel().getEditorState();
+        const nodeViewModel = this.editorController.getViewModel().getNodeViewModel();
+        
+        if (editorState.selectedNodeIds.size > 0) {
+            nodeViewModel.deleteSelectedNodes();
+            this.editorController.getCanvasView().scheduleRender();
+        }
+    }
+    
+    // 处理复制节点
+    handleDuplicateNodes() {
+        // 和duplicateSelected功能相同
+        this.handleDuplicate();
+    }
+    
+    // 处理取消连线创建
+    handleCancelConnectionCreation() {
+        const editorState = this.editorController.getViewModel().getEditorState();
+        const mouseHandler = this.editorController.mouseHandler;
+        
+        // 取消连线创建状态
+        if (mouseHandler && mouseHandler.creatingConnection) {
+            mouseHandler.creatingConnection = null;
+        }
+        
+        editorState.isCreatingConnection = false;
+        editorState.connectionStartNodeId = null;
+        
         this.editorController.getCanvasView().scheduleRender();
     }
     

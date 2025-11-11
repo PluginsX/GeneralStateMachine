@@ -60,6 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
             concentrateArrange(editor);
         });
     }
+    
+    // 初始化设置菜单
+    initSettingsMenu();
 });
 
 // 初始化布局调整器
@@ -201,4 +204,65 @@ function initToolbarResizer() {
     
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('mouseleave', handleMouseUp);
+}
+
+// 初始化设置菜单
+function initSettingsMenu() {
+    // 热键设置按钮 - 使用事件委托，因为按钮可能在子菜单中
+    document.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'Hotkey-settings') {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('热键设置按钮被点击');
+            openShortcutConfigWindow();
+        }
+    });
+    
+    // 也直接绑定一次（如果按钮已存在）
+    const hotkeySettingsBtn = document.getElementById('Hotkey-settings');
+    if (hotkeySettingsBtn) {
+        hotkeySettingsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('热键设置按钮被点击（直接绑定）');
+            openShortcutConfigWindow();
+        });
+    }
+}
+
+// 打开快捷键配置窗口
+async function openShortcutConfigWindow() {
+    try {
+        console.log('开始打开快捷键配置窗口...');
+        
+        // 动态导入模块
+        const { default: ShortcutConfigWindow } = await import('./ui/ShortcutConfigWindow.js');
+        const { default: ShortcutManager } = await import('./services/ShortcutManager.js');
+        const { default: CommandService } = await import('./services/CommandService.js');
+        
+        console.log('模块导入成功');
+        
+        // 获取或创建ShortcutManager
+        let shortcutManager = window.shortcutManager;
+        if (!shortcutManager) {
+            console.log('创建新的ShortcutManager...');
+            // 如果没有全局的shortcutManager，创建一个
+            const commandService = new CommandService();
+            shortcutManager = new ShortcutManager(commandService);
+            await shortcutManager.loadDefaultConfig();
+            window.shortcutManager = shortcutManager;
+            console.log('ShortcutManager创建完成');
+        } else {
+            console.log('使用现有的ShortcutManager');
+        }
+        
+        // 创建并显示窗口
+        console.log('创建ShortcutConfigWindow...');
+        const configWindow = new ShortcutConfigWindow(shortcutManager);
+        configWindow.show();
+        console.log('窗口已显示');
+    } catch (error) {
+        console.error('打开快捷键配置窗口失败:', error);
+        alert('打开快捷键设置窗口失败: ' + error.message);
+    }
 }

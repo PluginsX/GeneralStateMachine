@@ -14,6 +14,30 @@ export default class ShortcutManager {
         
         // 加载默认配置
         this.loadDefaultConfig();
+        
+        // 加载自定义配置（从localStorage）
+        this.loadCustomConfigFromStorage();
+    }
+    
+    // 从localStorage加载自定义配置
+    loadCustomConfigFromStorage() {
+        try {
+            const stored = localStorage.getItem('shortcut_config');
+            if (stored) {
+                const data = JSON.parse(stored);
+                this.customConfig = ShortcutConfig.fromJSON(data);
+                // 等待默认配置加载完成后再合并
+                if (this.defaultConfig) {
+                    this.mergeConfig(this.defaultConfig, this.customConfig);
+                    console.log('ShortcutManager: Loaded custom config from localStorage');
+                } else {
+                    // 如果默认配置还没加载，标记需要合并
+                    this.pendingCustomConfig = this.customConfig;
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load custom config from localStorage:', e);
+        }
     }
     
     // 加载默认配置
@@ -35,7 +59,6 @@ export default class ShortcutManager {
                     if (response.ok) {
                         const json = await response.json();
                         this.defaultConfig = ShortcutConfig.fromJSON(json);
-                        this.applyConfig(this.defaultConfig);
                         loaded = true;
                         console.log('Default shortcut config loaded from:', path);
                         break;
@@ -49,6 +72,13 @@ export default class ShortcutManager {
                 // 如果文件加载失败，使用内置的默认配置
                 console.warn('Failed to load default shortcut config from file, using built-in default');
                 this.defaultConfig = this.getBuiltInDefaultConfig();
+            }
+            
+            // 应用配置（合并自定义配置如果有）
+            if (this.pendingCustomConfig) {
+                this.mergeConfig(this.defaultConfig, this.pendingCustomConfig);
+                this.pendingCustomConfig = null;
+            } else {
                 this.applyConfig(this.defaultConfig);
             }
         } catch (error) {
@@ -204,8 +234,14 @@ export default class ShortcutManager {
     
     // 从JSON对象加载配置
     loadConfigFromJSON(json) {
-        this.customConfig = ShortcutConfig.fromJSON(json);
-        this.mergeConfig(this.defaultConfig, this.customConfig);
+        try {
+            this.customConfig = ShortcutConfig.fromJSON(json);
+            this.mergeConfig(this.defaultConfig, this.customConfig);
+            console.log('ShortcutManager: Config loaded and applied from JSON');
+        } catch (error) {
+            console.error('Failed to load config from JSON:', error);
+            throw error;
+        }
     }
     
     // 合并配置（自定义配置覆盖默认配置）
@@ -239,7 +275,10 @@ export default class ShortcutManager {
     
     // 应用配置
     applyConfig(config) {
-        if (!config) return;
+        if (!config) {
+            console.warn('ShortcutManager: Cannot apply null config');
+            return;
+        }
         
         this.config = config;
         this.keyBindings.clear();
@@ -247,6 +286,9 @@ export default class ShortcutManager {
         
         // 构建快捷键映射
         const allShortcuts = config.getAllShortcuts();
+        console.log('ShortcutManager: Applying config with', Object.keys(allShortcuts).length, 'shortcuts');
+        
+        let bindingCount = 0;
         for (const [path, shortcut] of Object.entries(allShortcuts)) {
             if (shortcut.keys && shortcut.command) {
                 for (const keyCombo of shortcut.keys) {
@@ -257,9 +299,14 @@ export default class ShortcutManager {
                         path: path,
                         description: shortcut.description
                     });
+                    bindingCount++;
                 }
+            } else {
+                console.warn('ShortcutManager: Invalid shortcut:', path, shortcut);
             }
         }
+        
+        console.log('ShortcutManager: Built', bindingCount, 'key bindings (', this.keyBindings.size, 'unique)');
         
         // 构建上下文映射
         if (config.contexts) {
@@ -271,10 +318,21 @@ export default class ShortcutManager {
                         for (const keyCombo of shortcut.keys) {
                             shortcuts.add(this.normalizeKeyCombo(keyCombo));
                         }
+                    } else {
+                        console.warn('ShortcutManager: Shortcut not found for context:', shortcutPath);
                     }
                 }
                 this.contextShortcuts.set(contextName, shortcuts);
+                console.log('ShortcutManager: Context', contextName, 'has', shortcuts.size, 'shortcuts');
             }
+        } else {
+            console.warn('ShortcutManager: No contexts defined in config');
+        }
+        
+        // 输出一些示例绑定用于调试
+        if (this.keyBindings.size > 0) {
+            const sampleBindings = Array.from(this.keyBindings.entries()).slice(0, 5);
+            console.log('ShortcutManager: Sample bindings:', sampleBindings);
         }
     }
     
@@ -305,12 +363,54 @@ export default class ShortcutManager {
         if (event.altKey) parts.push('alt');
         
         // 主键
-        const key = event.key.toLowerCase();
-        if (!['control', 'shift', 'alt', 'meta'].includes(key)) {
+        let key = event.key;
+        
+        // 处理特殊键名
+        const keyMap = {
+            ' ': 'space',
+            'Space': 'space',
+            'Enter': 'enter',
+            'Escape': 'escape',
+            'Escape': 'escape',
+            'Delete': 'delete',
+            'Backspace': 'backspace',
+            'Tab': 'tab',
+            'ArrowUp': 'arrowup',
+            'ArrowDown': 'arrowdown',
+            'ArrowLeft': 'arrowleft',
+            'ArrowRight': 'arrowright',
+            'Home': 'home',
+            'End': 'end',
+            'PageUp': 'pageup',
+            'PageDown': 'pagedown',
+            'Insert': 'insert',
+            'F1': 'f1',
+            'F2': 'f2',
+            'F3': 'f3',
+            'F4': 'f4',
+            'F5': 'f5',
+            'F6': 'f6',
+            'F7': 'f7',
+            'F8': 'f8',
+            'F9': 'f9',
+            'F10': 'f10',
+            'F11': 'f11',
+            'F12': 'f12'
+        };
+        
+        // 转换特殊键
+        if (keyMap[key]) {
+            key = keyMap[key];
+        } else {
+            key = key.toLowerCase();
+        }
+        
+        // 忽略修饰键本身
+        if (!['control', 'shift', 'alt', 'meta', 'ctrl'].includes(key)) {
             // 特殊键处理
             if (key === ' ') {
                 parts.push('space');
-            } else if (key.length === 1) {
+            } else if (key.length === 1 || key.startsWith('f') || key.startsWith('arrow')) {
                 parts.push(key);
             } else {
                 parts.push(key);
@@ -325,34 +425,106 @@ export default class ShortcutManager {
         // 如果正在输入，只允许特定快捷键
         const activeElement = document.activeElement;
         const isInput = activeElement && 
-            (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+            (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || 
+             activeElement.isContentEditable);
         
-        const currentContext = context || (isInput ? 'input' : this.currentContext);
+        const currentContext = context !== null ? context : (isInput ? 'input' : this.currentContext);
         
         // 构建按键组合
         const keyCombo = this.buildKeyCombo(event);
         const normalizedKey = this.normalizeKeyCombo(keyCombo);
         
+        // 调试信息
+        if (this.config && this.config.debug) {
+            console.log('ShortcutManager.handleKeyDown:', {
+                keyCombo,
+                normalizedKey,
+                currentContext,
+                isInput,
+                keyBindingsSize: this.keyBindings.size
+            });
+        }
+        
+        // 首先检查是否有绑定（不依赖上下文，因为上下文检查可能有问题）
+        const binding = this.keyBindings.get(normalizedKey);
+        if (!binding) {
+            // 尝试其他可能的键格式
+            const altNormalized = this.tryAlternativeKeyFormats(keyCombo);
+            if (altNormalized) {
+                const altBinding = this.keyBindings.get(altNormalized);
+                if (altBinding) {
+                    // 找到匹配，执行命令
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.commandService.execute(altBinding.command, event);
+                    return true;
+                }
+            }
+            return false;
+        }
+        
         // 检查当前上下文是否允许此快捷键
         const contextShortcuts = this.contextShortcuts.get(currentContext) || new Set();
         const globalShortcuts = this.contextShortcuts.get('global') || new Set();
         
+        // 允许条件：在当前上下文中，或者在全局上下文中
         const isAllowed = contextShortcuts.has(normalizedKey) || 
-                        (currentContext !== 'global' && globalShortcuts.has(normalizedKey));
+                        globalShortcuts.has(normalizedKey) ||
+                        currentContext === 'global' ||
+                        !this.contextShortcuts.has(currentContext); // 如果上下文没有定义，允许所有快捷键
         
         if (!isAllowed) {
-            return false; // 快捷键在当前上下文中不可用
+            if (this.config && this.config.debug) {
+                console.log('Shortcut not allowed in context:', {
+                    normalizedKey,
+                    currentContext,
+                    contextShortcuts: Array.from(contextShortcuts),
+                    globalShortcuts: Array.from(globalShortcuts)
+                });
+            }
+            return false;
         }
         
-        // 查找并执行命令
-        const binding = this.keyBindings.get(normalizedKey);
-        if (binding && this.commandService.hasCommand(binding.command)) {
-            // 执行命令
+        // 检查命令是否存在
+        if (!this.commandService.hasCommand(binding.command)) {
+            console.warn('Command not found:', binding.command);
+            return false;
+        }
+        
+        // 立即阻止默认行为，防止浏览器快捷键触发
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // 执行命令
+        try {
             this.commandService.execute(binding.command, event);
+            if (this.config && this.config.debug) {
+                console.log('Command executed:', binding.command);
+            }
             return true;
+        } catch (error) {
+            console.error('Error executing command:', binding.command, error);
+            return false;
         }
+    }
+    
+    // 尝试其他可能的键格式
+    tryAlternativeKeyFormats(keyCombo) {
+        // 尝试不同的格式变体
+        const variants = [
+            keyCombo.toLowerCase(),
+            keyCombo.toUpperCase(),
+            keyCombo.replace(/ctrl/g, 'meta'),
+            keyCombo.replace(/meta/g, 'ctrl')
+        ];
         
-        return false;
+        for (const variant of variants) {
+            const normalized = this.normalizeKeyCombo(variant);
+            if (this.keyBindings.has(normalized)) {
+                return normalized;
+            }
+        }
+        return null;
     }
     
     // 设置当前上下文

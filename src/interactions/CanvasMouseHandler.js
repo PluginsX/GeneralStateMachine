@@ -151,6 +151,12 @@ export default class CanvasMouseHandler {
         const y = e.clientY - rect.top;
         const worldPos = this.screenToWorld(x, y);
         
+        // 更新最后鼠标位置（供KeyboardHandler使用）
+        // 通过window.editorController访问（如果存在）
+        if (window.editorController && window.editorController.keyboardHandler) {
+            window.editorController.keyboardHandler.lastMousePosition = worldPos;
+        }
+        
         // 检测是否移动
         if (this.mouseDownPos) {
             const dx = e.clientX - this.mouseDownPos.x;
@@ -195,6 +201,10 @@ export default class CanvasMouseHandler {
         
         // 正在创建连线
         if (this.creatingConnection) {
+            // 更新临时连线的终点
+            const editorState = this.editorViewModel.getEditorState();
+            editorState.marqueeEndX = worldPos.x;
+            editorState.marqueeEndY = worldPos.y;
             this.canvasView.scheduleRender();
         }
     }
