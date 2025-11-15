@@ -276,8 +276,18 @@ export default class MouseHandler {
         const dy = y - this.lastMousePos.y;
         
         // 更新节点位置
-        this.dragTarget.x += dx;
-        this.dragTarget.y += dy;
+        const nodePos = (this.dragTarget.transform && this.dragTarget.transform.position) ? 
+            this.dragTarget.transform.position : { x: this.dragTarget.x || 0, y: this.dragTarget.y || 0 };
+        
+        nodePos.x += dx;
+        nodePos.y += dy;
+        
+        // 确保transform对象存在
+        if (!this.dragTarget.transform) {
+            this.dragTarget.transform = { position: { x: nodePos.x, y: nodePos.y } };
+        } else {
+            this.dragTarget.transform.position = nodePos;
+        }
         
         // 调用拖拽回调
         this.onNodeDrag?.(this.dragTarget, dx, dy, event);
@@ -368,11 +378,15 @@ export default class MouseHandler {
     
     // 检查节点是否在矩形内
     isNodeInRect(node, rect) {
+        // 获取节点位置
+        const nodePos = (node.transform && node.transform.position) ? 
+            node.transform.position : { x: 0, y: 0 };
+        
         // 简化的节点矩形碰撞检测
         // 实际实现可能需要根据节点的实际形状进行调整
         const nodeRect = {
-            x: node.x,
-            y: node.y,
+            x: nodePos.x,
+            y: nodePos.y,
             width: node.width || 100,
             height: node.height || 50
         };

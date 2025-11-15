@@ -610,6 +610,25 @@ body.light-mode .status-bar {
     margin: 0 2px;
 }
 
+.force-status {
+    color: #ffcc00;
+    font-weight: bold;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+body.light-mode .force-status {
+    color: #ff9900;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
 .zoom-controls {
     display: flex;
     align-items: center;

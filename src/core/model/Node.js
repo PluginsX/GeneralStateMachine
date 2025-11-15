@@ -46,7 +46,7 @@ export default class Node {
 
     // 复制节点
     clone() {
-        const clone = new Node(this.name, this.x, this.y);
+        const clone = new NodeModel(this.name, this.x, this.y);
         clone.id = this.id;
         clone.description = this.description;
         clone.width = this.width;

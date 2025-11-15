@@ -103,7 +103,8 @@ export default class NodeTooltip extends InternalWindowBase {
         }
         
         // 显示位置信息
-        content += `<div class="tooltip-position" style="margin-bottom: 8px; font-size: 12px; color: ${this.getThemeColor('textSecondary', '#999')};">位置: X: ${Math.round(node.x)}, Y: ${Math.round(node.y)}</div>`;
+        const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+        content += `<div class="tooltip-position" style="margin-bottom: 8px; font-size: 12px; color: ${this.getThemeColor('textSecondary', '#999')};">位置: X: ${Math.round(nodePos.x)}, Y: ${Math.round(nodePos.y)}</div>`;
         
         // 显示条件信息（如果有）
         if (node.conditions && node.conditions.length > 0) {

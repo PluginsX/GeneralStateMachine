@@ -1,6 +1,6 @@
 // 连线管理器 - 视图模型层
 // 负责连线的业务逻辑：创建、删除、去重、条件管理等
-import Connection from '../model/Connection.js';
+import ConnectionModel from '../../../models/ConnectionModel.js';
 import { deepClone } from '../../../utils/common.js';
 
 export default class ConnectionManager {
@@ -23,7 +23,7 @@ export default class ConnectionManager {
             return null;
         }
         
-        const connection = new Connection(sourceNodeId, targetNodeId, fromSide, toSide);
+        const connection = new ConnectionModel(sourceNodeId, targetNodeId, fromSide, toSide);
         this.connections.set(connection.id, connection);
         
         // 记录历史
@@ -220,7 +220,7 @@ export default class ConnectionManager {
         this.connections.clear();
         if (data.connections && Array.isArray(data.connections)) {
             data.connections.forEach(connectionData => {
-                const connection = new Connection(
+                const connection = new ConnectionModel(
                     connectionData.sourceNodeId,
                     connectionData.targetNodeId,
                     connectionData.fromSide,

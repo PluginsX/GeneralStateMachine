@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时自动排列功能测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            height: 80vh;
+            gap: 20px;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        canvas {
+            display: block;
+            cursor: grab;
+        }
+        
+        canvas:active {
+            cursor: grabbing;
+        }
+        
+        .controls {
+            width: 300px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        .control-group h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-warning {
+            background-color: #ffc107;
+            color: black;
+        }
+        
+        button:hover {
+            opacity: 0.9;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        /* 选择框样式 */
+        .selection-rectangle {
+            position: absolute;
+            border: 1px dashed #007bff;
+            background-color: rgba(0, 123, 255, 0.1);
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* 缩放级别显示 */
+        #zoom-level {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        /* 隐藏的必要DOM元素 */
+        .hidden-elements {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 实时自动排列功能测试</h1>
+    
+    <div class="container">
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
+            <div class="selection-rectangle"></div>
+            <div id="zoom-level"></div>
+        </div>
+        
+        <div class="controls">
+            <div class="control-group">
+                <h3>📊 测试状态</h3>
+                <div id="status" class="status info">准备就绪</div>
+            </div>
+            
+            <div class="control-group">
+                <h3>🎯 节点操作</h3>
+                <button class="btn-primary" onclick="createTestNodes()">创建测试节点</button>
+                <button class="btn-success" onclick="createComplexGraph()">创建复杂图</button>
+                <button class="btn-danger" onclick="clearEditor()">清空编辑器</button>
+            </div>
+            
+            <div class="control-group">
+                <h3>⚡ 实时排列</h3>
+                <button class="btn-success" onclick="startRealTimeArrange()">启动实时排列</button>
+                <button class="btn-warning" onclick="stopRealTimeArrange()">停止实时排列</button>
+            </div>
+            
+            <div class="control-group">
+                <h3>📋 测试说明</h3>
+                <ul style="font-size: 14px; padding-left: 20px;">
+                    <li>点击"创建测试节点"生成5个节点</li>
+                    <li>点击"创建复杂图"生成复杂网络</li>
+                    <li>点击"启动实时排列"开始D3力导向图</li>
+                    <li>拖动节点查看实时自动重排效果</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 隐藏的必要DOM元素 -->
+    <div class="hidden-elements">
+        <!-- 菜单按钮 -->
+        <button id="new-project"></button>
+        <button id="open-project"></button>
+        <button id="import-md"></button>
+        <button id="import-json"></button>
+        <button id="import-yaml"></button>
+        <button id="export-md"></button>
+        <button id="export-image"></button>
+        <button id="save-project"></button>
+        <button id="undo"></button>
+        <button id="redo"></button>
+        <button id="toggle-theme"></button>
+        
+        <!-- 选择筛选器 -->
+        <select id="selection-filter">
+            <option value="all">all</option>
+            <option value="nodes">nodes</option>
+            <option value="connections">connections</option>
+        </select>
+        
+        <!-- 缩放控制 -->
+        <button id="zoom-in"></button>
+        <button id="zoom-out"></button>
+        
+        <!-- 自动排列 -->
+        <button id="auto-arrange-btn"></button>
+        <button id="real-time-arrange"></button>
+        
+        <!-- 属性面板 -->
+        <button id="update-node"></button>
+        <button id="delete-node"></button>
+        <button id="add-condition"></button>
+        <button id="delete-connection"></button>
+        <button id="add-text"></button>
+        
+        <!-- 节点属性 -->
+        <input id="node-autosize" type="checkbox">
+        
+        <!-- 文件输入 -->
+        <input id="file-input" type="file">
+        <input id="json-input" type="file">
+        <input id="yaml-input" type="file">
+        <input id="project-input" type="file">
+        
+        <!-- 工具栏拖拽 -->
+        <div class="tool-item" data-type="node"></div>
+        <div class="tool-item" data-type="connection"></div>
+        
+        <!-- 属性面板相关元素 -->
+        <div id="node-properties">
+            <input id="node-name" type="text">
+            <input id="node-description" type="text">
+            <input id="node-group" type="text">
+            <input id="node-width" type="number">
+            <input id="node-height" type="number">
+            <input id="node-autosize" type="checkbox">
+            <input id="node-color" type="color">
+            <button id="node-color-reset">重置颜色</button>
+            <input id="node-force-charge" type="number">
+            <input id="node-force-collide-radius" type="number">
+            <input id="node-force-strength" type="number">
+            <input id="node-fixed-position" type="checkbox">
+            <div id="outgoing-connections"></div>
+            <div id="incoming-connections"></div>
+        </div>
+        
+        <div id="connection-properties">
+            <!-- 连线属性相关元素 -->
+        </div>
+        
+        <div id="no-selection">
+            <!-- 无选择时的显示元素 -->
+        </div>
+        
+        <!-- 其他可能的必要元素 -->
+        <div id="menu"></div>
+        <div id="properties-panel"></div>
+    </div>
+    
+    <script type="module">
+        import NodeGraphEditor from './src/core/editor.js';
+        
+        // 创建编辑器实例
+        const editor = new NodeGraphEditor('canvas');
+        
+        // 将编辑器实例暴露到全局作用域
+        window.editor = editor;
+        
+        // 状态更新函数
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        // 创建测试节点
+        window.createTestNodes = function() {
+            try {
+                updateStatus('正在创建测试节点...', 'info');
+                
+                // 清空现有内容
+                editor.clearAll();
+                
+                // 创建5个测试节点
+                const nodeNames = ['节点A', '节点B', '节点C', '节点D', '节点E'];
+                const nodes = nodeNames.map((name, index) => {
+                    const node = editor.createNode(100 + index * 150, 200, name);
+                    editor.addNode(node);
+                    return node;
+                });
+                
+                // 创建一些连接
+                if (nodes.length >= 5) {
+                    const connections = [
+                        [0, 1], [1, 2], [2, 3], [3, 4], [0, 4] // 简单的线性连接加一个闭合连接
+                    ];
+                    
+                    connections.forEach(([sourceIdx, targetIdx]) => {
+                        if (sourceIdx < nodes.length && targetIdx < nodes.length) {
+                            try {
+                                const conn = editor.createConnection(nodes[sourceIdx], nodes[targetIdx]);
+                                editor.addConnection(conn);
+                            } catch (error) {
+                                console.warn(`跳过重复连接: ${nodes[sourceIdx].name} -> ${nodes[targetIdx].name}`);
+                            }
+                        }
+                    });
+                }
+                
+                updateStatus(`成功创建 ${nodes.length} 个测试节点`, 'success');
+                
+            } catch (error) {
+                console.error('创建节点失败:', error);
+                updateStatus('创建节点失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 创建复杂图
+        window.createComplexGraph = function() {
+            try {
+                updateStatus('正在创建复杂图...', 'info');
+                
+                // 清空现有内容
+                editor.clearAll();
+                
+                // 创建10个节点
+                const nodes = [];
+                for (let i = 0; i < 10; i++) {
+                    const x = 100 + (i % 5) * 150;
+                    const y = 100 + Math.floor(i / 5) * 150;
+                    const node = editor.createNode(x, y, `节点${String.fromCharCode(65 + i)}`);
+                    editor.addNode(node);
+                    nodes.push(node);
+                }
+                
+                // 创建复杂的连接
+                const connections = [
+                    [0, 1], [1, 2], [2, 3], [3, 4], // 第一行
+                    [5, 6], [6, 7], [7, 8], [8, 9], // 第二行
+                    [0, 5], [1, 6], [2, 7], [3, 8], [4, 9], // 垂直连接
+                    [0, 2], [1, 3], [5, 7], [6, 8], // 对角连接
+                    [2, 6], [3, 7], [4, 8] // 跨层连接
+                ];
+                
+                const addedConnections = new Set(); // 用于跟踪已添加的连接
+                
+                connections.forEach(([sourceIdx, targetIdx]) => {
+                    if (sourceIdx < nodes.length && targetIdx < nodes.length) {
+                        const connectionKey = `${sourceIdx}-${targetIdx}`;
+                        const reverseConnectionKey = `${targetIdx}-${sourceIdx}`;
+                        
+                        // 检查是否已经添加过相同或反向的连接
+                        if (!addedConnections.has(connectionKey) && !addedConnections.has(reverseConnectionKey)) {
+                            try {
+                                const conn = editor.createConnection(nodes[sourceIdx], nodes[targetIdx]);
+                                editor.addConnection(conn);
+                                addedConnections.add(connectionKey);
+                            } catch (error) {
+                                console.warn(`跳过重复连接: ${nodes[sourceIdx].name} -> ${nodes[targetIdx].name}`);
+                            }
+                        }
+                    }
+                });
+                
+                updateStatus(`成功创建复杂图：${nodes.length} 个节点，${connections.length} 条连接`, 'success');
+                
+            } catch (error) {
+                console.error('创建复杂图失败:', error);
+                updateStatus('创建复杂图失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 启动实时排列
+        window.startRealTimeArrange = function() {
+            try {
+                updateStatus('正在启动实时排列...', 'info');
+                editor.handleRealTimeArrange();
+                updateStatus('实时排列已启动', 'success');
+            } catch (error) {
+                console.error('启动实时排列失败:', error);
+                updateStatus('启动实时排列失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 停止实时排列
+        window.stopRealTimeArrange = function() {
+            try {
+                updateStatus('正在停止实时排列...', 'info');
+                editor.stopRealTimeArrange();
+                updateStatus('实时排列已停止', 'success');
+            } catch (error) {
+                console.error('停止实时排列失败:', error);
+                updateStatus('停止实时排列失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 清空编辑器
+        window.clearEditor = function() {
+            try {
+                editor.clearAll();
+                updateStatus('编辑器已清空', 'info');
+            } catch (error) {
+                console.error('清空编辑器失败:', error);
+                updateStatus('清空编辑器失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 初始化时创建一些测试节点
+        setTimeout(() => {
+            createTestNodes();
+        }, 1000);
+        
+        // 设置画布大小
+        function resizeCanvas() {
+            const container = document.querySelector('.canvas-container');
+            const canvas = document.getElementById('canvas');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            editor.scheduleRender();
+        }
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', resizeCanvas);
+        
+        // 初始化画布大小
+        resizeCanvas();
+    </script>
+</body>
+</html>

@@ -1,231 +1,271 @@
-// 连线数据模型 - 纯数据，不包含业务逻辑
 import ObjectBase from './ObjectBase.js';
-import { ArrowStyle, DEFAULT_ARROW_STYLE, ArrowStyleType } from './ArrowStyle.js';
+import { Vector2 } from '../math/GraphicsMath.js';
 
-export default class ConnectionModel extends ObjectBase {
-    constructor(sourceNodeId, targetNodeId, fromSide, toSide) {
-        super('connection');
+/**
+ * 连接模型类 - 继承自ObjectBase
+ * 表示节点之间的连接关系
+ */
+export class ConnectionModel extends ObjectBase {
+    /**
+     * 构造函数
+     * @param {Object} options - 连接选项
+     * @param {string} options.sourceNodeId - 源节点ID
+     * @param {string} options.targetNodeId - 目标节点ID
+     * @param {string} options.sourcePortId - 源端口ID
+     * @param {string} options.targetPortId - 目标端口ID
+     * @param {string} options.type - 连接类型
+     * @param {Object} options.condition - 连接条件
+     * @param {Object} options.style - 连接样式
+     * @param {Object} options.arrowStyle - 箭头样式
+     * @param {Object} options.forceDirected - 力导向图参数
+     */
+    constructor(options = {}) {
+        super('connection', options);
         
-        this.sourceNodeId = sourceNodeId;
-        this.targetNodeId = targetNodeId;
-        this.fromSide = fromSide || 'right';
-        this.toSide = toSide || 'left';
+        // 连接基本信息
+        this.sourceNodeId = options.sourceNodeId || '';
+        this.targetNodeId = options.targetNodeId || '';
+        this.sourcePortId = options.sourcePortId || '';
+        this.targetPortId = options.targetPortId || '';
+        this.type = options.type || 'default';
         
-        // 条件属性
-        this.conditions = [];
-        this.defaultConnection = false;
+        // 连接条件
+        this.condition = {
+            type: 'none',
+            value: null,
+            operator: 'equals',
+            ...options.condition
+        };
         
-        // 连线样式属性
-        this.lineWidth = null; // null表示使用默认粗细
-        this.lineType = 'solid'; // 'solid' 或 'dashed'
+        // 连接样式
+        this.style = {
+            color: options.color || '#666666',
+            width: options.width || 2,
+            lineStyle: options.lineStyle || 'solid', // solid, dashed, dotted
+            opacity: options.opacity || 1.0,
+            curve: options.curve || 'bezier', // straight, bezier, step
+            ...options.style
+        };
         
-        // 箭头样式（使用新的ArrowStyle对象）
-        // 为了向后兼容，保留arrowSize和arrowColor属性，但优先使用arrowStyle
-        this.arrowStyle = DEFAULT_ARROW_STYLE.clone();
-        this.arrowSize = null; // 已废弃，使用arrowStyle.size
-        this.arrowColor = null; // 已废弃，使用arrowStyle.color
+        // 箭头样式
+        this.arrowStyle = {
+            show: options.showArrow !== false,
+            size: options.arrowSize || 10,
+            style: options.arrowStyle || 'triangle', // triangle, circle, diamond
+            color: options.arrowColor || this.style.color,
+            ...options.arrowStyle
+        };
+        
+        // 力导向图参数
+        this.forceDirected = {
+            strength: options.forceStrength || 0.1,
+            distance: options.forceDistance || 100,
+            ...options.forceDirected
+        };
+        
+        // 连接状态
+        this.isValid = true;
+        this.errors = [];
+        this.warnings = [];
     }
-    
+
     /**
-     * 获取箭头大小（兼容旧代码）
-     * @returns {number}
-     */
-    getArrowSize() {
-        return this.arrowSize !== null ? this.arrowSize : this.arrowStyle.size;
-    }
-    
-    /**
-     * 设置箭头大小（兼容旧代码）
-     * @param {number} size
-     */
-    setArrowSize(size) {
-        this.arrowSize = size;
-        if (this.arrowStyle) {
-            this.arrowStyle.size = size;
-        }
-    }
-    
-    /**
-     * 获取箭头颜色（兼容旧代码）
-     * @returns {string|null}
-     */
-    getArrowColor() {
-        return this.arrowColor !== null ? this.arrowColor : this.arrowStyle.color;
-    }
-    
-    /**
-     * 设置箭头颜色（兼容旧代码）
-     * @param {string|null} color
-     */
-    setArrowColor(color) {
-        this.arrowColor = color;
-        if (this.arrowStyle) {
-            this.arrowStyle.color = color;
-        }
-    }
-    
-    /**
-     * 设置箭头样式
-     * @param {ArrowStyle|Object} style - 箭头样式对象或配置对象
-     */
-    setArrowStyle(style) {
-        if (style instanceof ArrowStyle) {
-            this.arrowStyle = style.clone();
-        } else if (typeof style === 'object') {
-            this.arrowStyle = new ArrowStyle(
-                style.type || ArrowStyleType.TRIANGLE,
-                style.size || this.getArrowSize(),
-                style.color !== undefined ? style.color : this.getArrowColor()
-            );
-        }
-        // 同步到旧属性以保持兼容性
-        this.arrowSize = this.arrowStyle.size;
-        this.arrowColor = this.arrowStyle.color;
-    }
-    
-    /**
-     * 获取箭头样式
-     * @returns {ArrowStyle}
-     */
-    getArrowStyle() {
-        // 如果旧属性存在但arrowStyle不存在，从旧属性创建
-        if (!this.arrowStyle && (this.arrowSize !== null || this.arrowColor !== null)) {
-            this.arrowStyle = new ArrowStyle(
-                ArrowStyleType.TRIANGLE,
-                this.arrowSize || DEFAULT_ARROW_STYLE.size,
-                this.arrowColor !== null ? this.arrowColor : DEFAULT_ARROW_STYLE.color
-            );
-        }
-        return this.arrowStyle || DEFAULT_ARROW_STYLE;
-    }
-    
-    /**
-     * 复制连线（纯数据复制）
+     * 克隆连接
      * @returns {ConnectionModel}
      */
     clone() {
-        const clone = new ConnectionModel(
-            this.sourceNodeId, 
-            this.targetNodeId, 
-            this.fromSide, 
-            this.toSide
-        );
-        clone.id = this.id;
-        clone.conditions = this.conditions.map(cond => {
-            // 如果condition有clone方法则调用，否则深拷贝
-            return cond.clone ? cond.clone() : JSON.parse(JSON.stringify(cond));
-        });
-        clone.defaultConnection = this.defaultConnection;
-        clone.color = this.color;
-        clone.lineWidth = this.lineWidth;
-        clone.lineType = this.lineType;
-        
-        // 复制箭头样式
-        clone.arrowStyle = this.getArrowStyle().clone();
-        clone.arrowSize = this.arrowSize;
-        clone.arrowColor = this.arrowColor;
-        
-        clone.createdAt = this.createdAt;
-        clone.updatedAt = this.updatedAt;
-        return clone;
+        return ConnectionModel.fromData(this.toJSON());
     }
-    
+
     /**
-     * 从数据恢复连线
-     * @param {Object} data - 连线数据
+     * 从数据创建连接
+     * @param {Object} data - 连接数据
      * @returns {ConnectionModel}
      */
     static fromData(data) {
-        const connection = new ConnectionModel(
-            data.sourceNodeId,
-            data.targetNodeId,
-            data.fromSide,
-            data.toSide
-        );
-        Object.assign(connection, data);
+        const connection = new ConnectionModel({
+            sourceNodeId: data.sourceNodeId,
+            targetNodeId: data.targetNodeId,
+            sourcePortId: data.sourcePortId,
+            targetPortId: data.targetPortId,
+            type: data.type,
+            condition: data.condition,
+            style: data.style,
+            arrowStyle: data.arrowStyle,
+            forceDirected: data.forceDirected
+        });
         
-        // 处理箭头样式
-        if (data.arrowStyle) {
-            connection.arrowStyle = ArrowStyle.fromData(data.arrowStyle);
-        } else if (data.arrowSize !== null || data.arrowColor !== null) {
-            // 从旧属性创建箭头样式
-            connection.arrowStyle = new ArrowStyle(
-                ArrowStyleType.TRIANGLE,
-                data.arrowSize || DEFAULT_ARROW_STYLE.size,
-                data.arrowColor !== null ? data.arrowColor : DEFAULT_ARROW_STYLE.color
-            );
+        // 恢复基础属性
+        connection.id = data.id;
+        connection.createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
+        connection.updatedAt = data.updatedAt ? new Date(data.updatedAt) : new Date();
+        
+        // 恢复状态
+        connection.visible = data.visible !== false;
+        connection.selected = data.selected || false;
+        connection.locked = data.locked || false;
+        
+        // 恢复自定义属性
+        if (data.customProperties) {
+            connection.customProperties = new Map(Object.entries(data.customProperties));
         }
         
         return connection;
     }
-    
+
     /**
-     * 转换为JSON
+     * 转换为JSON对象
      * @returns {Object}
      */
     toJSON() {
         return {
-            ...super.toJSON(),
+            id: this.id,
+            type: this.type,
             sourceNodeId: this.sourceNodeId,
             targetNodeId: this.targetNodeId,
-            fromSide: this.fromSide,
-            toSide: this.toSide,
-            conditions: this.conditions.map(cond => {
-                return cond.toJSON ? cond.toJSON() : cond;
-            }),
-            defaultConnection: this.defaultConnection,
-            lineWidth: this.lineWidth,
-            lineType: this.lineType,
-            arrowStyle: this.getArrowStyle().toJSON(),
-            // 保留旧属性以保持兼容性
-            arrowSize: this.arrowSize,
-            arrowColor: this.arrowColor
+            sourcePortId: this.sourcePortId,
+            targetPortId: this.targetPortId,
+            condition: this.condition,
+            style: this.style,
+            arrowStyle: this.arrowStyle,
+            forceDirected: this.forceDirected,
+            visible: this.visible,
+            selected: this.selected,
+            locked: this.locked,
+            createdAt: this.createdAt.toISOString(),
+            updatedAt: this.updatedAt.toISOString(),
+            customProperties: Object.fromEntries(this.customProperties)
         };
     }
-    
+
     /**
-     * 获取对象的显示名称
-     * @returns {string}
+     * 验证连接
+     * @returns {boolean}
      */
-    getDisplayName() {
-        return `连接(${this.sourceNodeId.substring(0, 8)} → ${this.targetNodeId.substring(0, 8)})`;
-    }
-    
-    /**
-     * 检查连线是否有效
-     * @param {Map<string, NodeModel>} nodes - 节点映射（可选，用于验证节点是否存在）
-     * @returns {{valid: boolean, errors: string[]}}
-     */
-    validate(nodes = null) {
-        const baseValidation = super.validate();
-        const errors = [...baseValidation.errors];
+    validate() {
+        this.errors = [];
+        this.warnings = [];
         
+        // 基础验证
         if (!this.sourceNodeId) {
-            errors.push('源节点ID不能为空');
+            this.errors.push('源节点ID不能为空');
         }
         
         if (!this.targetNodeId) {
-            errors.push('目标节点ID不能为空');
+            this.errors.push('目标节点ID不能为空');
         }
         
         if (this.sourceNodeId === this.targetNodeId) {
-            errors.push('连线不能连接同一个节点');
+            this.errors.push('源节点和目标节点不能相同');
         }
         
-        // 如果提供了节点映射，验证节点是否存在
-        if (nodes) {
-            if (!nodes.has(this.sourceNodeId)) {
-                errors.push('源节点不存在');
-            }
-            if (!nodes.has(this.targetNodeId)) {
-                errors.push('目标节点不存在');
-            }
+        // 样式验证
+        if (this.style.width <= 0) {
+            this.errors.push('连接线宽度必须大于0');
         }
         
-        return {
-            valid: errors.length === 0,
-            errors
-        };
+        if (this.style.opacity < 0 || this.style.opacity > 1) {
+            this.errors.push('连接线透明度必须在0-1之间');
+        }
+        
+        this.isValid = this.errors.length === 0;
+        return this.isValid;
+    }
+
+    /**
+     * 获取连接中点
+     * @param {Vector2} sourcePos - 源节点位置
+     * @param {Vector2} targetPos - 目标节点位置
+     * @returns {Vector2}
+     */
+    getMidpoint(sourcePos, targetPos) {
+        return new Vector2(
+            (sourcePos.x + targetPos.x) / 2,
+            (sourcePos.y + targetPos.y) / 2
+        );
+    }
+
+    /**
+     * 检查点是否在连接附近
+     * @param {Vector2} point - 检查点
+     * @param {Vector2} sourcePos - 源节点位置
+     * @param {Vector2} targetPos - 目标节点位置
+     * @param {number} tolerance - 容差范围
+     * @returns {boolean}
+     */
+    isPointNearConnection(point, sourcePos, targetPos, tolerance = 5) {
+        // 简化实现：点到线段的距离
+        const A = point.x - sourcePos.x;
+        const B = point.y - sourcePos.y;
+        const C = targetPos.x - sourcePos.x;
+        const D = targetPos.y - sourcePos.y;
+
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        let param = -1;
+
+        if (lenSq !== 0) {
+            param = dot / lenSq;
+        }
+
+        let xx, yy;
+
+        if (param < 0) {
+            xx = sourcePos.x;
+            yy = sourcePos.y;
+        } else if (param > 1) {
+            xx = targetPos.x;
+            yy = targetPos.y;
+        } else {
+            xx = sourcePos.x + param * C;
+            yy = sourcePos.y + param * D;
+        }
+
+        const dx = point.x - xx;
+        const dy = point.y - yy;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        return distance <= tolerance;
+    }
+
+    /**
+     * 设置连接样式
+     * @param {Object} style - 样式配置
+     * @returns {ConnectionModel}
+     */
+    setStyle(style) {
+        Object.assign(this.style, style);
+        return this.touch();
+    }
+
+    /**
+     * 设置箭头样式
+     * @param {Object} arrowStyle - 箭头样式配置
+     * @returns {ConnectionModel}
+     */
+    setArrowStyle(arrowStyle) {
+        Object.assign(this.arrowStyle, arrowStyle);
+        return this.touch();
+    }
+
+    /**
+     * 设置连接条件
+     * @param {Object} condition - 条件配置
+     * @returns {ConnectionModel}
+     */
+    setCondition(condition) {
+        Object.assign(this.condition, condition);
+        return this.touch();
+    }
+
+    /**
+     * 获取显示名称
+     * @returns {string}
+     */
+    getDisplayName() {
+        return `${this.sourceNodeId} → ${this.targetNodeId}`;
     }
 }
+
+export default ConnectionModel;
 

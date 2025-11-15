@@ -1,6 +1,7 @@
 
 // 连接类
 import { generateId } from '../utils/common.js';
+import ConnectionModel from '../../models/ConnectionModel.js';
 
 export default class Connection {
     constructor(sourceNodeId, targetNodeId) {

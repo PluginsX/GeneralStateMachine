@@ -1,17 +1,26 @@
 // 历史记录管理器 - 视图模型层
 // 负责撤销/重做功能
 export default class HistoryManager {
-    constructor(nodeManager, connectionManager, viewManager) {
+    constructor(nodeManagerOrMaxHistory, connectionManager = null, viewManager = null) {
         this.historyStack = [];        // 历史记录堆栈
         this.historyIndex = -1;        // 当前历史记录索引
-        this.maxHistory = 100;         // 最大历史记录数
         this.isUndoing = false;        // 是否正在撤销操作
         this.isRedoing = false;        // 是否正在重做操作
         
-        // 依赖的管理器
-        this.nodeManager = nodeManager;
-        this.connectionManager = connectionManager;
-        this.viewManager = viewManager;
+        // 支持两种调用方式：
+        // 1. new HistoryManager(maxHistory) - 仅设置最大历史记录数
+        // 2. new HistoryManager(nodeManager, connectionManager, viewManager) - 完整的管理器模式
+        if (typeof nodeManagerOrMaxHistory === 'number') {
+            this.maxHistory = nodeManagerOrMaxHistory;
+            this.nodeManager = null;
+            this.connectionManager = null;
+            this.viewManager = null;
+        } else {
+            this.maxHistory = 100;
+            this.nodeManager = nodeManagerOrMaxHistory;
+            this.connectionManager = connectionManager;
+            this.viewManager = viewManager;
+        }
         
         this.onHistoryChange = null;   // 历史状态变更回调
     }
@@ -95,7 +104,9 @@ export default class HistoryManager {
             case 'deleteNode':
                 // 恢复删除的节点
                 if (this.nodeManager && action.node) {
-                    const node = this.nodeManager.addNode(action.node.name, action.node.x, action.node.y);
+                    const nodePos = (action.node.transform && action.node.transform.position) ? 
+                        action.node.transform.position : { x: 0, y: 0 };
+                    const node = this.nodeManager.addNode(action.node.name, nodePos.x, nodePos.y);
                     // 恢复其他属性
                     Object.assign(node, action.node);
                 }
@@ -112,7 +123,9 @@ export default class HistoryManager {
                 // 恢复删除的多个节点
                 if (this.nodeManager && action.nodes) {
                     action.nodes.forEach(nodeData => {
-                        const node = this.nodeManager.addNode(nodeData.name, nodeData.x, nodeData.y);
+                        const nodePos = (nodeData.transform && nodeData.transform.position) ? 
+                            nodeData.transform.position : { x: 0, y: 0 };
+                        const node = this.nodeManager.addNode(nodeData.name, nodePos.x, nodePos.y);
                         Object.assign(node, nodeData);
                     });
                 }
@@ -159,9 +172,39 @@ export default class HistoryManager {
                             connectionData.toSide
                         );
                         if (connection) {
-                            Object.assign(connection, connectionData);
+                            Object.assign(connection, action.connection);
                         }
                     });
+                }
+                break;
+                
+            case 'delete-text-contents':
+                // 恢复删除的文字对象
+                if (this.viewManager && action.textContents) {
+                    action.textContents.forEach(textData => {
+                        this.viewManager.addTextContent(textData.text, textData.x, textData.y);
+                    });
+                } else if (action.editor && action.textContents) {
+                    // 单参数模式下，直接调用editor的方法
+                    action.textContents.forEach(textData => {
+                        action.editor.addTextContent(textData.text, textData.x, textData.y);
+                    });
+                }
+                break;
+                
+            case 'update-text-content':
+                // 恢复文字对象的旧内容
+                if (this.viewManager && action.previousState) {
+                    const textContent = this.viewManager.getTextContentById(action.textContentId);
+                    if (textContent) {
+                        textContent.text = action.previousState.text;
+                    }
+                } else if (action.editor && action.previousState) {
+                    // 单参数模式下，直接调用editor的方法
+                    const textContent = action.editor.getTextContentById(action.textContentId);
+                    if (textContent) {
+                        textContent.text = action.previousState.text;
+                    }
                 }
                 break;
                 
@@ -230,6 +273,36 @@ export default class HistoryManager {
                     action.connections.forEach(connectionData => {
                         this.connectionManager.deleteConnection(connectionData.id);
                     });
+                }
+                break;
+                
+            case 'delete-text-contents':
+                // 重新删除文字对象
+                if (this.viewManager && action.textContents) {
+                    action.textContents.forEach(textData => {
+                        this.viewManager.removeTextContent(textData.id);
+                    });
+                } else if (action.editor && action.textContents) {
+                    // 单参数模式下，直接调用editor的方法
+                    action.textContents.forEach(textData => {
+                        action.editor.removeTextContent(textData.id);
+                    });
+                }
+                break;
+                
+            case 'update-text-content':
+                // 重新应用文字对象的更新
+                if (this.viewManager && action.newState) {
+                    const textContent = this.viewManager.getTextContentById(action.textContentId);
+                    if (textContent) {
+                        textContent.text = action.newState.text;
+                    }
+                } else if (action.editor && action.newState) {
+                    // 单参数模式下，直接调用editor的方法
+                    const textContent = action.editor.getTextContentById(action.textContentId);
+                    if (textContent) {
+                        textContent.text = action.newState.text;
+                    }
                 }
                 break;
                 

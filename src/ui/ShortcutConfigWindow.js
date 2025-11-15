@@ -357,25 +357,63 @@ export default class ShortcutConfigWindow extends InternalWindowBase {
         this.editingKey = null;
     }
     
-    // 构建按键组合
+    // 构建按键组合（与ShortcutManager保持一致）
     buildKeyCombo(event) {
         const parts = [];
         
-        // 修饰键（按顺序）
+        // 修饰键（按顺序，与ShortcutManager一致）
         if (event.ctrlKey || event.metaKey) parts.push('Ctrl');
         if (event.shiftKey) parts.push('Shift');
         if (event.altKey) parts.push('Alt');
         
         // 主键
-        const key = event.key;
+        let key = event.key;
+        
+        // 处理特殊键名（与ShortcutManager一致）
+        const keyMap = {
+            ' ': 'Space',
+            'Space': 'Space',
+            'Enter': 'Enter',
+            'Escape': 'Escape',
+            'Delete': 'Delete',
+            'Backspace': 'Backspace',
+            'Tab': 'Tab',
+            'ArrowUp': 'ArrowUp',
+            'ArrowDown': 'ArrowDown',
+            'ArrowLeft': 'ArrowLeft',
+            'ArrowRight': 'ArrowRight',
+            'Home': 'Home',
+            'End': 'End',
+            'PageUp': 'PageUp',
+            'PageDown': 'PageDown',
+            'Insert': 'Insert',
+            'F1': 'F1',
+            'F2': 'F2',
+            'F3': 'F3',
+            'F4': 'F4',
+            'F5': 'F5',
+            'F6': 'F6',
+            'F7': 'F7',
+            'F8': 'F8',
+            'F9': 'F9',
+            'F10': 'F10',
+            'F11': 'F11',
+            'F12': 'F12'
+        };
+        
+        // 转换特殊键
+        if (keyMap[key]) {
+            key = keyMap[key];
+        }
+        
+        // 忽略修饰键本身
         if (!['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
             // 特殊键处理
             if (key === ' ') {
                 parts.push('Space');
-            } else if (key.length === 1) {
+            } else if (key.length === 1 || key.startsWith('F') || key.startsWith('Arrow')) {
                 parts.push(key);
             } else {
-                // 功能键等
                 parts.push(key);
             }
         } else {
@@ -461,15 +499,27 @@ export default class ShortcutConfigWindow extends InternalWindowBase {
         if (this.shortcutManager) {
             const configJSON = this.config.toJSON();
             console.log('Applying config to ShortcutManager:', configJSON);
+            
+            // 重新加载配置以确保完全刷新
             this.shortcutManager.loadConfigFromJSON(configJSON);
-            console.log('Config applied successfully');
+            
+            // 强制重新应用配置
+            this.shortcutManager.applyConfig(this.shortcutManager.config);
+            
+            console.log('Config applied successfully, keyBindings count:', this.shortcutManager.keyBindings.size);
+            
+            // 输出当前的键绑定用于调试
+            if (this.shortcutManager.keyBindings.size > 0) {
+                const sampleBindings = Array.from(this.shortcutManager.keyBindings.entries()).slice(0, 5);
+                console.log('Current key bindings sample:', sampleBindings);
+            }
         }
         
         // 关闭窗口
         this.hide();
         
         // 提示保存成功
-        console.log('快捷键配置已保存');
+        console.log('快捷键配置已保存并立即生效');
     }
     
     // 重置为默认配置

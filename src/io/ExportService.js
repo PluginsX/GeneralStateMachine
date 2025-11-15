@@ -450,15 +450,19 @@ export default class ExportService {
         
         // 复制节点数据
         if (Array.isArray(projectData.nodes)) {
-            exportData.nodes = projectData.nodes.map(node => ({
-                id: node.id,
-                name: node.name || '',
-                description: node.description || '',
-                x: node.x || 0,
-                y: node.y || 0,
-                width: node.width || 120,
-                height: node.height || 60
-            }));
+            exportData.nodes = projectData.nodes.map(node => {
+                const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+                return {
+                    id: node.id,
+                    name: node.name || '',
+                    description: node.description || '',
+                    group: node.group || 'root',
+                    x: nodePos.x,
+                    y: nodePos.y,
+                    width: node.width || 120,
+                    height: node.height || 60
+                };
+            });
         }
         
         // 复制连线数据

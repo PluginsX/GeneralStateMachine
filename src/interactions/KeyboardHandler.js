@@ -83,7 +83,7 @@ export default class KeyboardHandler {
         }, '缩小');
         
         this.commandService.registerCommand('editor.resetView', () => {
-            this.handleResetView();
+            editor.resetView();
         }, '重置视图');
         
         this.commandService.registerCommand('editor.fitToScreen', () => {
@@ -287,8 +287,10 @@ export default class KeyboardHandler {
         // 计算原始节点的最小边界
         let minX = Infinity, minY = Infinity;
         data.nodes.forEach(node => {
-            minX = Math.min(minX, node.x);
-            minY = Math.min(minY, node.y);
+            const nodePos = (node.transform && node.transform.position) ? 
+                node.transform.position : { x: 0, y: 0 };
+            minX = Math.min(minX, nodePos.x);
+            minY = Math.min(minY, nodePos.y);
         });
         
         // 计算偏移量（使第一个节点在鼠标位置）
@@ -301,10 +303,12 @@ export default class KeyboardHandler {
         
         // 粘贴节点
         data.nodes.forEach(nodeData => {
+            const nodePos = (nodeData.transform && nodeData.transform.position) ? 
+                nodeData.transform.position : { x: 0, y: 0 };
             const newNode = nodeViewModel.addNode(
                 nodeData.name,
-                nodeData.x + deltaX,
-                nodeData.y + deltaY
+                nodePos.x + deltaX,
+                nodePos.y + deltaY
             );
             
             // 复制其他属性
@@ -377,8 +381,10 @@ export default class KeyboardHandler {
         // 计算选中节点的边界框
         let minX = Infinity, minY = Infinity;
         selectedNodes.forEach(node => {
-            minX = Math.min(minX, node.x);
-            minY = Math.min(minY, node.y);
+            const nodePos = (node.transform && node.transform.position) ? 
+                node.transform.position : { x: 0, y: 0 };
+            minX = Math.min(minX, nodePos.x);
+            minY = Math.min(minY, nodePos.y);
         });
         
         // 计算偏移量（复制到鼠标位置）
@@ -391,10 +397,12 @@ export default class KeyboardHandler {
         
         // 复制节点
         selectedNodes.forEach(node => {
+            const nodePos = (node.transform && node.transform.position) ? 
+                node.transform.position : { x: 0, y: 0 };
             const newNode = nodeViewModel.addNode(
                 node.name,
-                node.x + offsetX,
-                node.y + offsetY
+                nodePos.x + offsetX,
+                nodePos.y + offsetY
             );
             
             // 复制属性

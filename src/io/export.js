@@ -1,5 +1,6 @@
 import { isLightMode } from '../ui/theme.js';
 import { PopUp_Window_Parameters, PopUp_Window_Progress } from '../utils/popup.js';
+import NodeService from '../services/NodeService.js';
 
 // 导出Markdown
 export const exportMarkdown = async (editor) => {
@@ -91,10 +92,11 @@ export const exportAsImage = async (editor) => {
                 
                 // 考虑所有节点
                 editor.nodes.forEach(node => {
-                    minX = Math.min(minX, node.x);
-                    minY = Math.min(minY, node.y);
-                    maxX = Math.max(maxX, node.x + node.width);
-                    maxY = Math.max(maxY, node.y + node.height);
+                    const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+                    minX = Math.min(minX, nodePos.x);
+                    minY = Math.min(minY, nodePos.y);
+                    maxX = Math.max(maxX, nodePos.x + node.width);
+                    maxY = Math.max(maxY, nodePos.y + node.height);
                 });
                 
                 updateProgress(0.2);
@@ -105,10 +107,12 @@ export const exportAsImage = async (editor) => {
                     const targetNode = editor.nodes.find(n => n.id === connection.targetNodeId);
                     
                     if (sourceNode && targetNode) {
-                        const startX = sourceNode.x + sourceNode.width / 2;
-                        const startY = sourceNode.y + sourceNode.height / 2;
-                        const endX = targetNode.x + targetNode.width / 2;
-                        const endY = targetNode.y + targetNode.height / 2;
+                        const sourcePos = (sourceNode.transform && sourceNode.transform.position) ? sourceNode.transform.position : { x: 0, y: 0 };
+                        const targetPos = (targetNode.transform && targetNode.transform.position) ? targetNode.transform.position : { x: 0, y: 0 };
+                        const startX = sourcePos.x + sourceNode.width / 2;
+                        const startY = sourcePos.y + sourceNode.height / 2;
+                        const endX = targetPos.x + targetNode.width / 2;
+                        const endY = targetPos.y + targetNode.height / 2;
                         
                         minX = Math.min(minX, startX, endX);
                         minY = Math.min(minY, startY, endY);
@@ -187,7 +191,7 @@ export const exportAsImage = async (editor) => {
                 
                 editor.drawConnections(ctx);
                 editor.nodes.forEach(node => {
-                    node.calculateAutoSize(ctx);
+                    NodeService.calculateAutoSize(node, ctx);
                     editor.drawNode(ctx, node);
                 });
                 
@@ -244,17 +248,20 @@ export const saveProject = async (editor) => {
         version: '1.0',
         type: 'node-graph-editor-project',
         // 项目数据
-        nodes: editor.nodes.map(node => ({
-            id: node.id,
-            name: node.name,
-            description: node.description,
-            x: node.x,
-            y: node.y,
-            width: node.width,
-            height: node.height,
-            autoSize: node.autoSize,
-            color: node.color || null
-        })),
+        nodes: editor.nodes.map(node => {
+            const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+            return {
+                id: node.id,
+                name: node.name,
+                description: node.description,
+                x: nodePos.x,
+                y: nodePos.y,
+                width: node.width,
+                height: node.height,
+                autoSize: node.autoSize,
+                color: node.color || null
+            };
+        }),
         connections: editor.connections.map(conn => ({
             id: conn.id,
             sourceNodeId: conn.sourceNodeId,

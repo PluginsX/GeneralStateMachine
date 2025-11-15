@@ -44,6 +44,15 @@ export default class CanvasMouseHandler {
         const y = e.clientY - rect.top;
         const worldPos = this.screenToWorld(x, y);
         
+        // 调试信息：输出鼠标按下坐标转换过程（仅右键）
+        if (e.button === 2) {
+            console.log('鼠标按下坐标调试:');
+            console.log('- e.clientX, e.clientY:', { clientX: e.clientX, clientY: e.clientY });
+            console.log('- rect.left, rect.top:', { left: rect.left, top: rect.top });
+            console.log('- canvas相对坐标 (x, y):', { x, y });
+            console.log('- screenToWorld结果:', worldPos);
+        }
+        
         this.mouseDownPos = { x: e.clientX, y: e.clientY };
         this.mouseDownTime = Date.now();
         this.hasMoved = false;
@@ -124,8 +133,9 @@ export default class CanvasMouseHandler {
             
             // 准备拖动
             this.draggingNodeId = node.id;
-            this.dragOffset.x = worldPos.x - node.x;
-            this.dragOffset.y = worldPos.y - node.y;
+            const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+            this.dragOffset.x = worldPos.x - nodePos.x;
+            this.dragOffset.y = worldPos.y - nodePos.y;
         }
         
         this.canvasView.scheduleRender();
@@ -183,8 +193,9 @@ export default class CanvasMouseHandler {
             const nodeViewModel = this.editorViewModel.getNodeViewModel();
             const node = nodeViewModel.getNode(this.draggingNodeId);
             if (node) {
-                const deltaX = worldPos.x - node.x - this.dragOffset.x;
-                const deltaY = worldPos.y - node.y - this.dragOffset.y;
+                const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+                const deltaX = worldPos.x - nodePos.x - this.dragOffset.x;
+                const deltaY = worldPos.y - nodePos.y - this.dragOffset.y;
                 nodeViewModel.moveNode(this.draggingNodeId, deltaX, deltaY);
                 this.canvasView.scheduleRender();
             }
@@ -315,8 +326,11 @@ export default class CanvasMouseHandler {
         const visibleNodes = this.canvasView.getVisibleNodes();
         
         visibleNodes.forEach(node => {
-            if (isPointInRect(node.x + node.width / 2, node.y + node.height / 2, selectionRect)) {
-                nodeViewModel.selectNode(node.id, true);
+            if (node) {
+                const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+                if (isPointInRect(nodePos.x + node.width / 2, nodePos.y + node.height / 2, selectionRect)) {
+                    nodeViewModel.selectNode(node.id, true);
+                }
             }
         });
     }
@@ -370,8 +384,18 @@ export default class CanvasMouseHandler {
     
     // 处理右键点击
     handleRightClick(worldPos, clientX, clientY) {
-        // 右键菜单功能
-        console.log('右键点击:', worldPos);
+        // 调试信息：输出右键点击坐标转换过程
+        console.log('右键点击坐标调试:');
+        console.log('- clientX, clientY:', { clientX, clientY });
+        console.log('- worldPos:', worldPos);
+        
+        // 获取Editor实例并调用其handleRightClick方法
+        const editor = this.canvasView.getEditor();
+        if (editor && editor.handleRightClick) {
+            // Editor的handleRightClick需要(screenX, screenY, clientX, clientY)参数
+            // 这里screenX和screenY使用clientX和clientY，因为Editor内部会进行坐标转换
+            editor.handleRightClick(worldPos, clientX, clientY, clientX, clientY);
+        }
     }
     
     // 获取指定位置的连线（性能优化：使用可见节点Map）

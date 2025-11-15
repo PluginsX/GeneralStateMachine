@@ -39,19 +39,33 @@ export const showNodeProperties = (node, editor) => {
     const nodeProperties = document.getElementById('node-properties');
     const nodeNameInput = document.getElementById('node-name');
     const nodeDescInput = document.getElementById('node-description');
+    const nodeGroupInput = document.getElementById('node-group');
     const nodeWidthInput = document.getElementById('node-width');
     const nodeHeightInput = document.getElementById('node-height');
     const nodeAutosizeInput = document.getElementById('node-autosize');
     const nodeColorInput = document.getElementById('node-color');
     const nodeColorResetBtn = document.getElementById('node-color-reset');
     
+    // 获取力学参数输入框
+    const nodeForceChargeInput = document.getElementById('node-force-charge');
+    const nodeForceCollideRadiusInput = document.getElementById('node-force-collide-radius');
+    const nodeForceStrengthInput = document.getElementById('node-force-strength');
+    const nodeFixedPositionInput = document.getElementById('node-fixed-position');
+    
     // 填充表单
     nodeNameInput.value = node.name;
     nodeDescInput.value = node.description;
+    nodeGroupInput.value = node.group || '';
     nodeWidthInput.value = node.width;
     nodeHeightInput.value = node.height;
     nodeAutosizeInput.checked = node.autoSize;
     nodeColorInput.value = node.color || '#ffffff';
+    
+    // 填充力学参数
+    nodeForceChargeInput.value = node.forceCharge || -300;
+    nodeForceCollideRadiusInput.value = node.forceCollideRadius || '';
+    nodeForceStrengthInput.value = node.forceStrength || 1;
+    nodeFixedPositionInput.checked = node.fixedPosition || false;
     
     // 控制尺寸输入的可用性
     nodeWidthInput.disabled = node.autoSize;
@@ -66,6 +80,12 @@ export const showNodeProperties = (node, editor) => {
     // 节点描述输入事件（实时更新）
     nodeDescInput.oninput = () => {
         node.description = nodeDescInput.value;
+        editor.scheduleRender();
+    };
+    
+    // 节点组输入事件（实时更新）
+    nodeGroupInput.oninput = () => {
+        node.group = nodeGroupInput.value;
         editor.scheduleRender();
     };
     
@@ -104,6 +124,40 @@ export const showNodeProperties = (node, editor) => {
         node.color = null;
         nodeColorInput.value = '#ffffff';
         editor.scheduleRender();
+    };
+    
+    // 力学参数事件处理
+    // 电荷力强度
+    nodeForceChargeInput.oninput = () => {
+        node.forceCharge = parseInt(nodeForceChargeInput.value) || -300;
+        editor.scheduleRender();
+        // 注意：在新的树形排列系统中，力学参数修改不会自动重新排列
+        // 因为树形排列是一次性计算，不依赖实时力导向参数
+    };
+    
+    // 碰撞力半径
+    nodeForceCollideRadiusInput.oninput = () => {
+        const value = nodeForceCollideRadiusInput.value;
+        node.forceCollideRadius = value ? parseInt(value) : null;
+        editor.scheduleRender();
+        // 注意：在新的树形排列系统中，力学参数修改不会自动重新排列
+        // 因为树形排列是一次性计算，不依赖实时力导向参数
+    };
+    
+    // 力强度系数
+    nodeForceStrengthInput.oninput = () => {
+        node.forceStrength = parseFloat(nodeForceStrengthInput.value) || 1;
+        editor.scheduleRender();
+        // 注意：在新的树形排列系统中，力学参数修改不会自动重新排列
+        // 因为树形排列是一次性计算，不依赖实时力导向参数
+    };
+    
+    // 固定位置
+    nodeFixedPositionInput.onchange = () => {
+        node.fixedPosition = nodeFixedPositionInput.checked;
+        editor.scheduleRender();
+        // 注意：在新的树形排列系统中，节点固定位置功能已移除
+        // 因为树形排列是一次性计算，不支持实时力导向的固定功能
     };
     
     // 显示连线列表
@@ -219,6 +273,10 @@ export const showConnectionProperties = (connection, editor) => {
     const arrowSizeInput = document.getElementById('connection-arrow-size');
     const arrowColorInput = document.getElementById('connection-arrow-color');
     
+    // 获取力学参数输入框
+    const connectionLinkDistanceInput = document.getElementById('connection-link-distance');
+    const connectionLinkStrengthInput = document.getElementById('connection-link-strength');
+    
     if (colorInput) {
         colorInput.value = connection.color || '#666666';
         colorInput.oninput = () => {
@@ -285,6 +343,25 @@ export const showConnectionProperties = (connection, editor) => {
             editor.scheduleRender();
         };
     }
+    
+    // 填充力学参数
+    connectionLinkDistanceInput.value = connection.linkDistance || 150;
+    connectionLinkStrengthInput.value = connection.linkStrength || 1;
+    
+    // 力学参数事件处理
+    connectionLinkDistanceInput.oninput = () => {
+        connection.linkDistance = parseInt(connectionLinkDistanceInput.value) || 150;
+        editor.scheduleRender();
+        // 注意：在新的树形排列系统中，力学参数修改不会自动重新排列
+        // 因为树形排列是一次性计算，不依赖实时力导向参数
+    };
+    
+    connectionLinkStrengthInput.oninput = () => {
+        connection.linkStrength = parseFloat(connectionLinkStrengthInput.value) || 1;
+        editor.scheduleRender();
+        // 注意：在新的树形排列系统中，力学参数修改不会自动重新排列
+        // 因为树形排列是一次性计算，不依赖实时力导向参数
+    };
     
     const arrowColorResetBtn = document.getElementById('connection-arrow-color-reset');
     if (arrowColorResetBtn) {

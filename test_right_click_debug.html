@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>右键创建节点测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .instructions {
+            background: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .iframe-container {
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+            height: 600px;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h2>右键创建节点测试说明</h2>
+        <p>1. 在下方画布上右键点击空白区域</p>
+        <p>2. 选择"创建节点"菜单项</p>
+        <p>3. 查看浏览器控制台的调试信息</p>
+        <p>4. 验证节点是否创建在正确的位置</p>
+        <p><strong>预期结果：</strong>节点应该创建在右键点击的位置</p>
+    </div>
+    
+    <div class="iframe-container">
+        <iframe src="/"></iframe>
+    </div>
+    
+    <script>
+        // 监听iframe加载完成
+        const iframe = document.querySelector('iframe');
+        iframe.onload = function() {
+            console.log('测试页面已加载，请打开浏览器控制台查看调试信息');
+        };
+    </script>
+</body>
+</html>

@@ -126,8 +126,25 @@ export default class NodeViewModel {
         const node = this.nodes.get(nodeId);
         if (!node) return false;
         
-        node.x += deltaX;
-        node.y += deltaY;
+        const nodePos = node.transform ? node.transform.position : { x: 0, y: 0 };
+        if (nodePos.x === undefined || nodePos.y === undefined) return false;
+        
+        nodePos.x += deltaX;
+        nodePos.y += deltaY;
+        
+        // 更新transform.position或直接更新x/y属性
+        if (node.transform && node.transform.position) {
+            node.transform.position = nodePos;
+        } else {
+            // 确保transform对象存在
+            if (!node.transform) {
+                node.transform = {};
+            }
+            if (!node.transform.position) {
+                node.transform.position = { x: 0, y: 0 };
+            }
+            node.transform.position = nodePos;
+        }
         
         this.notifyChange();
         return true;

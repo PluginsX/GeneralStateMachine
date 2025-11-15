@@ -100,6 +100,19 @@ export default class CanvasRenderer {
     drawNode(node) {
         const { ctx } = this;
         
+        // 防御性检查：确保节点及其属性存在
+        if (!node) {
+            return;
+        }
+        
+        // 获取节点位置
+        const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+        
+        if (nodePos.x === undefined || nodePos.y === undefined || 
+            node.width === undefined || node.height === undefined) {
+            return;
+        }
+        
         // 计算节点颜色
         const isSelected = this.editorState.selectedNodeIds.has(node.id);
         const nodeColor = node.color || this.colors.node;
@@ -112,16 +125,18 @@ export default class CanvasRenderer {
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.beginPath();
-        ctx.roundRect(node.x, node.y, node.width, node.height, 5);
+        ctx.roundRect(nodePos.x, nodePos.y, node.width, node.height, 5);
         ctx.fill();
         ctx.stroke();
         
         // 绘制节点名称
-        ctx.fillStyle = this.colors.nodeText;
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(node.name, node.x + node.width / 2, node.y + node.height / 2 - 5);
+        if (node.name) {
+            ctx.fillStyle = this.colors.nodeText;
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.name, nodePos.x + node.width / 2, nodePos.y + node.height / 2 - 5);
+        }
         
         // 绘制节点描述（如果有）
         if (node.description) {
@@ -130,7 +145,7 @@ export default class CanvasRenderer {
             // 截断过长的描述
             const displayText = node.description.length > 30 ? 
                 node.description.substring(0, 30) + '...' : node.description;
-            ctx.fillText(displayText, node.x + node.width / 2, node.y + node.height / 2 + 8);
+            ctx.fillText(displayText, nodePos.x + node.width / 2, nodePos.y + node.height / 2 + 8);
         }
     }
     
@@ -183,16 +198,29 @@ export default class CanvasRenderer {
     
     // 计算连线端点
     calculateConnectionPoint(node, side) {
+        // 防御性检查：确保节点存在
+        if (!node) {
+            return { x: 0, y: 0 };
+        }
+        
+        // 获取节点位置
+        const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+        
+        if (nodePos.x === undefined || nodePos.y === undefined || 
+            node.width === undefined || node.height === undefined) {
+            return { x: 0, y: 0 };
+        }
+        
         switch (side) {
             case 'top':
-                return { x: node.x + node.width / 2, y: node.y };
+                return { x: nodePos.x + node.width / 2, y: nodePos.y };
             case 'right':
-                return { x: node.x + node.width, y: node.y + node.height / 2 };
+                return { x: nodePos.x + node.width, y: nodePos.y + node.height / 2 };
             case 'bottom':
-                return { x: node.x + node.width / 2, y: node.y + node.height };
+                return { x: nodePos.x + node.width / 2, y: nodePos.y + node.height };
             case 'left':
             default:
-                return { x: node.x, y: node.y + node.height / 2 };
+                return { x: nodePos.x, y: nodePos.y + node.height / 2 };
         }
     }
     

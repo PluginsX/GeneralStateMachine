@@ -1,7 +1,7 @@
 import { deepClone } from './common.js';
 import { AlertDialog, ConfirmDialog } from './popup.js';
-import Node from '../core/node.js';
-import Connection from '../core/connection.js';
+import NodeModel from '../models/NodeModel.js';
+import ConnectionModel from '../models/ConnectionModel.js';
 import Condition from '../core/condition.js';
 
 // 合并节点功能
@@ -242,15 +242,18 @@ export async function mergeConditions(editor) {
             
             // 创建新节点（直接添加到数组，避免重复历史记录）
             const newNodeName = `${node.name}_${nodeCounter++}`;
-            const newNode = new Node(newNodeName, node.x + 200, node.y);
+            const nodePos = (node.transform && node.transform.position) ? 
+                node.transform.position : { x: 0, y: 0 };
+            const newNode = new NodeModel(newNodeName, nodePos.x + 200, nodePos.y);
             newNode.description = `由合并条件自动创建的节点`;
+            newNode.group = ''; // 初始化Group属性
             newNode.width = 150;
             newNode.height = 50;
             newNode.autoSize = false;
             editor.nodes.push(newNode);
             
             // 创建从当前节点到新节点的连线（包含共同条件）
-            const newConnection = new Connection(node.id, newNode.id);
+            const newConnection = new ConnectionModel(node.id, newNode.id);
             newConnection.conditions = [JSON.parse(JSON.stringify(bestCommon.condition))];
             editor.connections.push(newConnection);
             
@@ -439,8 +442,18 @@ export async function concentrateArrange(editor) {
         
         // 移动组内所有节点（保持相对位置）
         nodes.forEach(node => {
-            node.x += translateX;
-            node.y += translateY;
+            const nodePos = (node.transform && node.transform.position) ? 
+                node.transform.position : { x: 0, y: 0 };
+            
+            nodePos.x += translateX;
+            nodePos.y += translateY;
+            
+            // 确保transform对象存在并更新位置
+            if (!node.transform) {
+                node.transform = { position: { x: nodePos.x, y: nodePos.y } };
+            } else {
+                node.transform.position = nodePos;
+            }
         });
         
         // 更新下一组的起始Y坐标，基于当前组的实际高度加上组间距
@@ -480,8 +493,34 @@ function groupNodesByConnectivity(nodes, connections) {
     
     // 添加连接关系
     connections.forEach(conn => {
-        nodeGraph.get(conn.sourceNodeId).add(conn.targetNodeId);
-        nodeGraph.get(conn.targetNodeId).add(conn.sourceNodeId);
+        // 确保连接对象有必要的属性
+        if (!conn || typeof conn !== 'object') {
+            console.warn('发现无效的连接对象:', conn);
+            return;
+        }
+        
+        // 确保源节点和目标节点ID存在
+        const sourceId = conn.sourceNodeId || conn.source;
+        const targetId = conn.targetNodeId || conn.target;
+        
+        if (!sourceId || !targetId) {
+            console.warn('连接缺少源节点或目标节点ID:', conn);
+            return;
+        }
+        
+        // 确保源节点和目标节点都存在于nodeGraph中
+        if (nodeGraph.has(sourceId) && nodeGraph.has(targetId)) {
+            nodeGraph.get(sourceId).add(targetId);
+            nodeGraph.get(targetId).add(sourceId);
+        } else {
+            console.warn('连接引用了不存在的节点:', {
+                sourceId: sourceId,
+                targetId: targetId,
+                sourceExists: nodeGraph.has(sourceId),
+                targetExists: nodeGraph.has(targetId),
+                connection: conn
+            });
+        }
     });
     
     // 检查节点是否有连接
@@ -548,11 +587,15 @@ function calculateBoundingBox(nodes) {
         const nodeWidth = node.width || 150;
         const nodeHeight = node.height || 80;
         
+        // 获取节点位置
+        const nodePos = (node.transform && node.transform.position) ? 
+            node.transform.position : { x: 0, y: 0 };
+        
         // 计算节点的实际边界
-        const nodeLeft = node.x - nodeWidth / 2;
-        const nodeTop = node.y - nodeHeight / 2;
-        const nodeRight = node.x + nodeWidth / 2;
-        const nodeBottom = node.y + nodeHeight / 2;
+        const nodeLeft = nodePos.x - nodeWidth / 2;
+        const nodeTop = nodePos.y - nodeHeight / 2;
+        const nodeRight = nodePos.x + nodeWidth / 2;
+        const nodeBottom = nodePos.y + nodeHeight / 2;
         
         // 更新包围盒边界
         minX = Math.min(minX, nodeLeft);
@@ -658,17 +701,30 @@ function arrangeIsolatedNodes(nodes, startX, startY) {
         const row = Math.floor(index / nodesPerRow);
         const col = index % nodesPerRow;
         
+        // 计算新位置
+        let newX, newY;
+        
         // 居中排列：如果最后一行节点不足，居中显示
-        let adjustedCol = col;
         if (row === totalRows - 1) {
             const lastRowNodes = nodes.length % nodesPerRow || nodesPerRow;
             const offset = (nodesPerRow - lastRowNodes) / 2 * horizontalSpacing;
-            node.x = startX + col * horizontalSpacing + offset;
+            newX = startX + col * horizontalSpacing + offset;
         } else {
-            node.x = startX + col * horizontalSpacing;
+            newX = startX + col * horizontalSpacing;
         }
         
-        node.y = startY + row * verticalSpacing;
+        newY = startY + row * verticalSpacing;
+        
+        // 更新transform.position，如果不存在则创建
+        if (!node.transform) {
+            node.transform = {};
+        }
+        if (!node.transform.position) {
+            node.transform.position = { x: 0, y: 0 };
+        }
+        
+        node.transform.position.x = newX;
+        node.transform.position.y = newY;
     });
 }
 

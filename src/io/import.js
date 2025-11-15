@@ -1,6 +1,6 @@
-import Connection from '../core/connection.js';
+import ConnectionModel from '../models/ConnectionModel.js';
 import Condition from '../core/condition.js';
-import Node from '../core/node.js';
+import NodeModel from '../models/NodeModel.js';
 import { extractMermaidCharts, parseMermaidChart, parseMarkdownList } from '../utils/mermaidParser.js';
 import { AlertDialog, ConfirmDialog, PopUp_Window } from '../utils/popup.js';
 import ImportService from './ImportService.js';
@@ -23,18 +23,19 @@ export const importMarkdown = (content, editor) => {
         const nodeMap = new Map();
         
         nodes.forEach(nodeData => {
-            const node = new Node(nodeData.name, nodeData.x, nodeData.y);
+            const node = new NodeModel(nodeData.name, nodeData.x, nodeData.y);
+            node.group = nodeData.group || ''; // 设置Group属性
             nodeMap.set(nodeData.id, node.id);
             editor.nodes.push(node);
         });
         
         connections.forEach(connData => {
-            const connection = new Connection(
-                nodeMap.get(connData.sourceNodeId),
-                nodeMap.get(connData.targetNodeId)
-            );
-            editor.connections.push(connection);
-        });
+                const connection = new ConnectionModel(
+                    nodeMap.get(connData.sourceNodeId),
+                    nodeMap.get(connData.targetNodeId)
+                );
+                editor.connections.push(connection);
+            });
     } 
     // 尝试从无序列表导入
     else {
@@ -45,13 +46,14 @@ export const importMarkdown = (content, editor) => {
             const nodeMap = new Map();
             
             nodes.forEach(nodeData => {
-                const node = new Node(nodeData.name, nodeData.x, nodeData.y);
+                const node = new NodeModel(nodeData.name, nodeData.x, nodeData.y);
+                node.group = nodeData.group || ''; // 设置Group属性
                 nodeMap.set(nodeData.id, node.id);
                 editor.nodes.push(node);
             });
             
             connections.forEach(connData => {
-                const connection = new Connection(
+                const connection = new ConnectionModel(
                     nodeMap.get(connData.sourceNodeId),
                     nodeMap.get(connData.targetNodeId)
                 );
@@ -88,11 +90,12 @@ const importMarkdownLegacy = (content, editor) => {
             const title = line.substring(level).trim();
             
             // 创建新节点
-            currentNode = new Node(
+            currentNode = new NodeModel(
                 title,
                 100 + (nodeCounter % 5) * 200,
                 100 + Math.floor(nodeCounter / 5) * 150
             );
+            currentNode.group = ''; // 初始化Group属性
             
             editor.nodes.push(currentNode);
             nodesMap.set(title, currentNode.id);
@@ -103,7 +106,7 @@ const importMarkdownLegacy = (content, editor) => {
             const text = line.substring(1).trim();
             if (nodesMap.has(text)) {
                 editor.connections.push(
-                    new Connection(currentNode.id, nodesMap.get(text))
+                    new ConnectionModel(currentNode.id, nodesMap.get(text))
                 );
             }
         }
@@ -161,9 +164,10 @@ export const loadProjectData = async (projectData, editor) => {
     // 导入节点
     if (projectData.nodes && Array.isArray(projectData.nodes)) {
         projectData.nodes.forEach((nodeData) => {
-            const node = new Node(nodeData.name, nodeData.x, nodeData.y);
+            const node = new NodeModel(nodeData.name, nodeData.x, nodeData.y);
             node.id = nodeData.id;
             node.description = nodeData.description || '';
+            node.group = nodeData.group || ''; // 设置Group属性
             node.width = nodeData.width || 150;
             node.height = nodeData.height || 50;
             node.autoSize = nodeData.autoSize || false;
@@ -175,7 +179,7 @@ export const loadProjectData = async (projectData, editor) => {
     // 导入连接
     if (projectData.connections && Array.isArray(projectData.connections)) {
         projectData.connections.forEach((connData) => {
-            const connection = new Connection(connData.sourceNodeId, connData.targetNodeId);
+            const connection = new ConnectionModel(connData.sourceNodeId, connData.targetNodeId);
             connection.id = connData.id;
             
             // 导入条件

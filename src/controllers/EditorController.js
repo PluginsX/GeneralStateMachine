@@ -150,16 +150,35 @@ export default class EditorController {
         const nodes = nodeViewModel.getAllNodes();
         const connections = connectionViewModel.getAllConnections();
         
-        // 使用LayoutService进行排列
+        // 使用LayoutService进行树形排列
         const LayoutService = (await import('../services/LayoutService.js')).default;
-        const result = await LayoutService.arrangeWithForceLayout(
+        const result = await LayoutService.arrangeWithTreeLayout(
             nodes,
             connections,
-            canvas.width,
-            canvas.height
+            {
+                horizontalSpacing: 200,
+                verticalSpacing: 100,
+                startX: 100,
+                startY: 100
+            }
         );
         
-        if (result.success) {
+        // 应用排列结果
+        if (result && result.positions) {
+            Object.entries(result.positions).forEach(([nodeId, position]) => {
+                const node = nodeViewModel.getNodeById(nodeId);
+                if (node) {
+                    if (!node.transform) {
+                        node.transform = {};
+                    }
+                    if (!node.transform.position) {
+                        node.transform.position = { x: 0, y: 0 };
+                    }
+                    node.transform.position.x = position.x;
+                    node.transform.position.y = position.y;
+                }
+            });
+            
             this.canvasView.scheduleRender();
         }
     }

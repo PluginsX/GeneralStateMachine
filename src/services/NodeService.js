@@ -36,10 +36,23 @@ export default class NodeService {
      * @returns {boolean}
      */
     static isPointInNode(node, x, y) {
-        return x >= node.x && 
-               x <= node.x + node.width &&
-               y >= node.y && 
-               y <= node.y + node.height;
+        // 防御性检查：确保节点存在
+        if (!node) {
+            return false;
+        }
+        
+        // 获取节点位置
+        const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+        
+        if (nodePos.x === undefined || nodePos.y === undefined || 
+            node.width === undefined || node.height === undefined) {
+            return false;
+        }
+        
+        return x >= nodePos.x && 
+               x <= nodePos.x + node.width &&
+               y >= nodePos.y && 
+               y <= nodePos.y + node.height;
     }
     
     /**
@@ -48,9 +61,12 @@ export default class NodeService {
      * @returns {{x: number, y: number, width: number, height: number}}
      */
     static getBounds(node) {
+        // 获取节点位置
+        const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+        
         return {
-            x: node.x,
-            y: node.y,
+            x: nodePos.x,
+            y: nodePos.y,
             width: node.width,
             height: node.height
         };

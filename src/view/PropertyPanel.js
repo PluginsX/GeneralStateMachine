@@ -50,6 +50,9 @@ export default class PropertyPanel {
         // 节点名称
         form.appendChild(this.createFormGroup('名称', 'name', node.name, 'text'));
         
+        // 节点分组
+        form.appendChild(this.createFormGroup('分组', 'group', node.group, 'text'));
+        
         // 节点描述
         form.appendChild(this.createFormGroup('描述', 'description', node.description, 'textarea'));
         
@@ -64,14 +67,40 @@ export default class PropertyPanel {
         const positionRow = document.createElement('div');
         positionRow.className = 'position-row';
         
-        positionRow.appendChild(this.createPositionInput('x', node.x));
-        positionRow.appendChild(this.createPositionInput('y', node.y));
+        const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+        positionRow.appendChild(this.createPositionInput('x', nodePos.x));
+        positionRow.appendChild(this.createPositionInput('y', nodePos.y));
         
         positionContainer.appendChild(positionRow);
         form.appendChild(positionContainer);
         
         // 自动调整大小
         form.appendChild(this.createCheckbox('自动调整大小', 'autoSize', node.autoSize));
+        
+        // 力导向图参数
+        const forceGroup = document.createElement('div');
+        forceGroup.className = 'property-group force-params';
+        forceGroup.innerHTML = '<label>力导向图参数</label>';
+        
+        // 电荷力
+        const chargeGroup = this.createFormGroup('电荷力', 'forceCharge', node.forceCharge, 'number');
+        chargeGroup.querySelector('input').placeholder = '默认: -300';
+        forceGroup.appendChild(chargeGroup);
+        
+        // 碰撞半径
+        const collideGroup = this.createFormGroup('碰撞半径', 'forceCollideRadius', node.forceCollideRadius, 'number');
+        collideGroup.querySelector('input').placeholder = '默认: 自动计算';
+        forceGroup.appendChild(collideGroup);
+        
+        // 力强度
+        const strengthGroup = this.createFormGroup('力强度', 'forceStrength', node.forceStrength, 'number');
+        strengthGroup.querySelector('input').placeholder = '默认: 1';
+        forceGroup.appendChild(strengthGroup);
+        
+        // 固定位置
+        forceGroup.appendChild(this.createCheckbox('固定位置', 'fixedPosition', node.fixedPosition));
+        
+        form.appendChild(forceGroup);
         
         // 颜色选择器 (可选功能)
         // form.appendChild(this.createColorPicker('节点颜色', 'color', node.color));
@@ -142,6 +171,23 @@ export default class PropertyPanel {
             { value: 'solid', label: '连续线' },
             { value: 'dashed', label: '间隔线' }
         ]));
+        
+        // 力导向图参数
+        const forceGroup = document.createElement('div');
+        forceGroup.className = 'property-group force-params';
+        forceGroup.innerHTML = '<label>力导向图参数</label>';
+        
+        // 连接距离
+        const distanceGroup = this.createFormGroup('连接距离', 'linkDistance', connection.linkDistance, 'number');
+        distanceGroup.querySelector('input').placeholder = '默认: 150';
+        forceGroup.appendChild(distanceGroup);
+        
+        // 连接强度
+        const strengthGroup = this.createFormGroup('连接强度', 'linkStrength', connection.linkStrength, 'number');
+        strengthGroup.querySelector('input').placeholder = '默认: 1';
+        forceGroup.appendChild(strengthGroup);
+        
+        form.appendChild(forceGroup);
         
         // 条件管理 (简化版)
         const conditionsContainer = document.createElement('div');
@@ -313,13 +359,34 @@ export default class PropertyPanel {
     // 处理输入变化
     handleInputChange(item, property, value, type) {
         // 更新项目属性
-        item[property] = value;
-        
-        // 触发更新回调
-        if (type === 'node' && this.onNodeUpdate) {
-            this.onNodeUpdate(item.id, { [property]: value });
-        } else if (type === 'connection' && this.onConnectionUpdate) {
-            this.onConnectionUpdate(item.id, { [property]: value });
+        if (property === 'x' || property === 'y') {
+            // 处理位置属性更新
+            if (!item.transform) {
+                item.transform = {};
+            }
+            if (!item.transform.position) {
+                item.transform.position = { x: item.x || 0, y: item.y || 0 };
+            }
+            
+            // 更新transform.position
+            item.transform.position[property] = value;
+            
+            // 触发更新回调
+            if (type === 'node' && this.onNodeUpdate) {
+                this.onNodeUpdate(item.id, { 
+                    ['transform.position.' + property]: value
+                });
+            }
+        } else {
+            // 处理其他属性
+            item[property] = value;
+            
+            // 触发更新回调
+            if (type === 'node' && this.onNodeUpdate) {
+                this.onNodeUpdate(item.id, { [property]: value });
+            } else if (type === 'connection' && this.onConnectionUpdate) {
+                this.onConnectionUpdate(item.id, { [property]: value });
+            }
         }
     }
     

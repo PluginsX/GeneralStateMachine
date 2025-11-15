@@ -1,6 +1,6 @@
 // 节点管理器 - 视图模型层
 // 负责节点的业务逻辑：添加、删除、合并、复制等
-import Node from '../model/Node.js';
+import NodeModel from '../../../models/NodeModel.js';
 import { deepClone } from '../../../utils/common.js';
 
 export default class NodeManager {
@@ -18,7 +18,8 @@ export default class NodeManager {
     
     // 添加节点
     addNode(name, x, y) {
-        const node = new Node(name, x, y);
+        const node = new NodeModel(name, x, y);
+        node.group = ''; // 初始化Group属性
         this.nodes.set(node.id, node);
         
         // 记录历史
@@ -128,8 +129,18 @@ export default class NodeManager {
         const node = this.nodes.get(nodeId);
         if (!node) return false;
         
-        node.x += deltaX;
-        node.y += deltaY;
+        const nodePos = (node.transform && node.transform.position) ? 
+            node.transform.position : { x: 0, y: 0 };
+        
+        nodePos.x += deltaX;
+        nodePos.y += deltaY;
+        
+        // 确保transform对象存在并更新位置
+        if (!node.transform) {
+            node.transform = { position: { x: nodePos.x, y: nodePos.y } };
+        } else {
+            node.transform.position = nodePos;
+        }
         
         // 触发变更
         this.notifyChange();
@@ -167,8 +178,11 @@ export default class NodeManager {
         const node = this.nodes.get(nodeId);
         if (!node) return false;
         
-        return x >= node.x && x <= node.x + node.width &&
-               y >= node.y && y <= node.y + node.height;
+        const nodePos = (node.transform && node.transform.position) ? 
+            node.transform.position : { x: 0, y: 0 };
+        
+        return x >= nodePos.x && x <= nodePos.x + node.width &&
+               y >= nodePos.y && y <= nodePos.y + node.height;
     }
     
     // 获取包含指定点的节点
@@ -193,7 +207,8 @@ export default class NodeManager {
         this.nodes.clear();
         if (data.nodes && Array.isArray(data.nodes)) {
             data.nodes.forEach(nodeData => {
-                const node = new Node(nodeData.name, nodeData.x, nodeData.y);
+                const node = new NodeModel(nodeData.name, nodeData.x, nodeData.y);
+                node.group = nodeData.group || ''; // 设置Group属性
                 Object.assign(node, nodeData);
                 this.nodes.set(node.id, node);
             });

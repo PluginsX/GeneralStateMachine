@@ -48,11 +48,12 @@ export class VisibilityCuller {
      * 判断节点是否可见
      */
     isNodeVisible(node, visibleBounds) {
+        const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
         return !(
-            node.x + node.width < visibleBounds.minX ||
-            node.x > visibleBounds.maxX ||
-            node.y + node.height < visibleBounds.minY ||
-            node.y > visibleBounds.maxY
+            nodePos.x + node.width < visibleBounds.minX ||
+            nodePos.x > visibleBounds.maxX ||
+            nodePos.y + node.height < visibleBounds.minY ||
+            nodePos.y > visibleBounds.maxY
         );
     }
 
@@ -69,14 +70,18 @@ export class VisibilityCuller {
             return true;
         }
 
+        // 获取节点位置
+        const sourcePos = (sourceNode.transform && sourceNode.transform.position) ? sourceNode.transform.position : { x: 0, y: 0 };
+        const targetPos = (targetNode.transform && targetNode.transform.position) ? targetNode.transform.position : { x: 0, y: 0 };
+
         // 连线穿过可视区域 → 可见（判断线段与矩形是否相交）
         const start = { 
-            x: sourceNode.x + sourceNode.width / 2, 
-            y: sourceNode.y + sourceNode.height / 2 
+            x: sourcePos.x + sourceNode.width / 2, 
+            y: sourcePos.y + sourceNode.height / 2 
         };
         const end = { 
-            x: targetNode.x + targetNode.width / 2, 
-            y: targetNode.y + targetNode.height / 2 
+            x: targetPos.x + targetNode.width / 2, 
+            y: targetPos.y + targetNode.height / 2 
         };
         return this.lineIntersectsRect(start, end, visibleBounds);
     }

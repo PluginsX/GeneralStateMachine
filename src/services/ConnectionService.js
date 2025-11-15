@@ -21,16 +21,19 @@ export default class ConnectionService {
      * @returns {{x: number, y: number}}
      */
     static getConnectionPoint(node, side) {
+        // 获取节点位置
+        const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+        
         switch (side) {
             case 'top':
-                return { x: node.x + node.width / 2, y: node.y };
+                return { x: nodePos.x + node.width / 2, y: nodePos.y };
             case 'right':
-                return { x: node.x + node.width, y: node.y + node.height / 2 };
+                return { x: nodePos.x + node.width, y: nodePos.y + node.height / 2 };
             case 'bottom':
-                return { x: node.x + node.width / 2, y: node.y + node.height };
+                return { x: nodePos.x + node.width / 2, y: nodePos.y + node.height };
             case 'left':
             default:
-                return { x: node.x, y: node.y + node.height / 2 };
+                return { x: nodePos.x, y: nodePos.y + node.height / 2 };
         }
     }
     

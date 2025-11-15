@@ -235,12 +235,38 @@ export default class ShortcutManager {
     // 从JSON对象加载配置
     loadConfigFromJSON(json) {
         try {
+            console.log('ShortcutManager: Loading config from JSON:', json);
+            
+            // 创建新的配置对象
             this.customConfig = ShortcutConfig.fromJSON(json);
+            
+            // 合并配置
             this.mergeConfig(this.defaultConfig, this.customConfig);
-            console.log('ShortcutManager: Config loaded and applied from JSON');
+            
+            console.log('ShortcutManager: Config loaded and applied from JSON successfully');
+            console.log('ShortcutManager: Total key bindings after load:', this.keyBindings.size);
+            
+            // 验证关键绑定是否正确
+            this.validateKeyBindings();
+            
         } catch (error) {
             console.error('Failed to load config from JSON:', error);
             throw error;
+        }
+    }
+    
+    // 验证关键绑定
+    validateKeyBindings() {
+        const testKeys = ['ctrl+c', 'ctrl+v', 'delete', 'escape'];
+        console.log('ShortcutManager: Validating key bindings...');
+        
+        for (const key of testKeys) {
+            const binding = this.keyBindings.get(key);
+            if (binding) {
+                console.log(`  ✓ "${key}" -> "${binding.command}"`);
+            } else {
+                console.log(`  ✗ "${key}" -> No binding found`);
+            }
         }
     }
     
@@ -300,6 +326,9 @@ export default class ShortcutManager {
                         description: shortcut.description
                     });
                     bindingCount++;
+                    
+                    // 调试输出每个绑定
+                    console.log(`ShortcutManager: Bound "${normalizedKey}" -> "${shortcut.command}" (${path})`);
                 }
             } else {
                 console.warn('ShortcutManager: Invalid shortcut:', path, shortcut);
@@ -329,10 +358,12 @@ export default class ShortcutManager {
             console.warn('ShortcutManager: No contexts defined in config');
         }
         
-        // 输出一些示例绑定用于调试
+        // 输出所有绑定用于调试
         if (this.keyBindings.size > 0) {
-            const sampleBindings = Array.from(this.keyBindings.entries()).slice(0, 5);
-            console.log('ShortcutManager: Sample bindings:', sampleBindings);
+            console.log('ShortcutManager: All key bindings:');
+            for (const [key, binding] of this.keyBindings.entries()) {
+                console.log(`  "${key}" -> "${binding.command}" (${binding.path})`);
+            }
         }
     }
     
@@ -434,16 +465,16 @@ export default class ShortcutManager {
         const keyCombo = this.buildKeyCombo(event);
         const normalizedKey = this.normalizeKeyCombo(keyCombo);
         
-        // 调试信息
-        if (this.config && this.config.debug) {
-            console.log('ShortcutManager.handleKeyDown:', {
-                keyCombo,
-                normalizedKey,
-                currentContext,
-                isInput,
-                keyBindingsSize: this.keyBindings.size
-            });
-        }
+        // 调试信息（总是输出，便于调试）
+        console.log('ShortcutManager.handleKeyDown:', {
+            originalKey: event.key,
+            keyCombo,
+            normalizedKey,
+            currentContext,
+            isInput,
+            keyBindingsSize: this.keyBindings.size,
+            hasBinding: this.keyBindings.has(normalizedKey)
+        });
         
         // 首先检查是否有绑定（不依赖上下文，因为上下文检查可能有问题）
         const binding = this.keyBindings.get(normalizedKey);
@@ -453,6 +484,7 @@ export default class ShortcutManager {
             if (altNormalized) {
                 const altBinding = this.keyBindings.get(altNormalized);
                 if (altBinding) {
+                    console.log('Found binding using alternative format:', altNormalized);
                     // 找到匹配，执行命令
                     event.preventDefault();
                     event.stopPropagation();
@@ -460,6 +492,7 @@ export default class ShortcutManager {
                     return true;
                 }
             }
+            console.log('No binding found for key:', normalizedKey);
             return false;
         }
         
@@ -474,14 +507,12 @@ export default class ShortcutManager {
                         !this.contextShortcuts.has(currentContext); // 如果上下文没有定义，允许所有快捷键
         
         if (!isAllowed) {
-            if (this.config && this.config.debug) {
-                console.log('Shortcut not allowed in context:', {
-                    normalizedKey,
-                    currentContext,
-                    contextShortcuts: Array.from(contextShortcuts),
-                    globalShortcuts: Array.from(globalShortcuts)
-                });
-            }
+            console.log('Shortcut not allowed in context:', {
+                normalizedKey,
+                currentContext,
+                contextShortcuts: Array.from(contextShortcuts),
+                globalShortcuts: Array.from(globalShortcuts)
+            });
             return false;
         }
         
@@ -494,6 +525,8 @@ export default class ShortcutManager {
         // 立即阻止默认行为，防止浏览器快捷键触发
         event.preventDefault();
         event.stopPropagation();
+        
+        console.log('Executing command:', binding.command, 'for key:', normalizedKey);
         
         // 执行命令
         try {
@@ -508,23 +541,33 @@ export default class ShortcutManager {
         }
     }
     
-    // 尝试其他可能的键格式
+    // 尝试其他可能的键格式（增强版本）
     tryAlternativeKeyFormats(keyCombo) {
-        // 尝试不同的格式变体
-        const variants = [
-            keyCombo.toLowerCase(),
-            keyCombo.toUpperCase(),
-            keyCombo.replace(/ctrl/g, 'meta'),
-            keyCombo.replace(/meta/g, 'ctrl')
+        const formats = [
+            keyCombo, // 原始格式
+            this.normalizeKeyCombo(keyCombo), // 标准化格式
+            keyCombo.toLowerCase(), // 小写格式
+            keyCombo.toUpperCase(), // 大写格式
+            this.buildAlternativeFormat(keyCombo) // 替代格式
         ];
         
-        for (const variant of variants) {
-            const normalized = this.normalizeKeyCombo(variant);
-            if (this.keyBindings.has(normalized)) {
-                return normalized;
+        for (const format of formats) {
+            if (this.keyBindings.has(format)) {
+                console.log('Found matching format:', format, 'for original:', keyCombo);
+                return format;
             }
         }
+        
         return null;
+    }
+    
+    // 构建替代格式（处理可能的格式差异）
+    buildAlternativeFormat(keyCombo) {
+        // 处理可能的格式差异，比如空格、加号等
+        return keyCombo
+            .replace(/\s+/g, '+') // 空格替换为加号
+            .replace(/\++/g, '+') // 多个加号替换为单个加号
+            .toLowerCase();
     }
     
     // 设置当前上下文

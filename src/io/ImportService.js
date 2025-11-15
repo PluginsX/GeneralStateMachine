@@ -1,8 +1,8 @@
 // ImportService.js - 导入服务模块
 // 负责处理各种格式的导入功能，包括Markdown和项目文件
 import Condition from '../core/condition.js';
-import Connection from '../core/connection.js';
-import Node from '../core/node.js';
+import ConnectionModel from '../models/ConnectionModel.js';
+import NodeModel from '../models/NodeModel.js';
 import { PopUp_Window } from '../utils/popup.js';
 
 export default class ImportService {
@@ -787,8 +787,8 @@ export default class ImportService {
             
             // 验证坐标和尺寸数据
             console.debug('验证节点坐标...');
-            const x = this.validateNumber(node.x, 100, '节点X坐标');
-            const y = this.validateNumber(node.y, 100, '节点Y坐标');
+            const x = this.validateNumber((node.transform && node.transform.position && node.transform.position.x) || 0, 100, '节点X坐标');
+            const y = this.validateNumber((node.transform && node.transform.position && node.transform.position.y) || 0, 100, '节点Y坐标');
             const width = this.validateNumber(node.width, 120, '节点宽度', 50, 500);
             const height = this.validateNumber(node.height, 60, '节点高度', 20, 300);
             
@@ -797,10 +797,15 @@ export default class ImportService {
                 id: newId,
                 name: nodeName,
                 description: node.description || '',
-                x: x,
-                y: y,
                 width: width,
-                height: height
+                height: height,
+                // 使用transform属性存储位置信息
+                transform: {
+                    position: {
+                        x: x,
+                        y: y
+                    }
+                }
             };
             
             console.debug(`节点标准化完成: ${nodeName} (${newId})`);
@@ -925,9 +930,9 @@ export default class ImportService {
                         return;
                     }
                     
-                    // 创建Connection类实例
+                    // 创建ConnectionModel类实例
                     const connectionId = this.generateUniqueId();
-                    const newConnection = new Connection(sourceId, targetId);
+                    const newConnection = new ConnectionModel(sourceId, targetId);
                     newConnection.id = connectionId;
                     
                     // 处理条件
@@ -988,8 +993,9 @@ export default class ImportService {
      */
     createNode(name, description, x, y) {
         // 创建Node类的实例
-        const node = new Node(name || '未命名节点', x || 100, y || 100);
+        const node = new NodeModel(name || '未命名节点', x || 100, y || 100);
         node.description = description || '';
+        node.group = ''; // 初始化Group属性
         node.width = 120;
         node.height = 60;
         
@@ -1004,8 +1010,8 @@ export default class ImportService {
      * @returns {Object} - 连线对象
      */
     createConnection(sourceId, targetId, condition) {
-        // 创建Connection类的实例
-        const connection = new Connection(sourceId, targetId);
+        // 创建ConnectionModel类的实例
+        const connection = new ConnectionModel(sourceId, targetId);
         
         // 如果提供了条件，解析并添加到conditions数组
         if (condition) {
@@ -1096,8 +1102,9 @@ export default class ImportService {
             }
             
             // 创建节点
-            const node = new Node(nodeName, x, y);
+            const node = new NodeModel(nodeName, x, y);
             node.description = '';
+            node.group = ''; // 初始化Group属性
             node.width = 150;
             node.height = 50;
             
@@ -1135,8 +1142,8 @@ export default class ImportService {
                 return;
             }
             
-            // 创建Connection类的实例
-            const connection = new Connection(sourceNode.id, targetNode.id);
+            // 创建ConnectionModel类的实例
+            const connection = new ConnectionModel(sourceNode.id, targetNode.id);
             
             // 设置额外属性
             connection.name = transition.Name || '';

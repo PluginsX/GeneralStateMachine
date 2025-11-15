@@ -1,6 +1,7 @@
 // 连线数据模型
 // 仅包含数据结构和基础操作，不包含业务逻辑
 import { generateId } from '../../utils/common.js';
+import ConnectionModel from '../../../models/ConnectionModel.js';
 
 export default class Connection {
     constructor(sourceNodeId, targetNodeId, fromSide, toSide) {

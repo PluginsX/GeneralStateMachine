@@ -1,6 +1,7 @@
 // DOM操作工具函数
-import Node from '../core/node.js';
+import NodeModel from '../models/NodeModel.js';
 import { ConfirmDialog } from './popup.js';
+import { Vector2 } from '../math/GraphicsMath.js';
 
 export const createConditionElement = (condition, index, editor) => {
     const conditionItem = document.createElement('div');
@@ -217,8 +218,37 @@ export const showContextMenu = (x, y, element, editor, worldPos = null) => {
             const posX = parseFloat(menu.dataset.worldPosX);
             const posY = parseFloat(menu.dataset.worldPosY);
             if (!isNaN(posX) && !isNaN(posY)) {
+                // 调试信息：输出坐标转换过程
+                console.log('右键创建节点坐标调试:');
+                console.log('- worldPos:', { x: posX, y: posY });
+                console.log('- 菜单位置:', { x: menu.style.left, y: menu.style.top });
+                console.log('- editor.pan:', editor.pan);
+                console.log('- editor.zoom:', editor.zoom);
+                
                 // 使用 editor 的 addNode 方法创建节点
-                editor.addNode(new Node('新节点', posX, posY));
+                const newNode = new NodeModel({
+                    name: '新节点',
+                    position: new Vector2(posX, posY)
+                });
+                newNode.group = ''; // 初始化Group属性
+                
+                // 确保transform和position对象存在（参考集中排列代码的做法）
+                if (!newNode.transform) {
+                    newNode.transform = {};
+                }
+                if (!newNode.transform.position) {
+                    newNode.transform.position = { x: 0, y: 0 };
+                }
+                
+                // 直接设置位置（参考集中排列代码的做法）
+                newNode.transform.position.x = posX;
+                newNode.transform.position.y = posY;
+                
+                editor.addNode(newNode);
+                
+                // 验证节点位置
+                console.log('- 创建的节点位置:', { x: newNode.transform.position.x, y: newNode.transform.position.y });
+                console.log('- Vector2创建参数:', { x: posX, y: posY });
             }
             // 然后关闭菜单
             removeContextMenu();
@@ -257,6 +287,104 @@ export const showContextMenu = (x, y, element, editor, worldPos = null) => {
             removeContextMenu();
         });
         menu.appendChild(connectItem);
+        
+        // 获取选中的节点
+        const selectedNodes = editor.selectedElements.filter(el => el.type === 'node');
+        const hasMultipleNodes = selectedNodes.length > 1;
+        const isCurrentNodeSelected = selectedNodes.includes(element);
+        
+        if (hasMultipleNodes && isCurrentNodeSelected) {
+            // 多个节点被选中时的菜单选项
+            const fixAllItem = document.createElement('div');
+            fixAllItem.className = 'context-menu-item';
+            fixAllItem.textContent = '全部固定位置';
+            fixAllItem.addEventListener('mousedown', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+            });
+            fixAllItem.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                // 固定所有选中的节点
+                selectedNodes.forEach(node => {
+                    // 获取D3模拟中的最新节点位置
+                    const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+                    let currentX = nodePos.x;
+                    let currentY = nodePos.y;
+                    
+                    // 注意：在新的树形排列系统中，不再从D3 nodeMap获取位置
+                    // 因为树形排列是一次性计算，没有实时力导向模拟
+                    
+                    node.fixedPosition = true;
+                    // 注意：在新的树形排列系统中，不再更新D3模拟中的固定属性
+                    // 因为树形排列是一次性计算，不支持实时力导向的固定功能
+                });
+                // 注意：在新的树形排列系统中，不再重启模拟
+                // 因为树形排列是一次性计算，没有实时力导向模拟
+                // 更新属性面板
+                import('../ui/panel.js').then(({ updatePropertyPanel }) => {
+                    updatePropertyPanel(editor);
+                });
+                removeContextMenu();
+            });
+            menu.appendChild(fixAllItem);
+            
+            const unfixAllItem = document.createElement('div');
+            unfixAllItem.className = 'context-menu-item';
+            unfixAllItem.textContent = '全部取消固定';
+            unfixAllItem.addEventListener('mousedown', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+            });
+            unfixAllItem.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                // 取消固定所有选中的节点
+                selectedNodes.forEach(node => {
+                    node.fixedPosition = false;
+                    // 注意：在新的树形排列系统中，不再清除D3模拟中的固定属性
+                    // 因为树形排列是一次性计算，没有实时力导向模拟
+                });
+                // 注意：在新的树形排列系统中，不再重启模拟
+                // 因为树形排列是一次性计算，没有实时力导向模拟
+                // 更新属性面板
+                import('../ui/panel.js').then(({ updatePropertyPanel }) => {
+                    updatePropertyPanel(editor);
+                });
+                removeContextMenu();
+            });
+            menu.appendChild(unfixAllItem);
+        } else {
+            // 单个节点时的菜单选项
+            const fixItem = document.createElement('div');
+            fixItem.className = 'context-menu-item';
+            fixItem.textContent = element.fixedPosition ? '取消固定' : '固定位置';
+            fixItem.addEventListener('mousedown', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+            });
+            fixItem.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                // 获取D3模拟中的最新节点位置
+                const elementPos = (element.transform && element.transform.position) ? element.transform.position : { x: 0, y: 0 };
+                let currentX = elementPos.x;
+                let currentY = elementPos.y;
+                
+                // 注意：在新的树形排列系统中，不再从D3 nodeMap获取位置
+                // 因为树形排列是一次性计算，没有实时力导向模拟
+                
+                // 切换节点的固定状态
+                element.fixedPosition = !element.fixedPosition;
+                
+                // 注意：在新的树形排列系统中，不再更新D3模拟中的固定属性
+                // 因为树形排列是一次性计算，不支持实时力导向的固定功能
+                
+                // 注意：在新的树形排列系统中，不再重启模拟
+                // 因为树形排列是一次性计算，没有实时力导向模拟
+                
+                // 更新属性面板
+                import('../ui/panel.js').then(({ updatePropertyPanel }) => {
+                    updatePropertyPanel(editor);
+                });
+                removeContextMenu();
+            });
+            menu.appendChild(fixItem);
+        }
         
         const deleteItem = document.createElement('div');
         deleteItem.className = 'context-menu-item';

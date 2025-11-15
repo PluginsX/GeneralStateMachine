@@ -101,10 +101,12 @@ export default class ViewManager {
         let maxX = -Infinity, maxY = -Infinity;
         
         nodes.forEach(node => {
-            minX = Math.min(minX, node.x);
-            minY = Math.min(minY, node.y);
-            maxX = Math.max(maxX, node.x + node.width);
-            maxY = Math.max(maxY, node.y + node.height);
+            const nodePos = (node.transform && node.transform.position) ? 
+                node.transform.position : { x: 0, y: 0 };
+            minX = Math.min(minX, nodePos.x);
+            minY = Math.min(minY, nodePos.y);
+            maxX = Math.max(maxX, nodePos.x + (node.width || 100));
+            maxY = Math.max(maxY, nodePos.y + (node.height || 60));
         });
         
         // 计算中心点

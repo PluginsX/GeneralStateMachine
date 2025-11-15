@@ -118,6 +118,7 @@
                     <span class="collapsible-icon">▼</span>
                 </div>
                 <div class="collapsible-content" id="tools-content">
+                    <button id="add-text" class="toolbar-btn">添加文字</button>
                     <button id="merge-nodes-btn" class="toolbar-btn">合并节点</button>
                     <button id="merge-conditions-btn" class="toolbar-btn">合并条件</button>
                     <button id="remove-duplicate-connections-btn" class="toolbar-btn">删除重复连接</button>
@@ -139,6 +140,9 @@
                     </div>
                     <div class="tool-item" draggable="true" data-type="connection">
                         🔗 连线
+                    </div>
+                    <div class="tool-item" draggable="true" data-type="text">
+                        📝 文字
                     </div>
                 </div>
             </div>
@@ -167,6 +171,11 @@
                 </div>
                 
                 <div class="form-group">
+                    <label for="node-group">节点组</label>
+                    <input type="text" id="node-group" placeholder="输入节点所属的组">
+                </div>
+                
+                <div class="form-group">
                     <label for="node-color">节点颜色</label>
                     <input type="color" id="node-color" class="selector-color-picker" value="#ffffff">
                     <button id="node-color-reset" class="btn-small">重置为默认</button>
@@ -189,6 +198,33 @@
                         <label for="node-height">高度</label>
                         <input type="number" id="node-height" min="30" max="300" value="50">
                     </div>
+                </div>
+
+                <h4 style="margin-top: 20px;">力导向图参数</h4>
+                <div class="form-group">
+                    <label for="node-force-charge">电荷力强度</label>
+                    <input type="number" id="node-force-charge" min="-2000" max="0" step="10" value="-300">
+                    <small>负值表示排斥力，正值表示吸引力</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="node-force-collide-radius">碰撞力半径</label>
+                    <input type="number" id="node-force-collide-radius" min="0" max="500" step="5" placeholder="自动计算">
+                    <small>留空表示根据节点尺寸自动计算</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="node-force-strength">力强度系数</label>
+                    <input type="number" id="node-force-strength" min="0" max="5" step="0.1" value="1">
+                    <small>控制节点在力导向图中的受力强度</small>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="node-fixed-position">
+                        <label for="node-fixed-position">固定位置</label>
+                    </div>
+                    <small>勾选后节点位置不受力导向图影响</small>
                 </div>
 
                 <button id="update-node" class="btn">更新节点</button>
@@ -244,6 +280,19 @@
                     <button id="connection-arrow-color-reset" class="btn-small">重置为默认</button>
                 </div>
                 
+                <h4 style="margin-top: 20px;">力导向图参数</h4>
+                <div class="form-group">
+                    <label for="connection-link-distance">连接距离</label>
+                    <input type="number" id="connection-link-distance" min="50" max="500" step="10" value="150">
+                    <small>连接的理想长度</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="connection-link-strength">连接强度</label>
+                    <input type="number" id="connection-link-strength" min="0" max="1" step="0.1" value="1">
+                    <small>连接的强度系数（0-1）</small>
+                </div>
+                
                 <h4 style="margin-top: 20px;">连线条件</h4>
                 <div id="conditions-list">
                     <!-- 条件项将通过JavaScript动态添加 -->
@@ -261,7 +310,11 @@
 
     <!-- 底部状态栏 -->
     <footer class="status-bar">
-        <div class="status-info">就绪</div>
+        <div class="status-info">
+            <span id="status-text">就绪</span>
+            <span class="status-separator">|</span>
+            <span id="force-simulation-status" class="force-status hidden">正在进行力学模拟！</span>
+        </div>
         <div class="status-stats">
             <span id="node-count">节点: 0</span>
             <span class="status-separator">|</span>
