@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>实时自动排列功能测试</title>
+    <title>D3力导向图实时自动排列测试</title>
+    <!-- D3.js 库 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
     <style>
         body {
             margin: 0;
@@ -148,7 +151,7 @@
     </style>
 </head>
 <body>
-    <h1>🚀 实时自动排列功能测试</h1>
+    <h1>🚀 D3力导向图实时自动排列测试</h1>
     
     <div class="container">
         <div class="canvas-container">
@@ -171,9 +174,9 @@
             </div>
             
             <div class="control-group">
-                <h3>⚡ 实时排列</h3>
-                <button class="btn-success" onclick="startRealTimeArrange()">启动实时排列</button>
-                <button class="btn-warning" onclick="stopRealTimeArrange()">停止实时排列</button>
+                <h3>⚡ D3力导向图</h3>
+                <button class="btn-success" onclick="startRealTimeArrange()">启动力导向图</button>
+                <button class="btn-warning" onclick="stopRealTimeArrange()">停止力导向图</button>
             </div>
             
             <div class="control-group">
@@ -181,8 +184,9 @@
                 <ul style="font-size: 14px; padding-left: 20px;">
                     <li>点击"创建测试节点"生成5个节点</li>
                     <li>点击"创建复杂图"生成复杂网络</li>
-                    <li>点击"启动实时排列"开始D3力导向图</li>
+                    <li>点击"启动力导向图"开始D3力导向图模拟</li>
                     <li>拖动节点查看实时自动重排效果</li>
+                    <li>节点会自动排斥并保持连接距离</li>
                 </ul>
             </div>
         </div>

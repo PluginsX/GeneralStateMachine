@@ -231,10 +231,10 @@ export default class NodeGraphEditor {
     // 处理实时自动排列
     handleRealTimeArrange() {
         try {
-            // 检查是否已有活跃的排列，避免重复创建
+            // 检查是否已有活跃的D3力导向图模拟，避免重复创建
             if (this.isRealTimeArrangeActive) {
                 this.stopRealTimeArrange();
-                this.showNotification('实时排列已停止');
+                this.showNotification('D3力导向图模拟已停止');
                 return;
             }
             
@@ -256,14 +256,67 @@ export default class NodeGraphEditor {
                 return;
             }
             
-            // 使用树形结构排列
-            this.performTreeLayoutArrange(nodes);
+            // 启动D3力导向图模拟
+            this.startForceLayoutSimulation(nodes);
             
         } catch (error) {
-            console.error('处理实时排列时发生错误:', error);
+            console.error('处理D3力导向图模拟时发生错误:', error);
             // 发生错误时，确保状态被正确重置
             this.stopRealTimeArrange();
         }
+    }
+    
+    // 启动D3力导向图模拟
+    startForceLayoutSimulation(nodes) {
+        // 导入LayoutService
+        import('../services/LayoutService.js').then(({ default: LayoutService }) => {
+            // 获取与这些节点相关的连接（只包含两端都在节点列表中的连接）
+            const nodeIds = new Set(nodes.map(n => n.id));
+            const connections = this.connections
+                .filter(conn => nodeIds.has(conn.sourceNodeId) && nodeIds.has(conn.targetNodeId));
+            
+            // 获取画布尺寸
+            const canvasWidth = this.canvas.width || 800;
+            const canvasHeight = this.canvas.height || 600;
+            
+            // 创建D3力导向图模拟
+            const simulation = LayoutService.createRealTimeSimulation(
+                nodes, 
+                connections, 
+                () => {
+                    // 每次tick后触发重新渲染
+                    this.scheduleRender();
+                },
+                canvasWidth,
+                canvasHeight
+            );
+            
+            if (simulation) {
+                // 保存模拟对象
+                this.forceSimulation = simulation;
+                
+                // 设置排列状态为活跃
+                this.isRealTimeArrangeActive = true;
+                
+                // 更新按钮状态
+                this.updateArrangeButtonState();
+                
+                // 更新状态栏
+                this.updateStatusBar();
+                
+                // 显示通知
+                this.showNotification('D3力导向图模拟已启动');
+                
+                // 初始渲染
+                this.scheduleRender();
+            } else {
+                this.showNotification('无法创建D3力导向图模拟，请检查D3.js是否已加载');
+            }
+            
+        }).catch(error => {
+            console.error('无法加载LayoutService:', error);
+            this.showNotification('布局服务加载失败');
+        });
     }
     
     // 使用树形结构排列节点（从左到右，从上到下）
@@ -329,6 +382,12 @@ export default class NodeGraphEditor {
     
     // 停止实时排列
     stopRealTimeArrange() {
+        // 停止D3力导向图模拟
+        if (this.forceSimulation) {
+            this.forceSimulation.stop();
+            this.forceSimulation = null;
+        }
+        
         this.isRealTimeArrangeActive = false;
         
         // 更新按钮状态
@@ -338,7 +397,7 @@ export default class NodeGraphEditor {
         this.updateStatusBar();
         
         // 显示通知
-        this.showNotification('实时排列已停止');
+        this.showNotification('D3力导向图模拟已停止');
     }
     
     // 更新排列按钮状态
@@ -348,7 +407,7 @@ export default class NodeGraphEditor {
         
         if (button) {
             // 更新按钮文字
-            button.textContent = this.isRealTimeArrangeActive ? '停止实时排列' : '实时自动排列';
+            button.textContent = this.isRealTimeArrangeActive ? '停止力导向图' : '启动力导向图';
             
             // 更新按钮样式（添加/移除 active-green 类）
             if (this.isRealTimeArrangeActive) {

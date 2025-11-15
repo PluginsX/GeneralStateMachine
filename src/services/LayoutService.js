@@ -113,7 +113,7 @@ export default class LayoutService {
     }
     
     /**
-     * 创建实时力导向图模拟 - 已弃用（使用树形排列替代）
+     * 创建实时力导向图模拟
      * @param {NodeModel[]} nodes - 要排列的节点
      * @param {ConnectionModel[]} connections - 连线数组
      * @param {Function} onTick - tick回调函数
@@ -122,13 +122,8 @@ export default class LayoutService {
      * @returns {Object|null} D3.js模拟对象
      */
     static createRealTimeSimulation(nodes, connections, onTick, canvasWidth = 800, canvasHeight = 600) {
-        // 注意：此方法已弃用，现在使用树形排列系统
-        // 保留此方法仅为向后兼容，但不再使用D3.js
-        console.warn('createRealTimeSimulation已弃用，请使用树形排列系统');
-        return null;
-        
-        /* 原始D3.js实现已注释
         if (typeof d3 === 'undefined') {
+            console.error('D3.js 未加载，无法创建力导向图模拟');
             return null;
         }
         
@@ -158,8 +153,8 @@ export default class LayoutService {
             const d3Links = connections
                 .filter(conn => nodeIds.has(conn.sourceNodeId) && nodeIds.has(conn.targetNodeId))
                 .map(conn => {
-                    const source = nodeMap.get(conn.source);
-                    const target = nodeMap.get(conn.target);
+                    const source = nodeMap.get(conn.sourceNodeId);
+                    const target = nodeMap.get(conn.targetNodeId);
                     return { source, target };
                 })
                 .filter(link => link.source && link.target);
@@ -167,40 +162,18 @@ export default class LayoutService {
             // 创建力导向模拟
             const simulation = d3.forceSimulation(d3Nodes)
                 .force("link", d3.forceLink(d3Links).id(d => d.id)
-                    .distance(d => {
-                        // 获取连接对象以获取差异化距离参数
-                        const connection = connections.find(conn => 
-                            nodeIds.has(conn.sourceNodeId) && 
-                            nodeIds.has(conn.targetNodeId) &&
-                            ((nodeMap.get(conn.sourceNodeId) === d.source && nodeMap.get(conn.targetNodeId) === d.target) ||
-                             (nodeMap.get(conn.sourceNodeId) === d.target && nodeMap.get(conn.targetNodeId) === d.source))
-                        );
-                        return connection && connection.linkDistance ? connection.linkDistance : 150;
-                    })
-                    .strength(d => {
-                        // 获取连接对象以获取差异化强度参数
-                        const connection = connections.find(conn => 
-                            nodeIds.has(conn.sourceNodeId) && 
-                            nodeIds.has(conn.targetNodeId) &&
-                            ((nodeMap.get(conn.sourceNodeId) === d.source && nodeMap.get(conn.targetNodeId) === d.target) ||
-                             (nodeMap.get(conn.sourceNodeId) === d.target && nodeMap.get(conn.targetNodeId) === d.source))
-                        );
-                        return connection && connection.linkStrength !== undefined ? connection.linkStrength : 1;
-                    })
+                    .distance(150)  // 连接的理想距离
+                    .strength(1)    // 连接的强度
                 )
-                .force("charge", d3.forceManyBody().strength(d => {
-                    // 获取节点对象以获取差异化电荷力参数
-                    const node = nodes.find(n => nodeMap.get(n.id) === d);
-                    return node && node.forceCharge !== undefined ? node.forceCharge : -300;
-                }))
+                .force("charge", d3.forceManyBody().strength(-300))  // 节点间的排斥力
                 .force("collide", d3.forceCollide().radius(d => {
-                    // 获取节点对象以获取差异化碰撞半径参数
-                    const node = nodes.find(n => nodeMap.get(n.id) === d);
+                    // 碰撞检测半径，基于节点尺寸
                     const baseRadius = Math.max(d.width || 150, d.height || 100) / 2;
-                    const collisionRadius = node && node.forceCollideRadius !== undefined ? node.forceCollideRadius : 15;
-                    return baseRadius + collisionRadius;
+                    return baseRadius + 15;  // 额外的间距
                 }))
-                .force("center", d3.forceCenter(canvasWidth / 2, canvasHeight / 2));
+                .force("center", d3.forceCenter(canvasWidth / 2, canvasHeight / 2))  // 向中心的吸引力
+                .alphaDecay(0.02)  // 较慢的衰减率，让动画持续更久
+                .alphaMin(0.001);  // 最小的alpha值
             
             // 保存节点映射
             simulation.nodeMap = nodeMap;
@@ -237,7 +210,6 @@ export default class LayoutService {
             console.error('创建实时模拟失败:', error);
             return null;
         }
-        */
     }
     
     /**
