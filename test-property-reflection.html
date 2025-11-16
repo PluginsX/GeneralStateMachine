@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PropertyReflection 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PropertyReflection 功能测试</h1>
+        
+        <div class="test-section">
+            <h3>测试1: 简单对象</h3>
+            <button class="test-button" onclick="testSimpleObject()">测试简单对象</button>
+            <div id="result1" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>测试2: 复杂对象</h3>
+            <button class="test-button" onclick="testComplexObject()">测试复杂对象</button>
+            <div id="result2" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>测试3: 空对象</h3>
+            <button class="test-button" onclick="testEmptyObject()">测试空对象</button>
+            <div id="result3" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>测试4: null/undefined</h3>
+            <button class="test-button" onclick="testNullUndefined()">测试null/undefined</button>
+            <div id="result4" class="result"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import PropertyReflection from './src/ui/propertyPanel/reflection/PropertyReflection.js';
+        
+        window.propertyReflection = new PropertyReflection();
+        
+        window.testSimpleObject = function() {
+            const resultDiv = document.getElementById('result1');
+            resultDiv.textContent = '';
+            resultDiv.className = 'result';
+            
+            try {
+                const simpleObj = {
+                    name: '测试节点',
+                    x: 100,
+                    y: 200,
+                    width: 120,
+                    height: 60,
+                    visible: true,
+                    color: '#ff6b6b'
+                };
+                
+                console.log('测试简单对象:', simpleObj);
+                const properties = window.propertyReflection.getObjectProperties(simpleObj);
+                
+                console.log('获取到的属性:', properties);
+                
+                const result = {
+                    input: simpleObj,
+                    properties: properties,
+                    propertyCount: Object.keys(properties).length
+                };
+                
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+                resultDiv.className = 'result success';
+                
+            } catch (error) {
+                console.error('测试简单对象失败:', error);
+                resultDiv.textContent = '错误: ' + error.message;
+                resultDiv.className = 'result error';
+            }
+        };
+        
+        window.testComplexObject = function() {
+            const resultDiv = document.getElementById('result2');
+            resultDiv.textContent = '';
+            resultDiv.className = 'result';
+            
+            try {
+                const complexObj = {
+                    id: 'node_123',
+                    name: '复杂节点',
+                    position: { x: 100, y: 200 },
+                    size: { width: 120, height: 60 },
+                    style: {
+                        color: '#ff6b6b',
+                        borderColor: '#333',
+                        borderWidth: 2
+                    },
+                    tags: ['important', 'test'],
+                    metadata: {
+                        created: new Date(),
+                        author: 'test'
+                    },
+                    visible: true,
+                    locked: false,
+                    customProperty: '自定义值',
+                    numberProperty: 42.5,
+                    booleanProperty: true,
+                    arrayProperty: [1, 2, 3],
+                    nullProperty: null,
+                    undefinedProperty: undefined
+                };
+                
+                console.log('测试复杂对象:', complexObj);
+                const properties = window.propertyReflection.getObjectProperties(complexObj);
+                
+                console.log('获取到的属性:', properties);
+                
+                const result = {
+                    input: complexObj,
+                    properties: properties,
+                    propertyCount: Object.keys(properties).length
+                };
+                
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+                resultDiv.className = 'result success';
+                
+            } catch (error) {
+                console.error('测试复杂对象失败:', error);
+                resultDiv.textContent = '错误: ' + error.message;
+                resultDiv.className = 'result error';
+            }
+        };
+        
+        window.testEmptyObject = function() {
+            const resultDiv = document.getElementById('result3');
+            resultDiv.textContent = '';
+            resultDiv.className = 'result';
+            
+            try {
+                const emptyObj = {};
+                
+                console.log('测试空对象:', emptyObj);
+                const properties = window.propertyReflection.getObjectProperties(emptyObj);
+                
+                console.log('获取到的属性:', properties);
+                
+                const result = {
+                    input: emptyObj,
+                    properties: properties,
+                    propertyCount: Object.keys(properties).length
+                };
+                
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+                resultDiv.className = 'result success';
+                
+            } catch (error) {
+                console.error('测试空对象失败:', error);
+                resultDiv.textContent = '错误: ' + error.message;
+                resultDiv.className = 'result error';
+            }
+        };
+        
+        window.testNullUndefined = function() {
+            const resultDiv = document.getElementById('result4');
+            resultDiv.textContent = '';
+            resultDiv.className = 'result';
+            
+            try {
+                const results = [];
+                
+                // 测试 null
+                console.log('测试 null:');
+                const nullProperties = window.propertyReflection.getObjectProperties(null);
+                results.push({
+                    test: 'null',
+                    properties: nullProperties,
+                    count: Object.keys(nullProperties).length
+                });
+                
+                // 测试 undefined
+                console.log('测试 undefined:');
+                const undefinedProperties = window.propertyReflection.getObjectProperties(undefined);
+                results.push({
+                    test: 'undefined',
+                    properties: undefinedProperties,
+                    count: Object.keys(undefinedProperties).length
+                });
+                
+                // 测试字符串
+                console.log('测试字符串:');
+                const stringProperties = window.propertyReflection.getObjectProperties('test');
+                results.push({
+                    test: 'string',
+                    properties: stringProperties,
+                    count: Object.keys(stringProperties).length
+                });
+                
+                resultDiv.textContent = JSON.stringify(results, null, 2);
+                resultDiv.className = 'result success';
+                
+            } catch (error) {
+                console.error('测试null/undefined失败:', error);
+                resultDiv.textContent = '错误: ' + error.message;
+                resultDiv.className = 'result error';
+            }
+        };
+        
+        // 页面加载完成后自动运行第一个测试
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                window.testSimpleObject();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

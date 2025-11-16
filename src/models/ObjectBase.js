@@ -39,6 +39,7 @@ export default class ObjectBase {
      * @param {Transform2D} options.transform - 变换属性
      * @param {number} options.objectId - 对象ID（自动生成）
      * @param {string} options.color - 对象颜色
+     * @param {string} options.name - 对象名称
      */
     constructor(type, options = {}) {
         if (!type) {
@@ -48,6 +49,7 @@ export default class ObjectBase {
         // 基础属性
         this.id = generateId();
         this.type = type;
+        this.name = options.name || null;
         
         // 图形学属性
         this.objectId = options.objectId || ObjectIdGenerator.generate();

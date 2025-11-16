@@ -21,8 +21,7 @@ export default class NodeModel extends ObjectBase {
      * @param {number} options.objectId - 对象ID
      */
     constructor(options = {}) {
-        super({
-            type: options.type || 'node',
+        super(options.type || 'node', {
             name: options.name,
             transform: options.transform || new Transform2D(
                 options.position || new Vector2(),

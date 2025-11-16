@@ -1,4 +1,4 @@
-import PropertyComponentBase from '../PropertyComponentBase.js';
+import { PropertyComponentBase } from '../PropertyComponentBase.js';
 
 class CollapsiblePanelComponent extends PropertyComponentBase {
   constructor(propertyName, propertyValue, onChangeCallback, options = {}) {
@@ -11,6 +11,9 @@ class CollapsiblePanelComponent extends PropertyComponentBase {
     this.collapsible = options.collapsible !== false; // 是否可折叠
     this.emptyText = options.emptyText || 'No items to display'; // 空状态文本
     this.icon = options.icon; // 面板图标
+    
+    // 立即创建DOM元素
+    this.createElement();
   }
 
   createElement() {
@@ -19,7 +22,22 @@ class CollapsiblePanelComponent extends PropertyComponentBase {
     
     // 创建设置面板类名
     if (this.options.panelClass) {
-      container.classList.add(this.options.panelClass);
+      if (typeof this.options.panelClass === 'string') {
+        // 如果是字符串，按空格分割并逐个添加
+        const classes = this.options.panelClass.trim().split(/\s+/);
+        classes.forEach(className => {
+          if (className) {
+            container.classList.add(className);
+          }
+        });
+      } else if (Array.isArray(this.options.panelClass)) {
+        // 如果是数组，逐个添加
+        this.options.panelClass.forEach(className => {
+          if (className) {
+            container.classList.add(className);
+          }
+        });
+      }
     }
 
     // 创建头部

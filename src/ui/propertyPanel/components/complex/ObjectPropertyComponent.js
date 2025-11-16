@@ -1,5 +1,5 @@
-import PropertyComponentBase from '../PropertyComponentBase.js';
-import { createPropertyComponent } from '../../utils/ComponentFactory.js'; // 后续会创建这个工厂类
+import { PropertyComponentBase } from '../PropertyComponentBase.js';
+import ComponentFactory from '../../utils/ComponentFactory.js'; // 后续会创建这个工厂类
 
 class ObjectPropertyComponent extends PropertyComponentBase {
   constructor(propertyName, propertyValue, onChangeCallback, options = {}) {
@@ -145,21 +145,9 @@ class ObjectPropertyComponent extends PropertyComponentBase {
     const propContainer = document.createElement('div');
     propContainer.className = 'object-property-item';
     
-    // 尝试动态导入组件工厂
-    const createComponent = window.createPropertyComponent || (() => {
-      // 临时的降级处理，后续会被替换
-      const el = document.createElement('div');
-      const label = document.createElement('label');
-      label.textContent = propName;
-      const input = document.createElement('input');
-      input.value = String(propValue);
-      input.addEventListener('change', (e) => {
-        this.updateProperty(propName, e.target.value);
-      });
-      el.appendChild(label);
-      el.appendChild(input);
-      return { getElement: () => el, updateValue: (val) => { input.value = String(val); } };
-    });
+    // 创建组件工厂实例
+    const factory = new ComponentFactory();
+    const createComponent = factory.createPropertyComponent.bind(factory);
     
     // 创建属性组件
     const componentOptions = {

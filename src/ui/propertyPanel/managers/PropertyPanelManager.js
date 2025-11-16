@@ -195,6 +195,8 @@ class PropertyPanelManager {
   
   // 选择对象
   selectObject(object) {
+    console.log('PropertyPanelManager.selectObject called with:', object);
+    
     // 清空当前面板
     this.clearPanel();
     
@@ -206,6 +208,7 @@ class PropertyPanelManager {
     
     // 如果没有对象，显示空状态
     if (!object) {
+      console.log('对象为空，显示空状态');
       this.emptyStateElement.style.display = 'block';
       this._triggerEvent('objectSelected', null);
       return;
@@ -214,6 +217,7 @@ class PropertyPanelManager {
     // 隐藏空状态
     this.emptyStateElement.style.display = 'none';
     
+    console.log('开始渲染属性...');
     // 渲染属性
     this._renderProperties(object);
     
@@ -241,6 +245,9 @@ class PropertyPanelManager {
     
     // 清空内容
     this.contentContainer.innerHTML = '';
+    
+    // 重新添加空状态元素并默认隐藏
+    this.emptyStateElement.style.display = 'block';
     this.contentContainer.appendChild(this.emptyStateElement);
     
     // 重置选中对象
@@ -281,27 +288,43 @@ class PropertyPanelManager {
   // 渲染对象属性
   _renderProperties(object) {
     try {
+      console.log('_renderProperties开始，对象:', object);
+      
+      // 确保 contentContainer 存在
+      if (!this.contentContainer) {
+        console.error('PropertyPanelManager: contentContainer is not initialized');
+        return;
+      }
+      
       let propertyDefinitions;
       
       // 检查是否是ObjectBase子类实例
       if (this.objectBaseHandler.isObjectBaseInstance(object)) {
+        console.log('使用ObjectBase处理器获取属性');
         // 使用ObjectBase属性处理器获取属性
         propertyDefinitions = this.objectBaseHandler.getObjectBaseProperties(object);
       } else {
+        console.log('使用通用反射机制获取属性');
         // 使用通用反射机制获取属性
         propertyDefinitions = this.reflection.getObjectProperties(object);
       }
       
+      console.log('获取到的属性定义:', propertyDefinitions);
+      
       // 过滤属性
       const filteredProperties = this._filterProperties(propertyDefinitions);
+      console.log('过滤后的属性:', filteredProperties);
       
       // 排序属性
       const sortedProperties = this.reflection.getSortedProperties(filteredProperties);
+      console.log('排序后的属性:', sortedProperties);
       
       if (this.options.groupByCategory) {
+        console.log('按组渲染属性');
         // 按组渲染
         this._renderPropertiesByGroup(sortedProperties, object);
       } else {
+        console.log('直接渲染所有属性');
         // 直接渲染所有属性
         this._renderAllProperties(sortedProperties, object);
       }
@@ -337,6 +360,12 @@ class PropertyPanelManager {
 
   // 按组渲染属性
   _renderPropertiesByGroup(properties, object) {
+    // 确保 contentContainer 存在
+    if (!this.contentContainer) {
+      console.error('PropertyPanelManager: contentContainer is not initialized in _renderPropertiesByGroup');
+      return;
+    }
+    
     // 获取属性组
     const groups = this.reflection.getPropertyGroups(properties);
     
@@ -354,14 +383,44 @@ class PropertyPanelManager {
       this._renderGroupProperties(groupProperties, object, panel);
       
       // 添加到内容容器
-      this.contentContainer.appendChild(panel.getElement());
+      const panelElement = panel && panel.getElement ? panel.getElement() : null;
+      if (panelElement && this.contentContainer && this.contentContainer.appendChild) {
+        this.contentContainer.appendChild(panelElement);
+      } else {
+        console.error('PropertyPanelManager: Invalid panel element or contentContainer in _renderPropertiesByGroup', {
+          panel: !!panel,
+          panelElement: !!panelElement,
+          contentContainer: !!this.contentContainer,
+          appendChild: !!(this.contentContainer && this.contentContainer.appendChild)
+        });
+      }
     });
   }
 
   // 渲染所有属性（不分组）
   _renderAllProperties(properties, object) {
+    // 确保 contentContainer 存在
+    if (!this.contentContainer) {
+      console.error('PropertyPanelManager: contentContainer is not initialized in _renderAllProperties');
+      return;
+    }
+    
     Object.entries(properties).forEach(([propertyName, propertyDef]) => {
-      this._renderProperty(propertyName, propertyDef, object);
+      const component = this._renderProperty(propertyName, propertyDef, object);
+      if (component) {
+        // 将组件添加到内容容器
+        const componentElement = component && component.getElement ? component.getElement() : null;
+        if (componentElement && this.contentContainer && this.contentContainer.appendChild) {
+          this.contentContainer.appendChild(componentElement);
+        } else {
+          console.error(`PropertyPanelManager: Invalid component element or contentContainer for property ${propertyName}`, {
+            component: !!component,
+            componentElement: !!componentElement,
+            contentContainer: !!this.contentContainer,
+            appendChild: !!(this.contentContainer && this.contentContainer.appendChild)
+          });
+        }
+      }
     });
   }
 

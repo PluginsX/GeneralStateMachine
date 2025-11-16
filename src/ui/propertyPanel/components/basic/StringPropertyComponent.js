@@ -1,4 +1,4 @@
-import PropertyComponentBase from '../PropertyComponentBase.js';
+import { PropertyComponentBase } from '../PropertyComponentBase.js';
 
 class StringPropertyComponent extends PropertyComponentBase {
   constructor(propertyName, propertyValue, onChangeCallback, options = {}) {

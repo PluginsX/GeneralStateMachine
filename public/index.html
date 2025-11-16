@@ -14,6 +14,9 @@
     <!-- Safari pinned tab -->
     <link rel="mask-icon" href="./assets/images/safari.svg" color="#1454ec">
     <link rel="stylesheet" href="./assets/styles/global.css">
+    <!-- 新的属性面板样式 -->
+    <link rel="stylesheet" href="../src/ui/propertyPanel/styles/propertyPanel.css">
+    <link rel="stylesheet" href="../src/ui/propertyPanel/styles/theme.css">
     <script src="../src/lib/d3.v7.min.js"></script>
 </head>
 
@@ -125,6 +128,7 @@
                     <button id="auto-arrange-btn" class="toolbar-btn">自动排列</button>
                     <button id="real-time-arrange" class="toolbar-btn">实时自动排列</button>
                     <button id="concentrate-arrange-btn" class="toolbar-btn">集中排列</button>
+                    <button id="test-property-panel" class="toolbar-btn" style="background-color: #ff9800; color: white;">测试属性面板</button>
                 </div>
             </div>
             
@@ -159,152 +163,8 @@
 
         <!-- 右侧属性栏 -->
         <aside class="property-panel">
-            <div id="node-properties" class="property-section hidden">
-                <h3>节点属性</h3>
-                <div class="form-group">
-                    <label for="node-name">节点名称</label>
-                    <input type="text" id="node-name">
-                </div>
-                <div class="form-group">
-                    <label for="node-description">节点描述</label>
-                    <textarea id="node-description"></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label for="node-group">节点组</label>
-                    <input type="text" id="node-group" placeholder="输入节点所属的组">
-                </div>
-                
-                <div class="form-group">
-                    <label for="node-color">节点颜色</label>
-                    <input type="color" id="node-color" class="selector-color-picker" value="#ffffff">
-                    <button id="node-color-reset" class="btn-small">重置为默认</button>
-                </div>
-
-                <div class="form-group">
-                    <label>尺寸设置</label>
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="node-autosize">
-                        <label for="node-autosize">自适应内容尺寸</label>
-                    </div>
-                </div>
-
-                <div class="form-group dimension-inputs">
-                    <div>
-                        <label for="node-width">宽度</label>
-                        <input type="number" id="node-width" min="50" max="500" value="150">
-                    </div>
-                    <div>
-                        <label for="node-height">高度</label>
-                        <input type="number" id="node-height" min="30" max="300" value="50">
-                    </div>
-                </div>
-
-                <h4 style="margin-top: 20px;">力导向图参数</h4>
-                <div class="form-group">
-                    <label for="node-force-charge">电荷力强度</label>
-                    <input type="number" id="node-force-charge" min="-2000" max="0" step="10" value="-300">
-                    <small>负值表示排斥力，正值表示吸引力</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="node-force-collide-radius">碰撞力半径</label>
-                    <input type="number" id="node-force-collide-radius" min="0" max="500" step="5" placeholder="自动计算">
-                    <small>留空表示根据节点尺寸自动计算</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="node-force-strength">力强度系数</label>
-                    <input type="number" id="node-force-strength" min="0" max="5" step="0.1" value="1">
-                    <small>控制节点在力导向图中的受力强度</small>
-                </div>
-                
-                <div class="form-group">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="node-fixed-position">
-                        <label for="node-fixed-position">固定位置</label>
-                    </div>
-                    <small>勾选后节点位置不受力导向图影响</small>
-                </div>
-
-                <button id="update-node" class="btn">更新节点</button>
-                <button id="delete-node" class="btn btn-danger">删除节点</button>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <h4>连线信息</h4>
-                    <div class="connection-list-section">
-                        <div class="connection-list-group">
-                            <label>出发的连线</label>
-                            <div id="outgoing-connections" class="connection-list"></div>
-                        </div>
-                        <div class="connection-list-group">
-                            <label>到达的连线</label>
-                            <div id="incoming-connections" class="connection-list"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="connection-properties" class="property-section hidden">
-                <h3>连线属性</h3>
-                
-                <div class="form-group">
-                    <label for="connection-color">连线颜色</label>
-                    <input type="color" id="connection-color" value="#666666">
-                    <button id="connection-color-reset" class="btn-small">重置为默认</button>
-                </div>
-                
-                <div class="form-group">
-                    <label for="connection-line-width">连线粗细</label>
-                    <input type="number" id="connection-line-width" min="0.5" max="10" step="0.5" value="1.5">
-                    <button id="connection-line-width-reset" class="btn-small">重置为默认</button>
-                </div>
-                
-                <div class="form-group">
-                    <label for="connection-line-type">连线类型</label>
-                    <select id="connection-line-type">
-                        <option value="solid">连续线</option>
-                        <option value="dashed">间隔线</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="connection-arrow-size">箭头尺寸</label>
-                    <input type="number" id="connection-arrow-size" min="5" max="30" step="1" value="15">
-                    <button id="connection-arrow-size-reset" class="btn-small">重置为默认</button>
-                </div>
-                
-                <div class="form-group">
-                    <label for="connection-arrow-color">箭头颜色</label>
-                    <input type="color" id="connection-arrow-color" value="#888888">
-                    <button id="connection-arrow-color-reset" class="btn-small">重置为默认</button>
-                </div>
-                
-                <h4 style="margin-top: 20px;">力导向图参数</h4>
-                <div class="form-group">
-                    <label for="connection-link-distance">连接距离</label>
-                    <input type="number" id="connection-link-distance" min="50" max="500" step="10" value="150">
-                    <small>连接的理想长度</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="connection-link-strength">连接强度</label>
-                    <input type="number" id="connection-link-strength" min="0" max="1" step="0.1" value="1">
-                    <small>连接的强度系数（0-1）</small>
-                </div>
-                
-                <h4 style="margin-top: 20px;">连线条件</h4>
-                <div id="conditions-list">
-                    <!-- 条件项将通过JavaScript动态添加 -->
-                </div>
-                <button id="add-condition" class="btn">添加条件</button>
-                <button id="delete-connection" class="btn btn-danger">删除连线</button>
-            </div>
-
-            <div id="no-selection" class="property-section">
-                <h3>提示</h3>
-                <p>选择节点或连线以编辑其属性</p>
-            </div>
+            <!-- 新的动态属性面板容器 -->
+            <div id="property-panel-container"></div>
         </aside>
     </div>
 

@@ -320,8 +320,11 @@ export const showContextMenu = (x, y, element, editor, worldPos = null) => {
                 // 注意：在新的树形排列系统中，不再重启模拟
                 // 因为树形排列是一次性计算，没有实时力导向模拟
                 // 更新属性面板
-                import('../ui/panel.js').then(({ updatePropertyPanel }) => {
-                    updatePropertyPanel(editor);
+                import('../ui/propertyPanel/managers/PropertyPanelAdapter.js').then((module) => {
+                    const PropertyPanelAdapter = module.default;
+                    const adapter = new PropertyPanelAdapter();
+                    adapter.init();
+                    adapter.update(editor);
                 });
                 removeContextMenu();
             });
@@ -344,8 +347,11 @@ export const showContextMenu = (x, y, element, editor, worldPos = null) => {
                 // 注意：在新的树形排列系统中，不再重启模拟
                 // 因为树形排列是一次性计算，没有实时力导向模拟
                 // 更新属性面板
-                import('../ui/panel.js').then(({ updatePropertyPanel }) => {
-                    updatePropertyPanel(editor);
+                import('../ui/propertyPanel/managers/PropertyPanelAdapter.js').then((module) => {
+                    const PropertyPanelAdapter = module.default;
+                    const adapter = new PropertyPanelAdapter();
+                    adapter.init();
+                    adapter.update(editor);
                 });
                 removeContextMenu();
             });
@@ -378,8 +384,11 @@ export const showContextMenu = (x, y, element, editor, worldPos = null) => {
                 // 因为树形排列是一次性计算，没有实时力导向模拟
                 
                 // 更新属性面板
-                import('../ui/panel.js').then(({ updatePropertyPanel }) => {
-                    updatePropertyPanel(editor);
+                import('../ui/propertyPanel/managers/PropertyPanelAdapter.js').then((module) => {
+                    const PropertyPanelAdapter = module.default;
+                    const adapter = new PropertyPanelAdapter();
+                    adapter.init();
+                    adapter.update(editor);
                 });
                 removeContextMenu();
             });

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>属性面板测试</title>
+    <link rel="stylesheet" href="./src/ui/propertyPanel/styles/propertyPanel.css">
+    <link rel="stylesheet" href="./src/ui/propertyPanel/styles/theme.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .property-panel {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+        .test-controls {
+            margin-bottom: 20px;
+        }
+        button {
+            margin-right: 10px;
+            padding: 8px 16px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>属性面板功能测试</h1>
+        
+        <div class="test-controls">
+            <button onclick="testNodeObject()">测试节点对象</button>
+            <button onclick="testConnectionObject()">测试连接对象</button>
+            <button onclick="testTextObject()">测试文字对象</button>
+            <button onclick="testMultipleSelection()">测试多选</button>
+            <button onclick="clearSelection()">清空选择</button>
+            <button onclick="toggleTheme()">切换主题</button>
+        </div>
+        
+        <div class="property-panel">
+            <div id="property-panel-container"></div>
+        </div>
+        
+        <div id="test-info" style="margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+            <p>点击上方按钮测试不同的属性面板功能</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import PropertyPanelAdapter from './src/ui/propertyPanel/managers/PropertyPanelAdapter.js';
+        
+        // 创建适配器实例
+        const adapter = new PropertyPanelAdapter(document.getElementById('property-panel-container'));
+        adapter.init();
+        
+        // 测试用的对象
+        const testNode = {
+            name: '测试节点',
+            x: 100,
+            y: 100,
+            width: 120,
+            height: 60,
+            color: '#007acc',
+            type: 'node',
+            id: 'node-1'
+        };
+        
+        const testConnection = {
+            name: '测试连接',
+            source: 'node-1',
+            target: 'node-2',
+            color: '#ff6b35',
+            type: 'connection',
+            id: 'conn-1'
+        };
+        
+        const testText = {
+            name: '测试文字',
+            text: '这是一个测试文字内容',
+            x: 200,
+            y: 200,
+            fontSize: 14,
+            color: '#333333',
+            type: 'text',
+            id: 'text-1'
+        };
+        
+        // 全局函数供按钮调用
+        window.testNodeObject = function() {
+            adapter.update(testNode);
+            updateInfo('已选择节点对象：' + testNode.name);
+        };
+        
+        window.testConnectionObject = function() {
+            adapter.update(testConnection);
+            updateInfo('已选择连接对象：' + testConnection.name);
+        };
+        
+        window.testTextObject = function() {
+            adapter.update(testText);
+            updateInfo('已选择文字对象：' + testText.name);
+        };
+        
+        window.testMultipleSelection = function() {
+            adapter.update([testNode, testConnection, testText]);
+            updateInfo('已选择多个对象：3个元素');
+        };
+        
+        window.clearSelection = function() {
+            adapter.clear();
+            updateInfo('已清空选择');
+        };
+        
+        window.toggleTheme = function() {
+            const body = document.body;
+            if (body.hasAttribute('data-theme')) {
+                body.removeAttribute('data-theme');
+                updateInfo('已切换到亮色主题');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                updateInfo('已切换到暗色主题');
+            }
+        };
+        
+        function updateInfo(message) {
+            const infoDiv = document.getElementById('test-info');
+            infoDiv.innerHTML = `<p><strong>最新操作：</strong>${message}</p><p><small>时间：${new Date().toLocaleTimeString()}</small></p>`;
+        }
+        
+        // 初始化显示
+        updateInfo('属性面板测试页面已加载，可以开始测试');
+    </script>
+</body>
+</html>

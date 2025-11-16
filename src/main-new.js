@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('contextmenu', e => e.preventDefault());
     
     // 初始化编辑器（使用新的Controller架构）
-    const editorController = new EditorController('editor-canvas');
+    const editorController = new EditorController('editor-canvas', 'property-panel-container');
     // 将编辑器控制器实例赋值给window，以便其他地方可以访问
     window.editorController = editorController;
     window.editor = editorController; // 保持向后兼容

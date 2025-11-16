@@ -11,7 +11,7 @@ class PropertyPanelAdapter {
         this.container = container;
         
         // 初始化主题管理器
-        this.themeManager = ThemeManager.getInstance();
+        this.themeManager = ThemeManager;
         
         // 初始化新的属性面板管理器
         this.panelManager = new PropertyPanelManager(container);
@@ -36,7 +36,7 @@ class PropertyPanelAdapter {
         this.themeManager.applyTheme();
         
         // 监听主题变化
-        this.themeManager.addEventListener('themeChange', () => {
+        this.themeManager.addThemeChangeListener(() => {
             this.themeManager.applyTheme();
         });
     }
@@ -63,10 +63,14 @@ class PropertyPanelAdapter {
      */
     init() {
         // 清理容器
-        this.container.innerHTML = '';
+        if (this.container) {
+            this.container.innerHTML = '';
+        } else {
+            console.warn('PropertyPanelAdapter: Container is not available during init');
+        }
         
-        // 创建面板容器
-        this.panelManager.init();
+        // PropertyPanelManager在构造函数中已经初始化，这里不需要再次调用init
+        // 面板已经准备好，可以直接使用
     }
     
     /**
@@ -96,7 +100,15 @@ class PropertyPanelAdapter {
      * 兼容原有接口的update方法
      */
     update(selectedItems, nodes, connections) {
+        console.log('PropertyPanelAdapter.update called with:', {
+            selectedItems: selectedItems,
+            selectedItemsLength: selectedItems ? selectedItems.length : 0,
+            nodes: nodes,
+            connections: connections
+        });
+        
         if (!selectedItems || selectedItems.length === 0) {
+            console.log('显示空状态');
             // 显示空状态
             this.panelManager.showEmptyState();
             return;
@@ -105,11 +117,13 @@ class PropertyPanelAdapter {
         // 只处理单个选中项
         if (selectedItems.length === 1) {
             const item = selectedItems[0];
+            console.log('选择单个对象:', item);
             
             // 传递给新的面板管理器显示
-            this.panelManager.showObjectProperties(item);
+            this.panelManager.selectObject(item);
         } else {
             // 多个选中项时显示统计信息
+            console.log('显示多选信息，选中项数量:', selectedItems.length);
             this.panelManager.showMultipleSelectionInfo(selectedItems);
         }
     }

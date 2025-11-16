@@ -789,26 +789,39 @@ export default class ImportService {
             
             // 验证坐标和尺寸数据
             console.debug('验证节点坐标...');
-            const x = this.validateNumber((node.transform && node.transform.position && node.transform.position.x) || 0, 100, '节点X坐标');
-            const y = this.validateNumber((node.transform && node.transform.position && node.transform.position.y) || 0, 100, '节点Y坐标');
+            const x = this.validateNumber((node.transform && node.transform.position && node.transform.position.x) || node.x || 0, 100, '节点X坐标');
+            const y = this.validateNumber((node.transform && node.transform.position && node.transform.position.y) || node.y || 0, 100, '节点Y坐标');
             const width = this.validateNumber(node.width, 120, '节点宽度', 50, 500);
             const height = this.validateNumber(node.height, 60, '节点高度', 20, 300);
             
-            // 构建标准化的节点数据
-            const normalizedNode = {
-                id: newId,
+            // 创建NodeModel实例而不是普通对象
+            const position = new Vector2(x, y);
+            const normalizedNode = new NodeModel({
                 name: nodeName,
+                position: position,
                 description: node.description || '',
+                group: node.group || '',
                 width: width,
-                height: height,
-                // 使用transform属性存储位置信息
-                transform: {
-                    position: {
-                        x: x,
-                        y: y
-                    }
-                }
-            };
+                height: height
+            });
+            
+            // 设置节点ID
+            normalizedNode.id = newId;
+            
+            // 确保transform正确设置
+            if (!normalizedNode.transform) {
+                normalizedNode.transform = new Transform2D(position, 0, new Vector2(1, 1));
+            } else {
+                normalizedNode.transform.position = position;
+            }
+            
+            // 复制其他可能的属性
+            if (node.color) {
+                normalizedNode.color = node.color;
+            }
+            if (node.data) {
+                normalizedNode.data = node.data;
+            }
             
             console.debug(`节点标准化完成: ${nodeName} (${newId})`);
             return normalizedNode;

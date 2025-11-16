@@ -1,9 +1,9 @@
-import PropertyComponentBase from '../PropertyComponentBase.js';
+import { PropertyComponentBase } from '../PropertyComponentBase.js';
 
 class ColorPropertyComponent extends PropertyComponentBase {
   constructor(propertyName, propertyValue, onChangeCallback, options = {}) {
     // 确保颜色值是有效的
-    const colorValue = this._validateColor(propertyValue || '#000000');
+    const colorValue = ColorPropertyComponent._validateColor(propertyValue || '#000000');
     super(propertyName, colorValue, onChangeCallback, options);
     
     this.showAlpha = !!options.showAlpha;
@@ -131,8 +131,8 @@ class ColorPropertyComponent extends PropertyComponentBase {
     this._triggerChange(newColor);
   }
 
-  // 验证颜色值
-  _validateColor(color) {
+  // 验证颜色值（静态方法）
+  static _validateColor(color) {
     // 创建一个临时元素来验证颜色
     const tempElement = document.createElement('div');
     tempElement.style.color = color;

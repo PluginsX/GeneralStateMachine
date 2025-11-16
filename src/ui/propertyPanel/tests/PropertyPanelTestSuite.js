@@ -287,7 +287,7 @@ class PropertyPanelTestSuite {
     testThemeSwitching() {
         return new Promise((resolve) => {
             try {
-                const themeManager = ThemeManager.getInstance();
+                const themeManager = ThemeManager;
                 
                 // 测试亮主题
                 themeManager.setTheme('light');

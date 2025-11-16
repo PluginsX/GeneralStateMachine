@@ -23,19 +23,26 @@ class PropertyReflection {
 
   // 获取对象的所有属性定义
   getObjectProperties(object) {
+    console.log('PropertyReflection.getObjectProperties called with:', object);
+    console.log('对象类型:', typeof object);
+    console.log('对象构造函数:', object?.constructor?.name);
+    
     if (!object || typeof object !== 'object') {
+      console.log('对象无效或不是对象类型，返回空属性');
       return {};
     }
 
     // 尝试从缓存获取类定义
     const objectClass = object.constructor;
     if (objectClass !== Object && this.classDefinitionCache.has(objectClass)) {
+      console.log('从缓存获取类定义:', objectClass.name);
       const cachedDef = this.classDefinitionCache.get(objectClass);
       // 克隆缓存的定义以避免修改缓存
       const result = {};
       for (const [key, def] of Object.entries(cachedDef)) {
         result[key] = def.clone();
       }
+      console.log('返回缓存的属性定义:', result);
       return result;
     }
 
@@ -351,6 +358,11 @@ class PropertyReflection {
     
     // 基本类型直接返回
     return value;
+  }
+
+  // 获取值的类型（公共方法）
+  getTypeOfValue(value) {
+    return this._determineType(value);
   }
 
   // 检查两个值是否相等

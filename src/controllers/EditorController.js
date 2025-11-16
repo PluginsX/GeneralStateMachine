@@ -5,31 +5,39 @@ import CanvasMouseHandler from '../interactions/CanvasMouseHandler.js';
 import KeyboardHandler from '../interactions/KeyboardHandler.js';
 // import DragDropHandler from '../interaction/DragDropHandler.js';
 
+import PropertyPanelAdapter from '../ui/propertyPanel/managers/PropertyPanelAdapter.js';
+
 export default class EditorController {
-    constructor(canvasId) {
+    constructor(canvasId, propertyPanelContainerId) {
         // 创建ViewModel
         this.viewModel = new EditorViewModel();
         
         // 创建View
         this.canvasView = new CanvasView(canvasId, this.viewModel);
         
+        // 获取属性面板容器
+        const propertyPanelContainer = document.getElementById(propertyPanelContainerId);
+        
+        // 创建属性面板适配器
+        this.propertyPanelAdapter = new PropertyPanelAdapter(propertyPanelContainer);
+        
         // 创建Interaction Handlers
         this.mouseHandler = new CanvasMouseHandler(this.canvasView, this.viewModel);
         this.keyboardHandler = new KeyboardHandler(this);
         // this.dragDropHandler = new DragDropHandler(this.canvasView, this.viewModel);
         
-        // 设置ViewModel变更回调，触发视图更新和属性面板更新
+        // 设置ViewModel变更回调，触发视图更新和属性面板更�?
         this.viewModel.setOnChangeCallback(() => {
             this.canvasView.scheduleRender();
-            // 动态导入updatePropertyPanel函数来更新属性面板
-            import('../ui/panel.js').then(({ updatePropertyPanel }) => {
-                updatePropertyPanel(this);
-            });
+            this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         });
         
-        // 初始化事件监听
+        // 初始化事件监�?
         this.setupEventListeners();
         this.setupUIListeners();
+        
+        // 初始化属性面板适配�?
+        this.propertyPanelAdapter.init();
     }
     
     // 设置Canvas事件监听
@@ -47,7 +55,7 @@ export default class EditorController {
         // 禁用右键菜单
         canvas.addEventListener('contextmenu', (e) => e.preventDefault());
         
-        // 键盘事件（由KeyboardHandler统一处理）
+        // 键盘事件（由KeyboardHandler统一处理�?
         // document.addEventListener('keydown', (e) => this.keyboardHandler.handleKeyDown(e));
     }
     
@@ -103,7 +111,7 @@ export default class EditorController {
     
     // 新建项目
     newProject() {
-        if (confirm('确定要新建项目吗？当前项目的更改将会丢失。')) {
+        if (confirm('确定要新建项目吗？当前项目的更改将会丢失�?')) {
             this.viewModel.clear();
             this.canvasView.scheduleRender();
         }
@@ -111,14 +119,14 @@ export default class EditorController {
     
     // 打开项目
     openProject() {
-        // 这里需要调用导入服务
+        // 这里需要调用导入服�?
         // 暂时保留接口
         console.log('打开项目功能待实现');
     }
     
     // 保存项目
     saveProject() {
-        // 这里需要调用导出服务
+        // 这里需要调用导出服�?
         const data = this.viewModel.exportData();
         console.log('保存项目:', data);
     }
@@ -189,17 +197,17 @@ export default class EditorController {
     
     // 切换实时排列
     toggleRealTimeArrange() {
-        // 实时排列功能需要更复杂的实现
+        // 实时排列功能需要更复杂的实�?
         // 暂时保留接口
         console.log('实时排列功能待实现');
     }
     
-    // 获取ViewModel（供外部使用）
+    // 获取ViewModel（供外部使用�?
     getViewModel() {
         return this.viewModel;
     }
     
-    // 获取CanvasView（供外部使用）
+    // 获取CanvasView（供外部使用�?
     getCanvasView() {
         return this.canvasView;
     }

@@ -1,7 +1,7 @@
 import { HistoryManager } from '../history/history.js';
 import { exportAsImage, exportMarkdown, saveProject } from '../io/export.js';
 import { handleFileSelect, openProject, handleProjectFileSelect, handleJSONFileSelect, handleYAMLFileSelect } from '../io/import.js';
-import { showConnectionProperties, updatePropertyPanel } from '../ui/panel.js';
+import PropertyPanelAdapter from '../ui/propertyPanel/managers/PropertyPanelAdapter.js';
 import { isLightMode, toggleTheme } from '../ui/theme.js';
 import { deepClone } from '../utils/common.js';
 import { showContextMenu } from '../utils/dom.js';
@@ -28,43 +28,46 @@ function hexToRgb(hex) {
     } : null;
 }
 
-// 编辑器主类
+// 编辑器主控制�?
 export default class NodeGraphEditorController {
-    constructor(canvasId) {
+    constructor(canvasId, propertyPanelContainerId = 'property-panel-container') {
         // 获取DOM元素
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
         this.selectionRectangle = document.querySelector('.selection-rectangle');
         this.zoomLevelDisplay = document.getElementById('zoom-level');
         
-        // 编辑器状态
+        // 获取属性面板容器元�?
+        this.propertyPanelContainer = document.getElementById(propertyPanelContainerId);
+        
+        // 编辑器状�?
         this.nodes = [];
         this.connections = [];
         this.textContents = []; // 文字内容数组
-        this.selectedElements = []; // 支持多选
+        this.selectedElements = []; // 支持多�?
         this.draggingElement = null;
         this.draggingOffset = { x: 0, y: 0 };
         this.creatingConnection = null;
-        this.selectionFilter = 'all'; // 选择筛选器：'all', 'nodes', 'connections'
+        this.selectionFilter = 'all'; // 选择筛选器: 'all', 'nodes', 'connections'
         
-        // 框选相关
+        // 框选相关状�?
         this.isSelecting = false;
         this.selectionStart = { x: 0, y: 0 };
         this.selectionCurrent = { x: 0, y: 0 };
         
-        // 视图状态
+        // 视图状�?
         this.zoom = 1.0;
         this.pan = { x: 0, y: 0 };
         this.isPanning = false;
         
-        // 实时排列相关状态
+        // 实时排列相关状�?
         this.forceSimulation = null;
         this.isRealTimeArrangeActive = false;
         this.panStart = { x: 0, y: 0 };
         this.lastMouseX = 0;
         this.lastMouseY = 0;
         
-        // 拖动检测
+        // 拖动检测状�?
         this.mouseDownPos = { x: 0, y: 0 };
         this.mouseDownTime = 0;
         this.hasMoved = false;
@@ -87,31 +90,34 @@ export default class NodeGraphEditorController {
         this.visibilityCuller = new VisibilityCuller(this.canvas, this.pan, this.zoom);
         this.lodManager = new LODManager();
         this.performanceMonitor = new PerformanceMonitor();
-        this.quadTree = null; // 延迟初始化（节点数 > 500 时）
-        this.useQuadTree = false; // 是否使用四叉树
+        this.quadTree = null; // 延迟初始化（节点�?> 500 时）
+        this.useQuadTree = false; // 是否使用四叉�?
         
-        // 节点悬浮提示框
+        // 节点悬浮提示状�?
         this.hoveredNode = null;
         this.hoverStartTime = 0;
         this.hoverTimeout = null;
         this.tooltipElement = null;
         
-        // 绑定事件处理函数（用于正确移除事件监听器）
+        // 绑定事件处理函数（用于正确移除事件监听器�?
         this.boundHandleGlobalMouseMove = this.handleGlobalMouseMove.bind(this);
         this.boundHandleGlobalMouseUp = this.handleGlobalMouseUp.bind(this);
         
-        // 用户输入状态检测
+        // 用户输入状态检�?
         this.isUserActive = true;
         this.lastUserInputTime = Date.now();
-        this.noInputThreshold = 10000; // 10秒无输入阈值
+        this.noInputThreshold = 10000; // 10秒无输入阈�?
         
         // 可视对象缓存
         this.visibleNodes = [];
         this.visibleConnections = [];
-        this.visibleTextContents = []; // 可见的文字内容数组
+        this.visibleTextContents = []; // 可见的文字内容数�?
         this.lastVisibleBounds = null;
         
-        // 初始化
+        // 属性面板适配�?
+        this.propertyPanelAdapter = new PropertyPanelAdapter(this.propertyPanelContainer);
+        
+        // 初始�?
         this.init();
     }
     
@@ -120,9 +126,13 @@ export default class NodeGraphEditorController {
         this.setupCanvas();
         this.setupEventListeners();
         this.setupUIListeners();
+        
+        // 初始化属性面�?
+        this.propertyPanelAdapter.init();
+        
         this.scheduleRender();
         
-        // 初始化时确保按钮状态正确
+        // 初始化时确保按钮状态正�?
         this.updateArrangeButtonState();
         
         // 初始化状态栏（延迟执行确保DOM已加载）
@@ -130,7 +140,7 @@ export default class NodeGraphEditorController {
             this.updateStatusBar();
         }, 100);
         
-        // 设置页面可见性检测
+        // 设置页面可见性检�?
         document.addEventListener('visibilitychange', () => {
             this.isUserActive = !document.hidden;
             if (this.isUserActive) {
@@ -138,7 +148,7 @@ export default class NodeGraphEditorController {
             }
         });
         
-        // 设置窗口焦点检测
+        // 设置窗口焦点检�?
         window.addEventListener('focus', () => {
             this.isUserActive = true;
             this.updateUserInputStatus();
@@ -148,17 +158,17 @@ export default class NodeGraphEditorController {
             this.isUserActive = false;
         });
         
-        // 定期检查用户输入状态
+        // 定期检查用户输入状�?
         setInterval(() => this.checkUserInputState(), 500);
     }
     
-    // 更新用户输入状态
+    // 更新用户输入状�?
     updateUserInputStatus() {
         this.lastUserInputTime = Date.now();
         this.isUserActive = true;
     }
     
-    // 检查用户输入状态
+    // 检查用户输入状�?
     checkUserInputState() {
         const currentTime = Date.now();
         const timeSinceLastInput = currentTime - this.lastUserInputTime;
@@ -176,7 +186,7 @@ export default class NodeGraphEditorController {
      * @param {boolean} forceUpdate - 是否强制更新（即使可视区域没有变化）
      */
     updateVisibleObjects(forceUpdate = false) {
-        // 更新可视性检测器的视图状态
+        // 更新可视性检测器的视图状�?
         this.visibilityCuller.updateView(this.pan, this.zoom);
         
         // 获取当前可视区域
@@ -188,7 +198,7 @@ export default class NodeGraphEditorController {
             Math.abs(this.lastVisibleBounds.minY - visibleBounds.minY) < 1 &&
             Math.abs(this.lastVisibleBounds.maxX - visibleBounds.maxX) < 1 &&
             Math.abs(this.lastVisibleBounds.maxY - visibleBounds.maxY) < 1) {
-            return; // 可视区域变化很小，不需要重新计算
+            return; // 可视区域变化很小，不需要重新计�?
         }
         
         this.lastVisibleBounds = visibleBounds;
@@ -231,20 +241,20 @@ export default class NodeGraphEditorController {
     // 处理实时自动排列
     handleRealTimeArrange() {
         try {
-            // 检查是否已有活跃的D3力导向图模拟，避免重复创建
+            // 检查是否已有活跃的D3力导向图模拟，避免重复创�?
             if (this.isRealTimeArrangeActive) {
                 this.stopRealTimeArrange();
-                this.showNotification('D3力导向图模拟已停止');
+                this.showNotification('D3力导向图模拟已停�?');
                 return;
             }
             
-            // 判断是否有选中的节点
-            const selectedNodes = this.selectedElements.filter(el => el instanceof Node);
+            // 判断是否有选中的节�?
+            const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
             
             // 确定要排列的节点：如果有选中的节点，则仅使用选中的节点；否则使用全局节点
             let nodes;
             if (selectedNodes.length > 0) {
-                // 仅排列选中的节点
+                // 仅排列选中的节�?
                 nodes = selectedNodes;
             } else {
                 // 没有选中任何节点，或选中的只有连接没有节点，则排列全局节点
@@ -252,7 +262,7 @@ export default class NodeGraphEditorController {
             }
             
             if (nodes.length === 0) {
-                this.showNotification('没有节点需要排列');
+                this.showNotification('没有节点需要排�?');
                 return;
             }
             
@@ -260,7 +270,7 @@ export default class NodeGraphEditorController {
             this.startForceLayoutSimulation(nodes);
             
         } catch (error) {
-            console.error('处理D3力导向图模拟时发生错误:', error);
+            console.error('处理D3力导向图模拟时发生错误', error);
             // 发生错误时，确保状态被正确重置
             this.stopRealTimeArrange();
         }
@@ -270,7 +280,7 @@ export default class NodeGraphEditorController {
     startForceLayoutSimulation(nodes) {
         // 导入LayoutService
         import('../services/LayoutService.js').then(({ default: LayoutService }) => {
-            // 获取与这些节点相关的连接（只包含两端都在节点列表中的连接）
+            // 获取与这些节点相关的连接（只包含两端都在节点列表中的连接�?
             const nodeIds = new Set(nodes.map(n => n.id));
             const connections = this.connections
                 .filter(conn => nodeIds.has(conn.sourceNodeId) && nodeIds.has(conn.targetNodeId));
@@ -284,7 +294,7 @@ export default class NodeGraphEditorController {
                 nodes, 
                 connections, 
                 () => {
-                    // 每次tick后触发重新渲染
+                    // 每次tick后触发重新渲�?
                     this.scheduleRender();
                 },
                 canvasWidth,
@@ -298,7 +308,7 @@ export default class NodeGraphEditorController {
                 // 设置排列状态为活跃
                 this.isRealTimeArrangeActive = true;
                 
-                // 更新按钮状态
+                // 更新按钮状�?
                 this.updateArrangeButtonState();
                 
                 // 更新状态栏
@@ -319,13 +329,13 @@ export default class NodeGraphEditorController {
         });
     }
     
-    // 使用树形结构排列节点（从左到右，从上到下）
+    // 使用树形结构排列节点（从左到右，从上到下�?
     performTreeLayoutArrange(nodes) {
         console.log('开始使用树形结构进行节点排列');
         
         // 导入LayoutService
         import('../services/LayoutService.js').then(({ default: LayoutService }) => {
-            // 获取与这些节点相关的连接（只包含两端都在节点列表中的连接）
+            // 获取与这些节点相关的连接（只包含两端都在节点列表中的连接�?
             const nodeIds = new Set(nodes.map(n => n.id));
             const connections = this.connections
                 .filter(conn => nodeIds.has(conn.sourceNodeId) && nodeIds.has(conn.targetNodeId));
@@ -349,7 +359,7 @@ export default class NodeGraphEditorController {
                             node.transform.position = { x: 0, y: 0 };
                         }
                         
-                        // 设置新位置
+                        // 设置新位�?
                         node.transform.position.x = position.x;
                         node.transform.position.y = position.y;
                     }
@@ -358,13 +368,13 @@ export default class NodeGraphEditorController {
                 // 设置排列状态为活跃
                 this.isRealTimeArrangeActive = true;
                 
-                // 更新按钮状态
+                // 更新按钮状�?
                 this.updateArrangeButtonState();
                 
                 // 更新状态栏
                 this.updateStatusBar();
                 
-                // 调度渲染以显示更新后的位置
+                // 调度渲染以显示更新后的位�?
                 this.scheduleRender();
                 
                 // 显示通知
@@ -390,7 +400,7 @@ export default class NodeGraphEditorController {
         
         this.isRealTimeArrangeActive = false;
         
-        // 更新按钮状态
+        // 更新按钮状�?
         this.updateArrangeButtonState();
         
         // 更新状态栏
@@ -400,16 +410,16 @@ export default class NodeGraphEditorController {
         this.showNotification('D3力导向图模拟已停止');
     }
     
-    // 更新排列按钮状态
+    // 更新排列按钮状�?
     updateArrangeButtonState() {
-        // 直接获取按钮元素（不依赖toolbar）
+        // 直接获取按钮元素（不依赖toolbar�?
         const button = document.getElementById('real-time-arrange');
         
         if (button) {
             // 更新按钮文字
             button.textContent = this.isRealTimeArrangeActive ? '停止力导向图' : '启动力导向图';
             
-            // 更新按钮样式（添加/移除 active-green 类）
+            // 更新按钮样式（添�?移除 active-green 类）
             if (this.isRealTimeArrangeActive) {
                 button.classList.add('active-green');
             } else {
@@ -417,7 +427,7 @@ export default class NodeGraphEditorController {
             }
         }
         
-        // 同时更新单次自动排列按钮的可用性
+        // 同时更新单次自动排列按钮的可用�?
         const autoArrangeBtn = document.getElementById('auto-arrange-btn');
         if (autoArrangeBtn) {
             if (this.isRealTimeArrangeActive) {
@@ -447,7 +457,7 @@ export default class NodeGraphEditorController {
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
         
-        // 监听工作区尺寸变化（包括布局调整）
+        // 监听工作区尺寸变化（包括布局调整�?
         const workspace = this.canvas.parentElement;
         if (workspace) {
             const resizeObserver = new ResizeObserver(() => {
@@ -457,9 +467,9 @@ export default class NodeGraphEditorController {
         }
     }
     
-    // 屏幕坐标转世界坐标
+    // 屏幕坐标转世界坐�?
     screenToWorld(x, y) {
-        // 确保pan和zoom是有效的数值
+        // 确保pan和zoom是有效的数�?
         const panX = typeof this.pan.x === 'number' && !isNaN(this.pan.x) ? this.pan.x : 0;
         const panY = typeof this.pan.y === 'number' && !isNaN(this.pan.y) ? this.pan.y : 0;
         const zoomLevel = typeof this.zoom === 'number' && !isNaN(this.zoom) && this.zoom > 0 ? this.zoom : 1;
@@ -472,9 +482,9 @@ export default class NodeGraphEditorController {
         return new Vector2(worldX, worldY);
     }
     
-    // 世界坐标转屏幕坐标
+    // 世界坐标转屏幕坐�?
     worldToScreen(x, y) {
-        // 确保pan和zoom是有效的数值
+        // 确保pan和zoom是有效的数�?
         const panX = typeof this.pan.x === 'number' && !isNaN(this.pan.x) ? this.pan.x : 0;
         const panY = typeof this.pan.y === 'number' && !isNaN(this.pan.y) ? this.pan.y : 0;
         const zoomLevel = typeof this.zoom === 'number' && !isNaN(this.zoom) && this.zoom > 0 ? this.zoom : 1;
@@ -486,7 +496,7 @@ export default class NodeGraphEditorController {
         return { x: screenX, y: screenY };
     }
     
-    // 设置事件监听器
+    // 设置事件监听�?
     setupEventListeners() {
         // 鼠标事件
         this.canvas.addEventListener('mousedown', e => this.handleMouseDown(e));
@@ -509,7 +519,7 @@ export default class NodeGraphEditorController {
         document.addEventListener('keydown', e => this.handleKeyDown(e));
     }
     
-    // 设置UI元素监听器
+    // 设置UI元素监听�?
     setupUIListeners() {
         // 菜单按钮
         document.getElementById('new-project').addEventListener('click', () => this.newProject());
@@ -534,7 +544,7 @@ export default class NodeGraphEditorController {
         document.getElementById('selection-filter').addEventListener('change', e => {
             this.selectionFilter = e.target.value;
             this.filterSelectedElements();
-            updatePropertyPanel(this);
+            this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
             this.scheduleRender();
         });
         
@@ -550,23 +560,41 @@ export default class NodeGraphEditorController {
                 // 直接调用当前NodeGraphEditor实例的handleRealTimeArrange方法
                 this.handleRealTimeArrange();
             } catch (error) {
-                console.error('点击实时排列按钮时发生错误:', error);
+                console.error('点击实时排列按钮时发生错误', error);
             }
         });
         
-        // 属性面板
-        document.getElementById('update-node').addEventListener('click', () => this.updateSelectedNode());
-        document.getElementById('delete-node').addEventListener('click', () => this.deleteSelectedNodes());
-        document.getElementById('add-condition').addEventListener('click', () => this.addCondition());
-        document.getElementById('delete-connection').addEventListener('click', () => this.deleteSelectedConnections());
+        // 属性面板按钮（可能不存在，需要检查）
+        const updateNodeBtn = document.getElementById('update-node');
+        if (updateNodeBtn) {
+            updateNodeBtn.addEventListener('click', () => this.updateSelectedNode());
+        }
+        
+        const deleteNodeBtn = document.getElementById('delete-node');
+        if (deleteNodeBtn) {
+            deleteNodeBtn.addEventListener('click', () => this.deleteSelectedNodes());
+        }
+        
+        const addConditionBtn = document.getElementById('add-condition');
+        if (addConditionBtn) {
+            addConditionBtn.addEventListener('click', () => this.addCondition());
+        }
+        
+        const deleteConnectionBtn = document.getElementById('delete-connection');
+        if (deleteConnectionBtn) {
+            deleteConnectionBtn.addEventListener('click', () => this.deleteSelectedConnections());
+        }
         
         // 添加文字按钮
         document.getElementById('add-text').addEventListener('click', () => this.addTextAtCenter());
         
         // 自适应尺寸切换
-        document.getElementById('node-autosize').addEventListener('change', e => {
-            this.toggleAutoSize(e.target.checked);
-        });
+        const nodeAutosizeEl = document.getElementById('node-autosize');
+        if (nodeAutosizeEl) {
+            nodeAutosizeEl.addEventListener('change', e => {
+                this.toggleAutoSize(e.target.checked);
+            });
+        }
         
         // 文件输入
         document.getElementById('file-input').addEventListener('change', e => handleFileSelect(e, this));
@@ -574,7 +602,7 @@ export default class NodeGraphEditorController {
         document.getElementById('yaml-input').addEventListener('change', e => handleYAMLFileSelect(e, this));
         document.getElementById('project-input').addEventListener('change', e => handleProjectFileSelect(e, this));
         
-        // 工具栏拖拽
+        // 工具栏拖�?
         document.querySelectorAll('.tool-item').forEach(item => {
             item.addEventListener('dragstart', e => {
                 e.dataTransfer.setData('text/plain', item.dataset.type);
@@ -582,7 +610,7 @@ export default class NodeGraphEditorController {
         });
     }
     
-    // 过滤选中的元素
+    // 过滤选中的元�?
     filterSelectedElements() {
         this.selectedElements = this.selectedElements.filter(el => {
             if (this.selectionFilter === 'all') return true;
@@ -624,9 +652,9 @@ export default class NodeGraphEditorController {
         }
         
         this.selectedElements = [];
-        // 强制更新可见对象列表，确保撤销操作后的对象状态正确
+        // 强制更新可见对象列表，确保撤销操作后的对象状态正�?
         this.updateVisibleObjects(true);
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
@@ -666,9 +694,9 @@ export default class NodeGraphEditorController {
         }
         
         this.selectedElements = [];
-        // 强制更新可见对象列表，确保重做操作后的对象状态正确
+        // 强制更新可见对象列表，确保重做操作后的对象状态正�?
         this.updateVisibleObjects(true);
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
@@ -691,14 +719,14 @@ export default class NodeGraphEditorController {
     
     // 重置视图（缩放和移动画布，让所有节点整体居中显示）
     resetView() {
-        // 确定要居中的节点：如果有选中对象，只居中选中的节点；否则居中所有节点
+        // 确定要居中的节点：如果有选中对象，只居中选中的节点；否则居中所有节�?
         let nodesToCenter = [];
         
         if (this.selectedElements.length > 0) {
-            // 只居中选中的节点
-            nodesToCenter = this.selectedElements.filter(el => el instanceof Node);
+            // 只居中选中的节�?
+            nodesToCenter = this.selectedElements.filter(el => el.type === 'node');
         } else {
-            // 居中所有节点
+            // 居中所有节�?
             nodesToCenter = this.nodes;
         }
         
@@ -742,10 +770,10 @@ export default class NodeGraphEditorController {
         // 计算合适的缩放比例（留出一些边距）
         const scaleX = (canvasWidth * 0.9) / contentWidth;
         const scaleY = (canvasHeight * 0.9) / contentHeight;
-        // 限制缩放范围在 0.1 (10%) 到 5.0 (500%) 之间
+        // 限制缩放范围�?0.1 (10%) �?5.0 (500%) 之间
         this.zoom = Math.max(0.1, Math.min(scaleX, scaleY, 5.0));
         
-        // 计算中心点
+        // 计算中心�?
         const centerX = (minX + maxX) / 2;
         const centerY = (minY + maxY) / 2;
         
@@ -783,7 +811,7 @@ export default class NodeGraphEditorController {
         this.mouseDownTime = Date.now();
         this.hasMoved = false;
         
-        // 清除之前的点击超时
+        // 清除之前的点击超�?
         if (this.clickTimeout) {
             clearTimeout(this.clickTimeout);
             this.clickTimeout = null;
@@ -797,14 +825,14 @@ export default class NodeGraphEditorController {
         
         // 中键平移
         if (e.button === 1) {
-            e.preventDefault(); // 防止中键的默认行为（如打开链接、滚动等）
+            e.preventDefault(); // 防止中键的默认行为（如打开链接、滚动等�?
             this.startPanning(x, y);
             return;
         }
         
         // 左键处理
         if (e.button === 0) {
-            // 如果正在创建连接，需要特殊处理
+            // 如果正在创建连接，需要特殊处�?
             if (this.creatingConnection) {
                 // 检查是否点击了节点
                 const clickedNode = this.visibleNodes.find(node => 
@@ -871,13 +899,13 @@ export default class NodeGraphEditorController {
                 return;
             }
             
-            // 如果没有点击任何元素，开始框选
+            // 如果没有点击任何元素，开始框�?
             this.startSelection(x, y);
             this.deselectAll();
         }
     }
     
-    // 开始平移
+    // 开始平�?
     startPanning(x, y) {
         this.isPanning = true;
         this.panStart.x = x;
@@ -885,7 +913,7 @@ export default class NodeGraphEditorController {
         this.canvas.style.cursor = 'grabbing';
     }
     
-    // 开始框选
+    // 开始框�?
     startSelection(x, y) {
         this.isSelecting = true;
         this.selectionStart.x = x;
@@ -893,7 +921,7 @@ export default class NodeGraphEditorController {
         this.selectionCurrent.x = x;
         this.selectionCurrent.y = y;
         
-        // 显示选择框
+        // 显示选择�?
         this.selectionRectangle.style.left = x + 'px';
         this.selectionRectangle.style.top = y + 'px';
         this.selectionRectangle.style.width = '0px';
@@ -905,7 +933,7 @@ export default class NodeGraphEditorController {
         document.addEventListener('mouseup', this.boundHandleGlobalMouseUp);
     }
     
-    // 处理节点点击（在鼠标按下时调用，用于准备拖动）
+    // 处理节点点击（在鼠标按下时调用，用于准备拖动�?
     handleNodeClick(node, worldPos, e) {
         // 处理连接创建
         if (this.creatingConnection) {
@@ -922,22 +950,22 @@ export default class NodeGraphEditorController {
         // 检查节点是否已经被选中
         const isAlreadySelected = this.selectedElements.some(el => el.id === node.id);
         
-        // 如果节点已经被选中且按住Ctrl键，取消选择该节点
+        // 如果节点已经被选中且按住Ctrl键，取消选择该节�?
         if (isAlreadySelected && (e.ctrlKey || e.metaKey)) {
             const index = this.selectedElements.findIndex(el => el.id === node.id);
             if (index !== -1) {
                 this.selectedElements.splice(index, 1);
-                // 同步更新viewModel中的选中状态
+                // 同步更新viewModel中的选中状�?
                 if (this.viewModel && this.viewModel.getNodeViewModel()) {
                     this.viewModel.getNodeViewModel().deselectNode(node.id);
                 }
-                updatePropertyPanel(this);
+                this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
                 this.scheduleRender();
             }
             return;
         }
         
-        // 如果节点已经被选中（且没有按住Ctrl键），准备拖动
+        // 如果节点已经被选中（且没有按住Ctrl键），准备拖�?
         if (isAlreadySelected) {
             // 将点击的节点移到最上层（显示层次优化）
             this.bringNodeToFront(node);
@@ -951,14 +979,14 @@ export default class NodeGraphEditorController {
             return;
         }
         
-        // 新选择节点的情况
+        // 新选择节点的情�?
         if (!isAlreadySelected) {
             // 清空之前的选择（除非按住Ctrl键）
             if (!(e.ctrlKey || e.metaKey)) {
                 this.selectedElements = [];
             }
             
-            // 确保节点有type属性（关键修复：确保节点可以被正确识别）
+            // 确保节点有type属性（关键修复：确保节点可以被正确识别�?
             if (!node.type) {
                 node.type = 'node';
             }
@@ -966,12 +994,12 @@ export default class NodeGraphEditorController {
             // 添加新节点到选择列表
             this.selectedElements.push(node);
             
-            // 同步更新viewModel中的选中状态
+            // 同步更新viewModel中的选中状�?
             if (this.viewModel && this.viewModel.getNodeViewModel()) {
                 this.viewModel.getNodeViewModel().selectNode(node.id, e.ctrlKey || e.metaKey);
             }
             
-            updatePropertyPanel(this);
+            this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
             this.scheduleRender();
             
             // 将点击的节点移到最上层（显示层次优化）
@@ -985,7 +1013,7 @@ export default class NodeGraphEditorController {
             this.draggingOffset.y = worldPos.y - nodePos.y;
         }
         
-        // 选择逻辑已经在前面的条件分支中处理完成
+        // 选择逻辑已经在前面的条件分支中处理完�?
         // 新的实现确保了selectedElements和viewModel的selectedNodeIds同步
         
         // 应用筛选器
@@ -998,7 +1026,7 @@ export default class NodeGraphEditorController {
         if (index !== -1) {
             // 从数组中移除节点
             this.nodes.splice(index, 1);
-            // 添加到数组末尾（最后绘制的在最上层）
+            // 添加到数组末尾（最后绘制的在最上层�?
             this.nodes.push(node);
         }
     }
@@ -1007,7 +1035,7 @@ export default class NodeGraphEditorController {
     handleTextContentClick(textContent, worldPos, e) {
         // 根据筛选器判断是否可以选择文字内容
         if (this.selectionFilter === 'nodes' || this.selectionFilter === 'connections') {
-            // 如果筛选器设置为仅选择节点或连线，则忽略文字内容点击
+            // 如果筛选器设置为仅选择节点或连线，则忽略文字内容点�?
             return;
         }
         
@@ -1019,13 +1047,13 @@ export default class NodeGraphEditorController {
             const index = this.selectedElements.findIndex(el => el.id === textContent.id);
             if (index !== -1) {
                 this.selectedElements.splice(index, 1);
-                updatePropertyPanel(this);
+                this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
                 this.scheduleRender();
             }
             return;
         }
         
-        // 如果文字内容已经被选中（且没有按住Ctrl键），准备拖动
+        // 如果文字内容已经被选中（且没有按住Ctrl键），准备拖�?
         if (isAlreadySelected) {
             // 准备拖动
             this.draggingElement = textContent;
@@ -1036,7 +1064,7 @@ export default class NodeGraphEditorController {
             return;
         }
         
-        // 新选择文字内容的情况
+        // 新选择文字内容的情�?
         if (!isAlreadySelected) {
             // 清空之前的选择（除非按住Ctrl键）
             if (!(e.ctrlKey || e.metaKey)) {
@@ -1046,7 +1074,7 @@ export default class NodeGraphEditorController {
             // 添加新文字内容到选择列表
             this.selectedElements.push(textContent);
             
-            updatePropertyPanel(this);
+            this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
             this.scheduleRender();
             
             // 准备拖动
@@ -1076,9 +1104,9 @@ export default class NodeGraphEditorController {
             this.deselectAll();
         }
         
-        // 如果点击的是多条连线，选择所有连线
+        // 如果点击的是多条连线，选择所有连�?
         connectionArray.forEach(connection => {
-            // 确保连接有type属性（关键修复：确保连接可以被正确识别）
+            // 确保连接有type属性（关键修复：确保连接可以被正确识别�?
             if (!connection.type) {
                 connection.type = 'connection';
             }
@@ -1097,7 +1125,7 @@ export default class NodeGraphEditorController {
         // 应用筛选器
         this.filterSelectedElements();
         
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
@@ -1124,7 +1152,7 @@ export default class NodeGraphEditorController {
             }
         }
         
-        // 平移处理（确保不在框选状态下）
+        // 平移处理（确保不在框选状态下�?
         if (this.isPanning && !this.isSelecting) {
             this.pan.x += x - this.panStart.x;
             this.pan.y += y - this.panStart.y;
@@ -1136,7 +1164,7 @@ export default class NodeGraphEditorController {
         
         // 拖动文字内容对象处理（支持多选拖动）
         if (this.draggingElement && this.draggingElement.type === 'text') {
-            // 确保transform对象存在，并获取当前位置（统一使用transform.position）
+            // 确保transform对象存在，并获取当前位置（统一使用transform.position�?
             if (!this.draggingElement.transform) {
                 this.draggingElement.transform = {};
             }
@@ -1148,12 +1176,12 @@ export default class NodeGraphEditorController {
             const deltaX = worldPos.x - this.draggingElement.transform.position.x - this.draggingOffset.x;
             const deltaY = worldPos.y - this.draggingElement.transform.position.y - this.draggingOffset.y;
             
-            // 获取所有选中的文字内容对象
+            // 获取所有选中的文字内容对�?
             const selectedTexts = this.selectedElements.filter(el => el.type === 'text');
             
             // 如果只有一个文字对象被选中，直接移动它
             if (selectedTexts.length === 1) {
-                // 计算新位置
+                // 计算新位�?
                 const newX = worldPos.x - this.draggingOffset.x;
                 const newY = worldPos.y - this.draggingOffset.y;
                 
@@ -1161,7 +1189,7 @@ export default class NodeGraphEditorController {
                 this.draggingElement.transform.position.x = newX;
                 this.draggingElement.transform.position.y = newY;
             } else {
-                // 如果有多个文字对象被选中，移动所有选中的文字对象
+                // 如果有多个文字对象被选中，移动所有选中的文字对�?
                 selectedTexts.forEach(text => {
                     const textPos = (text.transform && text.transform.position) ? 
                         text.transform.position : { x: 0, y: 0 };
@@ -1191,7 +1219,7 @@ export default class NodeGraphEditorController {
         
         // 拖动节点处理（支持多选拖动）
         if (this.draggingElement && this.draggingElement.type === 'node') {
-            // 确保transform对象存在，并获取当前位置（统一使用transform.position）
+            // 确保transform对象存在，并获取当前位置（统一使用transform.position�?
             if (!this.draggingElement.transform) {
                 this.draggingElement.transform = {};
             }
@@ -1203,23 +1231,23 @@ export default class NodeGraphEditorController {
             const deltaX = worldPos.x - this.draggingElement.transform.position.x - this.draggingOffset.x;
             const deltaY = worldPos.y - this.draggingElement.transform.position.y - this.draggingOffset.y;
             
-            // 获取所有选中的节点
+            // 获取所有选中的节�?
             const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
             
             // 如果只有一个节点被选中，直接移动它
             if (selectedNodes.length === 1) {
-                // 计算新位置
+                // 计算新位�?
                 const newX = worldPos.x - this.draggingOffset.x;
                 const newY = worldPos.y - this.draggingOffset.y;
                 
-                // 更新transform.position（参考集中排列代码的做法）
+                // 更新transform.position（参考集中排列代码的做法�?
                 this.draggingElement.transform.position.x = newX;
                 this.draggingElement.transform.position.y = newY;
                 
                 // 注意：在新的树形排列系统中，不再操作D3模拟中的节点位置
-                // 因为树形排列是一次性计算，没有实时力导向模拟
+                // 因为树形排列是一次性计算，没有实时力导向模�?
             } else {
-                // 如果有多个节点被选中，移动所有选中的节点
+                // 如果有多个节点被选中，移动所有选中的节�?
                 selectedNodes.forEach(node => {
                     const nodePos = (node.transform && node.transform.position) ? 
                         node.transform.position : { x: 0, y: 0 };
@@ -1237,7 +1265,7 @@ export default class NodeGraphEditorController {
                     node.transform.position.y = nodePos.y + deltaY;
                     
                     // 注意：在新的树形排列系统中，不再操作D3模拟中的节点位置
-                    // 因为树形排列是一次性计算，没有实时力导向模拟
+                    // 因为树形排列是一次性计算，没有实时力导向模�?
                 });
                 // 更新拖动偏移量，以便下次移动时使用正确的偏移
                 const dragNodePos = (this.draggingElement.transform && this.draggingElement.transform.position) ? 
@@ -1259,7 +1287,7 @@ export default class NodeGraphEditorController {
     // 处理鼠标松开事件
     handleMouseUp(e) {
         this.updateUserInputStatus();
-        // 只处理左键和中键的松开事件（右键用于上下文菜单）
+        // 只处理左键和中键的松开事件（右键用于上下文菜单�?
         if (e.button === 0 || e.button === 1) {
             // 如果是拖动，不执行单击逻辑
             if (this.hasMoved) {
@@ -1270,7 +1298,7 @@ export default class NodeGraphEditorController {
             }
             
             // 如果是单击（没有移动），且之前有节点被点击但未选中，现在执行选择
-            // 这个逻辑已经在 handleNodeClick 中处理了，这里只需要清理状态
+            // 这个逻辑已经�?handleNodeClick 中处理了，这里只需要清理状�?
             this.hasMoved = false;
             this.mouseDownPos = null;
             
@@ -1284,11 +1312,11 @@ export default class NodeGraphEditorController {
         
         // 使用快捷键管理器处理键盘事件
         if (this.shortcutManager.handleKeyDown(e)) {
-            return; // 快捷键已处理，直接返回
+            return; // 快捷键已处理，直接返�?
         }
         
         // 如果没有匹配的快捷键，继续原有的处理逻辑
-        // （这里可以保留一些特殊的处理逻辑）
+        // （这里可以保留一些特殊的处理逻辑�?
     }
     
     // 复制选中的元素到鼠标位置
@@ -1322,7 +1350,7 @@ export default class NodeGraphEditorController {
         
         if (selectedNodes.length === 0 && selectedTexts.length === 0) return;
         
-        // 计算偏移量
+        // 计算偏移�?
         const offsetX = worldPos.x - minX;
         const offsetY = worldPos.y - minY;
         
@@ -1394,7 +1422,7 @@ export default class NodeGraphEditorController {
                         newConnection.conditions.push(newCond);
                     });
                 }
-                // 复制连线属性
+                // 复制连线属�?
                 newConnection.color = conn.color;
                 newConnection.lineWidth = conn.lineWidth;
                 newConnection.lineType = conn.lineType;
@@ -1426,7 +1454,7 @@ export default class NodeGraphEditorController {
         
         // 强制更新可见对象列表，确保导入的对象可以被鼠标事件检测到
         this.updateVisibleObjects(true);
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
@@ -1439,7 +1467,7 @@ export default class NodeGraphEditorController {
         }
     }
     
-    // 停止平移和拖动
+    // 停止平移和拖�?
     stopPanningAndDragging() {
         // 停止平移
         if (this.isPanning) {
@@ -1450,7 +1478,7 @@ export default class NodeGraphEditorController {
         // 停止拖动节点
         if (this.draggingElement) {
             // 注意：在新的树形排列系统中，不再操作D3模拟中的节点位置
-            // 因为树形排列是一次性计算，没有实时力导向模拟
+            // 因为树形排列是一次性计算，没有实时力导向模�?
             
             this.draggingElement = null;
         }
@@ -1510,20 +1538,20 @@ export default class NodeGraphEditorController {
         // 处理选择
         this.processSelection(selectionMinX, selectionMinY, selectionMaxX, selectionMaxY);
         
-        // 停止平移和拖动
+        // 停止平移和拖�?
         this.stopPanningAndDragging();
     }
     
     // 处理鼠标离开事件
     handleMouseLeave(e) {
         this.updateUserInputStatus();
-        // 框选过程中鼠标离开画布时不结束框选
+        // 框选过程中鼠标离开画布时不结束框�?
         if (this.isSelecting) return;
         
-        // 重置提示框状态
+        // 重置提示框状�?
         this.resetTooltipState();
         
-        // 结束拖动和平移
+        // 结束拖动和平�?
         this.stopPanningAndDragging();
     }
     
@@ -1547,7 +1575,7 @@ export default class NodeGraphEditorController {
             this.zoom = Math.max(this.zoom / 1.1, 0.1);
         }
         
-        // 调整平移，使鼠标指向的世界坐标保持不变
+        // 调整平移，使鼠标指向的世界坐标保持不�?
         this.pan.x = mouseX - mouseWorldX * this.zoom;
         this.pan.y = mouseY - mouseWorldY * this.zoom;
         
@@ -1587,7 +1615,7 @@ export default class NodeGraphEditorController {
             
             this.addNode(newNode);
         } else if (type === 'connection') {
-            // 开始创建连线
+            // 开始创建连�?
             const nodeUnderCursor = this.nodes.find(node => 
                 node.transform && node.transform.position &&
                 isPointInRect(worldPos.x, worldPos.y, {
@@ -1604,7 +1632,7 @@ export default class NodeGraphEditorController {
         } else if (type === 'text') {
             // 创建文字对象
             const newText = new TextContent({
-                text: '新文字',
+                text: '新文本',
                 fontSize: 14,
                 fontColor: '#000000',
                 autoSize: true,
@@ -1617,7 +1645,7 @@ export default class NodeGraphEditorController {
         }
     }
     
-    // 开始创建连线
+    // 开始创建连�?
     startConnectionCreation(sourceNodeId) {
         this.creatingConnection = {
             sourceNodeId: sourceNodeId
@@ -1655,12 +1683,12 @@ export default class NodeGraphEditorController {
                 nodeX = node.transform.position.x;
                 nodeY = node.transform.position.y;
             } else {
-                // 如果既没有transform.position也没有x/y，使用默认值
+                // 如果既没有transform.position也没有x/y，使用默认�?
                 nodeX = 0;
                 nodeY = 0;
             }
             
-            // 确保宽度和高度有默认值
+            // 确保宽度和高度有默认�?
             const width = node.width || 100; // 默认宽度
             const height = node.height || 50; // 默认高度
             
@@ -1676,11 +1704,11 @@ export default class NodeGraphEditorController {
         const clickedConnections = this.getConnectionAtPosition(worldPos);
         const clickedConnection = clickedConnections && clickedConnections.length > 0 ? clickedConnections[0] : null;
         
-        // 显示上下文菜单（无论是否点击到元素都显示）
-        // 使用 clientX, clientY 作为页面坐标（相对于视口）
+        // 显示上下文菜单（无论是否点击到元素都显示�?
+        // 使用 clientX, clientY 作为页面坐标（相对于视口�?
         let element = clickedNode || clickedConnection || null;
         
-        // 为节点和连线添加类型标识，确保右键菜单正确识别
+        // 为节点和连线添加类型标识，确保右键菜单正确识�?
         if (element) {
             if (clickedNode) {
                 element.type = 'node';
@@ -1701,7 +1729,7 @@ export default class NodeGraphEditorController {
         return (d1 >= 0 && d2 >= 0 && d3 >= 0) || (d1 <= 0 && d2 <= 0 && d3 <= 0);
     }
     
-    // 获取指定位置的连线（支持双向连线的左右区域分别点击，支持箭头点击）
+    // 获取指定位置的连线（支持双向连线的左右区域分别点击，支持箭头点击�?
     getConnectionAtPosition(pos) {
         // 按节点对分组可视连线
         const connectionGroups = this.groupConnectionsByNodePair(this.visibleConnections);
@@ -1712,7 +1740,7 @@ export default class NodeGraphEditorController {
             
             if (!nodeA || !nodeB) continue;
             
-            // 计算连线的起点和终点（使用transform.position）
+            // 计算连线的起点和终点（使用transform.position�?
             const startPos = (nodeA.transform && nodeA.transform.position) ? 
                 nodeA.transform.position : { x: 0, y: 0 };
             const endPos = (nodeB.transform && nodeB.transform.position) ? 
@@ -1723,7 +1751,7 @@ export default class NodeGraphEditorController {
             const endX = endPos.x + nodeB.width / 2;
             const endY = endPos.y + nodeB.height / 2;
             
-            // 判断是否有双向连线
+            // 判断是否有双向连�?
             const hasForward = group.forward.length > 0;
             const hasBackward = group.backward.length > 0;
             const isBidirectional = hasForward && hasBackward;
@@ -1733,7 +1761,7 @@ export default class NodeGraphEditorController {
             const midY = (startY + endY) / 2;
             const angle = Math.atan2(endY - startY, endX - startX);
             
-            // 检查forward方向的箭头（箭头位置已保存为世界坐标）
+            // 检查forward方向的箭头（箭头位置已保存为世界坐标�?
             if (hasForward) {
                 const forwardConn = group.forward[0];
                 if (forwardConn._arrowPositions) {
@@ -1750,7 +1778,7 @@ export default class NodeGraphEditorController {
                 }
             }
             
-            // 检查backward方向的箭头（箭头位置已保存为世界坐标）
+            // 检查backward方向的箭头（箭头位置已保存为世界坐标�?
             if (hasBackward) {
                 const backwardConn = group.backward[0];
                 if (backwardConn._arrowPositions) {
@@ -1774,28 +1802,28 @@ export default class NodeGraphEditorController {
             
             if (isBidirectional) {
                 // 双向连线：需要判断点击的是左侧还是右侧（以中心点为分割）
-                // 计算从中心点到点击位置的向量（沿连线方向）
+                // 计算从中心点到点击位置的向量（沿连线方向�?
                 const dx = pos.x - midX;
                 const dy = pos.y - midY;
                 
                 // 计算点击位置在连线方向上的投影（平行于连线）
                 const parallelProjection = dx * Math.cos(angle) + dy * Math.sin(angle);
                 
-                // 判断点击位置更靠近哪个节点
-                // 如果点击位置在中心点向A节点方向（startX, startY），选择forward（A -> B）
-                // 如果点击位置在中心点向B节点方向（endX, endY），选择backward（B -> A）
+                // 判断点击位置更靠近哪个节�?
+                // 如果点击位置在中心点向A节点方向（startX, startY），选择forward（A -> B�?
+                // 如果点击位置在中心点向B节点方向（endX, endY），选择backward（B -> A�?
                 // 注意：startX是A节点，endX是B节点
-                // parallelProjection > 0 表示从中心点向B节点方向（endX方向）
-                // parallelProjection < 0 表示从中心点向A节点方向（startX方向）
+                // parallelProjection > 0 表示从中心点向B节点方向（endX方向�?
+                // parallelProjection < 0 表示从中心点向A节点方向（startX方向�?
                 if (parallelProjection > 0) {
-                    // 点击的是从中心点向B节点方向，应该选择backward（B -> A方向）
+                    // 点击的是从中心点向B节点方向，应该选择backward（B -> A方向�?
                     return group.backward.length > 0 ? group.backward : null;
                 } else {
-                    // 点击的是从中心点向A节点方向，应该选择forward（A -> B方向）
+                    // 点击的是从中心点向A节点方向，应该选择forward（A -> B方向�?
                     return group.forward.length > 0 ? group.forward : null;
                 }
             } else {
-                // 单向连线：直接返回该方向的连线
+                // 单向连线：直接返回该方向的连�?
                 if (hasForward) {
                     return group.forward.length > 0 ? group.forward : null;
                 } else {
@@ -1807,9 +1835,9 @@ export default class NodeGraphEditorController {
         return null;
     }
     
-    // 处理框选
+    // 处理框�?
     processSelection(minX, minY, maxX, maxY) {
-        // 框选文字内容对象
+        // 框选文字内容对�?
         this.visibleTextContents.forEach(text => {
             const position = (text.transform && text.transform.position) ? 
                 text.transform.position : { x: 0, y: 0 };
@@ -1821,12 +1849,16 @@ export default class NodeGraphEditorController {
                 // 检查是否已经被选中
                 const isAlreadySelected = this.selectedElements.some(el => el.id === text.id);
                 if (!isAlreadySelected) {
+                    // 确保文字对象有type属性
+                    if (!text.type) {
+                        text.type = 'text';
+                    }
                     this.selectedElements.push(text);
                 }
             }
         });
         
-        // 框选节点（原有逻辑）
+        // 框选节点（原有逻辑�?
         const selectionRect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
         
         // 根据筛选器类型选择元素
@@ -1841,6 +1873,10 @@ export default class NodeGraphEditorController {
                 };
                 
                 if (doRectsOverlap(selectionRect, nodeRect)) {
+                    // 确保节点对象有type属性
+                    if (!node.type) {
+                        node.type = 'node';
+                    }
                     this.selectedElements.push(node);
                 }
             });
@@ -1852,10 +1888,14 @@ export default class NodeGraphEditorController {
                 const targetNode = this.nodes.find(n => n.id === connection.targetNodeId);
                 
                 if (sourceNode && targetNode) {
-                    // 检查是否选中箭头或端点
+                    // 检查是否选中箭头或端�?
                     const isConnected = this._isConnectionSelectedByArrowOrEndpoints(sourceNode, targetNode, selectionRect, connection);
                     
                     if (isConnected) {
+                        // 确保连接对象有type属性
+                        if (!connection.type) {
+                            connection.type = 'connection';
+                        }
                         this.selectedElements.push(connection);
                     }
                 }
@@ -1867,12 +1907,12 @@ export default class NodeGraphEditorController {
             this.selectedElements.map(item => [item.id, item])
         ).values()];
         
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
     }
     
     // 检查连线是否通过箭头或端点被选中
     _isConnectionSelectedByArrowOrEndpoints(sourceNode, targetNode, selectionRect, connection) {
-        // 检查端点是否在选择框内（原有逻辑）
+        // 检查端点是否在选择框内（原有逻辑�?
         const sourcePos = sourceNode.transform && sourceNode.transform.position ? sourceNode.transform.position : { x: 0, y: 0 };
         const targetPos = targetNode.transform && targetNode.transform.position ? targetNode.transform.position : { x: 0, y: 0 };
         
@@ -1889,15 +1929,15 @@ export default class NodeGraphEditorController {
             return true;
         }
         
-        // 计算连线方向和箭头位置
+        // 计算连线方向和箭头位�?
         const dx = targetCenterX - sourceCenterX;
         const dy = targetCenterY - sourceCenterY;
         const angle = Math.atan2(dy, dx);
         
-        // 箭头大小默认为10（与drawArrow方法一致）
+        // 箭头大小默认�?0（与drawArrow方法一致）
         const arrowSize = 10;
         
-        // 计算连线中点（箭头实际绘制在中点位置）
+        // 计算连线中点（箭头实际绘制在中点位置�?
         const midX = (sourceCenterX + targetCenterX) / 2;
         const midY = (sourceCenterY + targetCenterY) / 2;
         
@@ -1905,7 +1945,7 @@ export default class NodeGraphEditorController {
         const arrowCenterX = midX;
         const arrowCenterY = midY;
         
-        // 计算箭头的三个顶点
+        // 计算箭头的三个顶�?
         const tipX = arrowCenterX + arrowSize * Math.cos(angle);
         const tipY = arrowCenterY + arrowSize * Math.sin(angle);
         const base1X = arrowCenterX - arrowSize * Math.cos(angle - Math.PI / 3);
@@ -1913,7 +1953,7 @@ export default class NodeGraphEditorController {
         const base2X = arrowCenterX - arrowSize * Math.cos(angle + Math.PI / 3);
         const base2Y = arrowCenterY - arrowSize * Math.sin(angle + Math.PI / 3);
         
-        // 检查箭头三角形是否与选择框相交
+        // 检查箭头三角形是否与选择框相�?
         // 1. 检查箭头的任意一个顶点是否在选择框内
         const tipInRect = isPointInRect(tipX, tipY, selectionRect);
         const base1InRect = isPointInRect(base1X, base1Y, selectionRect);
@@ -1924,17 +1964,17 @@ export default class NodeGraphEditorController {
         }
         
         // 2. 对于多条平行连线的情况，也检查另一个方向的箭头
-        // 查找是否有反向连接（多条平行连线）
+        // 查找是否有反向连接（多条平行连线�?
         const hasReverseConnection = this.connections.some(conn => 
             conn.sourceNodeId === connection.targetNodeId && 
             conn.targetNodeId === connection.sourceNodeId
         );
         
         if (hasReverseConnection) {
-            // 对于反向连接，箭头位置也在中点，但方向相反
+            // 对于反向连接，箭头位置也在中点，但方向相�?
             const reverseAngle = angle + Math.PI;
             
-            // 计算反向箭头的三个顶点
+            // 计算反向箭头的三个顶�?
             const reverseTipX = arrowCenterX + arrowSize * Math.cos(reverseAngle);
             const reverseTipY = arrowCenterY + arrowSize * Math.sin(reverseAngle);
             const reverseBase1X = arrowCenterX - arrowSize * Math.cos(reverseAngle - Math.PI / 3);
@@ -1958,11 +1998,11 @@ export default class NodeGraphEditorController {
     // 取消所有选择
     deselectAll() {
         this.selectedElements = [];
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
-    // 全选对象
+    // 全选对�?
     selectAll() {
         this.selectedElements = [];
         
@@ -1990,13 +2030,13 @@ export default class NodeGraphEditorController {
             }
         }
         
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
     // 添加节点
     addNode(node) {
-        // 确保节点使用正确的默认尺寸（强制设置，防止被其他地方修改）
+        // 确保节点使用正确的默认尺寸（强制设置，防止被其他地方修改�?
         node.width = 150;
         node.height = 50;
         node.autoSize = false; // 确保不是自适应尺寸
@@ -2007,25 +2047,25 @@ export default class NodeGraphEditorController {
             node.transform = new Transform2D(new Vector2(), 0, new Vector2(1, 1));
         }
         if (!node.transform.position) {
-            // 如果position不存在，从options.position或默认值创建
+            // 如果position不存在，从options.position或默认值创�?
             const initialPos = (node.position && (node.position instanceof Vector2 || (node.position.x !== undefined && node.position.y !== undefined))) ?
                 new Vector2(node.position.x || 0, node.position.y || 0) : new Vector2(0, 0);
             node.transform.position = initialPos;
         } else {
-            // 如果position已存在，确保它是Vector2对象或至少包含x和y属性
+            // 如果position已存在，确保它是Vector2对象或至少包含x和y属�?
             if (!(node.transform.position instanceof Vector2)) {
                 const pos = node.transform.position;
                 node.transform.position = new Vector2(pos.x || 0, pos.y || 0);
             }
         }
         
-        // 确保节点有type属性（关键修复：确保节点可以被正确识别和选择）
+        // 确保节点有type属性（关键修复：确保节点可以被正确识别和选择�?
         if (!node.type) {
             node.type = 'node';
         }
         
         // 确保节点有所有必需的属性（参考右键设置固定位置时的操作）
-        // 初始化D3力导向图相关参数（如果未设置）
+        // 初始化D3力导向图相关参数（如果未设置�?
         if (node.forceCharge === undefined) {
             node.forceCharge = -300;
         }
@@ -2049,7 +2089,7 @@ export default class NodeGraphEditorController {
         this.selectedElements = [node];
         // 强制更新可见对象列表，确保新节点可以被鼠标事件检测到
         this.updateVisibleObjects(true);
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
@@ -2061,12 +2101,12 @@ export default class NodeGraphEditorController {
         
         const node = this.nodes[nodeIndex];
         
-        // 找到相关的连线
+        // 找到相关的连�?
         const connectedConnections = this.connections.filter(conn => 
             conn.sourceNodeId === nodeId || conn.targetNodeId === nodeId
         );
         
-        // 移除节点和相关连线
+        // 移除节点和相关连�?
         this.nodes.splice(nodeIndex, 1);
         connectedConnections.forEach(conn => {
             const connIndex = this.connections.findIndex(c => c.id === conn.id);
@@ -2080,15 +2120,15 @@ export default class NodeGraphEditorController {
             el => el.id !== nodeId && !connectedConnections.some(c => c.id === el.id)
         );
         
-        // 强制更新可见对象列表，确保删除的节点和连接从可见列表中移除
+        // 强制更新可见对象列表，确保删除的节点和连接从可见列表中移�?
         this.updateVisibleObjects(true);
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
     // 添加连线
     addConnection(connection) {
-        // 确保连接有type属性（关键修复：确保连接可以被正确识别）
+        // 确保连接有type属性（关键修复：确保连接可以被正确识别�?
         if (!connection.type || connection.type !== 'connection') {
             connection.type = 'connection';
         }
@@ -2098,12 +2138,12 @@ export default class NodeGraphEditorController {
             connection.id = `connection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         }
         
-        // 确保连接有conditions数组（关键修复：防止undefined错误）
+        // 确保连接有conditions数组（关键修复：防止undefined错误�?
         if (!connection.conditions || !Array.isArray(connection.conditions)) {
             connection.conditions = [];
         }
         
-        // 确保连接有linkDistance和linkStrength属性（力导向图参数）
+        // 确保连接有linkDistance和linkStrength属性（力导向图参数�?
         if (connection.linkDistance === undefined) {
             connection.linkDistance = 150;
         }
@@ -2116,7 +2156,7 @@ export default class NodeGraphEditorController {
         this.selectedElements = [connection];
         // 强制更新可见对象列表，确保新连接可以被鼠标事件检测到
         this.updateVisibleObjects(true);
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
@@ -2127,7 +2167,7 @@ export default class NodeGraphEditorController {
         this.selectedElements = [textContent];
         // 强制更新可见对象列表，确保新文字可以被鼠标事件检测到
         this.updateVisibleObjects(true);
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
@@ -2142,12 +2182,12 @@ export default class NodeGraphEditorController {
             
             // 强制更新可见对象列表，确保删除的连接从可见列表中移除
             this.updateVisibleObjects(true);
-            updatePropertyPanel(this);
+            this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
             this.scheduleRender();
         }
     }
     
-    // 更新节点属性
+    // 更新节点属�?
     updateSelectedNode() {
         if (this.selectedElements.length !== 1 || this.selectedElements[0].type !== 'node') {
             return;
@@ -2156,7 +2196,7 @@ export default class NodeGraphEditorController {
         const node = this.selectedElements[0];
         const oldValue = node.clone();
         
-        // 更新属性
+        // 更新属�?
         node.name = document.getElementById('node-name').value;
         node.description = document.getElementById('node-description').value;
         const colorInput = document.getElementById('node-color');
@@ -2198,7 +2238,7 @@ export default class NodeGraphEditorController {
         // 计算自适应尺寸
         NodeService.calculateAutoSize(node, this.ctx);
         
-        // 更新输入框
+        // 更新输入�?
         document.getElementById('node-width').value = node.width;
         document.getElementById('node-height').value = node.height;
         
@@ -2212,19 +2252,19 @@ export default class NodeGraphEditorController {
         this.scheduleRender();
     }
     
-    // 删除选中的节点
+    // 删除选中的节�?
     async deleteSelectedNodes() {
         const nodesToDelete = this.selectedElements.filter(el => el.type === 'node');
         if (nodesToDelete.length === 0) return;
         
-        // 显示确认对话框
+        // 显示确认对话�?
         const confirmed = await ConfirmDialog(
-            `确定要删除选中的 ${nodesToDelete.length} 个节点吗？\n这将同时删除相关的连线。`
+            `确定要删除选中�?${nodesToDelete.length} 个节点吗？\n这将同时删除相关的连线。`
         );
         
         if (!confirmed) return;
         
-        // 找到相关的连线
+        // 找到相关的连�?
         const nodeIds = nodesToDelete.map(n => n.id);
         const connectionsToDelete = this.connections.filter(conn => 
             nodeIds.includes(conn.sourceNodeId) || nodeIds.includes(conn.targetNodeId)
@@ -2232,15 +2272,31 @@ export default class NodeGraphEditorController {
         
         // 记录历史
         this.historyManager.addHistory('delete-nodes', {
-            nodes: nodesToDelete.map(n => n.clone()),
-            connections: connectionsToDelete.map(c => c.clone())
+            nodes: nodesToDelete.map(n => {
+                // 调试日志：检查每个对象是否有clone方法
+                console.log('删除节点 - 对象类型:', typeof n, '构造函数:', n.constructor?.name, '是否有clone方法:', typeof n.clone);
+                if (typeof n.clone !== 'function') {
+                    console.error('错误：对象缺少clone方法:', n);
+                    throw new Error(`对象 ${n.constructor?.name || 'Unknown'} (id: ${n.id}) 缺少clone方法`);
+                }
+                return n.clone();
+            }),
+            connections: connectionsToDelete.map(c => {
+                // 调试日志：检查连接对象是否有clone方法
+                console.log('删除连接 - 对象类型:', typeof c, '构造函数:', c.constructor?.name, '是否有clone方法:', typeof c.clone);
+                if (typeof c.clone !== 'function') {
+                    console.error('错误：连接对象缺少clone方法:', c);
+                    throw new Error(`连接对象 ${c.constructor?.name || 'Unknown'} (id: ${c.id}) 缺少clone方法`);
+                }
+                return c.clone();
+            })
         });
         
         // 删除节点
         nodesToDelete.forEach(node => this.removeNode(node.id));
         
         this.deselectAll();
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
@@ -2252,7 +2308,7 @@ export default class NodeGraphEditorController {
         
         const connection = this.selectedElements[0];
         connection.conditions.push(new Condition());
-        showConnectionProperties(connection, this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
     }
     
     // 更新条件
@@ -2294,7 +2350,7 @@ export default class NodeGraphEditorController {
         [connection.conditions[i], connection.conditions[j]] = 
         [connection.conditions[j], connection.conditions[i]];
         
-        showConnectionProperties(connection, this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
     }
     
     // 删除条件
@@ -2305,40 +2361,48 @@ export default class NodeGraphEditorController {
         
         const connection = this.selectedElements[0];
         connection.conditions.splice(index, 1);
-        showConnectionProperties(connection, this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
     }
     
-    // 删除选中的连线
+    // 删除选中的连�?
     async deleteSelectedConnections() {
         const connectionsToDelete = this.selectedElements.filter(el => el.type === 'connection');
         if (connectionsToDelete.length === 0) return;
         
-        // 显示确认对话框
+        // 显示确认对话�?
         const confirmed = await ConfirmDialog(
-            `确定要删除选中的 ${connectionsToDelete.length} 条连线吗？`
+            `确定要删除选中�?${connectionsToDelete.length} 条连线吗？`
         );
         
         if (!confirmed) return;
         
         // 记录历史
-        this.historyManager.addHistory('delete-connections', connectionsToDelete.map(c => c.clone()));
+        this.historyManager.addHistory('delete-connections', connectionsToDelete.map(c => {
+            // 调试日志：检查连接对象是否有clone方法
+            console.log('删除选中连接 - 对象类型:', typeof c, '构造函数:', c.constructor?.name, '是否有clone方法:', typeof c.clone);
+            if (typeof c.clone !== 'function') {
+                console.error('错误：连接对象缺少clone方法:', c);
+                throw new Error(`连接对象 ${c.constructor?.name || 'Unknown'} (id: ${c.id}) 缺少clone方法`);
+            }
+            return c.clone();
+        }));
         
         // 删除连线
         connectionsToDelete.forEach(conn => this.removeConnection(conn.id));
         
         this.deselectAll();
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
-    // 删除选中的文字对象
+    // 删除选中的文字对�?
     deleteSelectedTextContents() {
         const textContentsToDelete = this.selectedElements.filter(el => el.type === 'text');
         if (textContentsToDelete.length === 0) return;
         
-        // 显示确认对话框
+        // 显示确认对话�?
         const confirmed = confirm(
-            `确定要删除选中的 ${textContentsToDelete.length} 个文字对象吗？`
+            `确定要删除选中�?${textContentsToDelete.length} 个文字对象吗？`
         );
         
         if (!confirmed) return;
@@ -2346,7 +2410,15 @@ export default class NodeGraphEditorController {
         // 记录历史
         this.historyManager.addHistory({
             type: 'delete-text-contents',
-            textContents: textContentsToDelete.map(t => t.clone()),
+            textContents: textContentsToDelete.map(t => {
+                // 调试日志：检查文本对象是否有clone方法
+                console.log('删除文本内容 - 对象类型:', typeof t, '构造函数:', t.constructor?.name, '是否有clone方法:', typeof t.clone);
+                if (typeof t.clone !== 'function') {
+                    console.error('错误：文本对象缺少clone方法:', t);
+                    throw new Error(`文本对象 ${t.constructor?.name || 'Unknown'} (id: ${t.id}) 缺少clone方法`);
+                }
+                return t.clone();
+            }),
             editor: this // 添加editor实例引用
         });
         
@@ -2354,11 +2426,11 @@ export default class NodeGraphEditorController {
         textContentsToDelete.forEach(text => this.removeTextContent(text.id));
         
         this.deselectAll();
-        updatePropertyPanel(this);
+        this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
         this.scheduleRender();
     }
     
-    // 在视图中心添加文字对象
+    // 在视图中心添加文字对�?
     addTextAtCenter() {
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
@@ -2378,12 +2450,12 @@ export default class NodeGraphEditorController {
         return this.textContents.find(text => text.id === id);
     }
     
-    // 开始编辑文字对象
+    // 开始编辑文字对�?
     startEditTextContent(textContent) {
-        // 保存当前编辑的文字对象
+        // 保存当前编辑的文字对�?
         this.editingTextContent = textContent;
         
-        // 创建一个临时的输入框用于编辑
+        // 创建一个临时的输入框用于编�?
         const input = document.createElement('input');
         input.type = 'text';
         input.value = textContent.text;
@@ -2406,7 +2478,7 @@ export default class NodeGraphEditorController {
             textContent.transform.position : { x: 0, y: 0 };
         const screenPos = this.worldToScreen(textPos.x, textPos.y);
         
-        // 设置输入框位置
+        // 设置输入框位�?
         const canvasRect = this.canvas.getBoundingClientRect();
         input.style.left = (canvasRect.left + screenPos.x) + 'px';
         input.style.top = (canvasRect.top + screenPos.y - 10) + 'px';
@@ -2418,7 +2490,7 @@ export default class NodeGraphEditorController {
         // 保存原始文本内容
         const originalText = textContent.text;
         
-        // 完成编辑的函数
+        // 完成编辑的函�?
         const finishEdit = () => {
             const newText = input.value.trim();
             
@@ -2454,7 +2526,7 @@ export default class NodeGraphEditorController {
             this.editingTextContent = null;
         };
         
-        // 取消编辑的函数
+        // 取消编辑的函�?
         const cancelEdit = () => {
             document.body.removeChild(input);
             this.editingTextContent = null;
@@ -2488,12 +2560,12 @@ export default class NodeGraphEditorController {
     
     // 新建项目
     newProject() {
-        if (confirm('确定要新建项目吗？当前项目的更改将会丢失。')) {
+        if (confirm('确定要新建项目吗？当前项目的更改将会丢失！')) {
             this.nodes = [];
             this.connections = [];
             this.selectedElements = [];
             this.historyManager = new HistoryManager(50);
-            updatePropertyPanel(this);
+            this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
             this.scheduleRender();
         }
     }
@@ -2502,7 +2574,7 @@ export default class NodeGraphEditorController {
     drawGrid(ctx, width = this.canvas.width, height = this.canvas.height, 
              minX = 0, minY = 0, maxX = width, maxY = height) {
         
-        // 手动保存状态
+        // 手动保存状�?
         const originalStrokeStyle = ctx.strokeStyle;
         const originalLineWidth = ctx.lineWidth;
         
@@ -2518,13 +2590,13 @@ export default class NodeGraphEditorController {
         const lodLevel = this.lodManager.getLODLevel(this.zoom);
         switch (lodLevel) {
             case 'LOD0':
-                gridSize = 20;  // 高密度
+                gridSize = 20;  // 高密�?
                 break;
             case 'LOD1':
-                gridSize = 40;  // 中密度
+                gridSize = 40;  // 中密�?
                 break;
             case 'LOD2':
-                gridSize = 80;  // 低密度
+                gridSize = 80;  // 低密�?
                 break;
             case 'LOD3':
                 gridSize = 200; // 极低密度
@@ -2533,32 +2605,32 @@ export default class NodeGraphEditorController {
                 gridSize = 20;
         }
 
-        // 计算可见世界坐标范围（多加一个格子缓冲，避免边缘空白）
+        // 计算可见世界坐标范围（多加一个格子缓冲，避免边缘空白�?
         const visibleLeft = -this.pan.x/this.zoom - gridSize;
         const visibleTop = -this.pan.y/this.zoom - gridSize;
         const visibleRight = (canvasWidth - this.pan.x)/this.zoom + gridSize;
         const visibleBottom = (canvasHeight - this.pan.y)/this.zoom + gridSize;
 
-        // 起止（以 gridSize 对齐）
+        // 起止（以 gridSize 对齐�?
         const startX = Math.floor(visibleLeft / gridSize) * gridSize;
         const endX = Math.ceil(visibleRight / gridSize) * gridSize;
         const startY = Math.floor(visibleTop / gridSize) * gridSize;
         const endY = Math.ceil(visibleBottom / gridSize) * gridSize;
 
-        // 根据LOD级别调整栅格线透明度
+        // 根据LOD级别调整栅格线透明�?
         let gridAlpha;
         switch (lodLevel) {
             case 'LOD0':
-                gridAlpha = 0.05;  // 高精度：正常透明度
+                gridAlpha = 0.05;  // 高精度：正常透明�?
                 break;
             case 'LOD1':
-                gridAlpha = 0.03;  // 中精度：稍低透明度
+                gridAlpha = 0.03;  // 中精度：稍低透明�?
                 break;
             case 'LOD2':
-                gridAlpha = 0.02;  // 低精度：更低透明度
+                gridAlpha = 0.02;  // 低精度：更低透明�?
                 break;
             case 'LOD3':
-                gridAlpha = 0.01;  // 占位符：极低透明度
+                gridAlpha = 0.01;  // 占位符：极低透明�?
                 break;
             default:
                 gridAlpha = 0.05;
@@ -2570,14 +2642,14 @@ export default class NodeGraphEditorController {
             : `rgba(255, 255, 255, ${gridAlpha})`;
         ctx.lineWidth = 1;
         
-        // 水平线
+        // 水平�?
         ctx.beginPath();
         for (let y = startY; y <= endY; y += gridSize) {
             const screenY = this.worldToScreen(0, y).y;
             ctx.moveTo(0, screenY);
             ctx.lineTo(width, screenY);
         }
-        // 垂直线
+        // 垂直�?
         for (let x = startX; x <= endX; x += gridSize) {
             const screenX = this.worldToScreen(x, 0).x;
             ctx.moveTo(screenX, 0);
@@ -2585,26 +2657,25 @@ export default class NodeGraphEditorController {
         }
         ctx.stroke();
 
-        // 手动恢复状态
+        // 手动恢复状�?
         ctx.strokeStyle = originalStrokeStyle;
         ctx.lineWidth = originalLineWidth;
     }
     
 
-    // 绘制节点（支持LOD分级绘制）
+    // 绘制节点（支持LOD分级绘制�?
     drawNode(ctx, node) {
         const nodePos = (node.transform && node.transform.position) ? 
             node.transform.position : { x: 0, y: 0 };
         const screenPos = this.worldToScreen(nodePos.x, nodePos.y);
-        // 获取节点尺寸
-        const nodeSize = (node.size && node.size.width !== undefined && node.size.height !== undefined) ? node.size : { width: 100, height: 60 };
-        const width = nodeSize.width * this.zoom;
-        const height = nodeSize.height * this.zoom;
+        // 获取节点尺寸 - 修复：使用正确的尺寸属性
+        const width = (node.width || 150) * this.zoom;
+        const height = (node.height || 50) * this.zoom;
         
-        // 检查节点是否可见（使用可视性检测器）
+        // 检查节点是否可见（使用可视性检测器�?
         const visibleBounds = this.visibilityCuller.getVisibleBounds();
         if (!this.visibilityCuller.isNodeVisible(node, visibleBounds)) {
-            // 每100个节点输出一次被过滤的日志（避免日志过多）
+            // �?00个节点输出一次被过滤的日志（避免日志过多�?
             if (Math.random() < 0.01) {
                 perfLog(`[性能优化] 节点被可视性检测过滤`);
             }
@@ -2633,7 +2704,7 @@ export default class NodeGraphEditorController {
     
     // LOD0：高精度（完整细节）
     drawNodeLOD0(ctx, node, screenPos, width, height) {
-        // 手动保存所有会修改的状态属性
+        // 手动保存所有会修改的状态属�?
         const originalFillStyle = ctx.fillStyle;
         const originalStrokeStyle = ctx.strokeStyle;
         const originalLineWidth = ctx.lineWidth;
@@ -2644,7 +2715,7 @@ export default class NodeGraphEditorController {
         // 节点是否被选中
         const isSelected = this.selectedElements.some(el => el.id === node.id);
         
-        // 绘制节点背景（使用节点颜色或默认颜色，选中时不改变颜色）
+        // 绘制节点背景（使用节点颜色或默认颜色，选中时不改变颜色�?
         if (node.color) {
             ctx.fillStyle = node.color;
             // 根据颜色亮度调整边框颜色
@@ -2667,7 +2738,7 @@ export default class NodeGraphEditorController {
         ctx.fill();
         ctx.stroke();
         
-        // 如果节点被选中，绘制白色外框
+        // 如果节点被选中，绘制白色外�?
         if (isSelected) {
             const previousStrokeStyle = ctx.strokeStyle;
             const previousLineWidth = ctx.lineWidth;
@@ -2725,13 +2796,13 @@ export default class NodeGraphEditorController {
         // 绘制节点名称（居中显示）
         ctx.fillText(displayName, screenPos.x + width / 2, nameY);
         
-        // 绘制节点描述（如果有描述，显示在名称下方）
+        // 绘制节点描述（如果有描述，显示在名称下方�?
         if (node.description) {
             const descFontSize = fontSize * 0.7;
             ctx.font = `${descFontSize}px Arial`;
             ctx.fillStyle = isSelected ? 'rgba(255, 255, 255, 0.8)' : (isLightMode() ? '#666666' : '#969696');
             
-            // 截断长描述
+            // 截断长描�?
             let displayText = node.description;
             const maxDescWidth = node.width * this.zoom * 0.9;
             const descMetrics = ctx.measureText(displayText);
@@ -2751,12 +2822,12 @@ export default class NodeGraphEditorController {
                 }
             }
             
-            // 描述文本显示在名称下方
+            // 描述文本显示在名称下�?
             const descY = screenPos.y + height / 2 + fontSize * 0.4;
             ctx.fillText(displayText, screenPos.x + width / 2, descY);
         }
         
-        // 手动恢复所有状态属性
+        // 手动恢复所有状态属�?
         ctx.fillStyle = originalFillStyle;
         ctx.strokeStyle = originalStrokeStyle;
         ctx.lineWidth = originalLineWidth;
@@ -2767,7 +2838,7 @@ export default class NodeGraphEditorController {
     
     // 绘制文字对象
     drawTextContent(ctx, textContent) {
-        // 获取正确的位置和尺寸属性
+        // 获取正确的位置和尺寸属�?
         const position = (textContent.transform && textContent.transform.position) ? 
             textContent.transform.position : { x: 0, y: 0 };
         const width = textContent.width || 100;
@@ -2782,17 +2853,17 @@ export default class NodeGraphEditorController {
             height: height
         };
         
-        // 使用正确的可见性检测方法（修复LOD0级别绘制问题）
+        // 使用正确的可见性检测方法（修复LOD0级别绘制问题�?
         // 确保即使缩放很小，文字内容也能被正确检测到
         const isVisible = this.visibilityCuller.isNodeVisible(textBounds, visibleBounds);
         if (!isVisible) {
             // 对于文字内容，即使稍微超出可见区域也应该绘制（修复缩放后消失的问题）
-            // 只有当缩放非常小或完全不可见时才不绘制
+            // 只有当缩放非常小或完全不可见时才不绘�?
             if (this.zoom < 0.05) {
                 return; // 缩放太小，不绘制
             }
-            // 检查是否完全在可见区域外（增加容差）
-            const padding = 100; // 增加容差，确保文字内容不会因为边界检测过于严格而消失
+            // 检查是否完全在可见区域外（增加容差�?
+            const padding = 100; // 增加容差，确保文字内容不会因为边界检测过于严格而消�?
             const expandedBounds = {
                 x: visibleBounds.x - padding,
                 y: visibleBounds.y - padding,
@@ -2805,10 +2876,10 @@ export default class NodeGraphEditorController {
                 textBounds.y > expandedBounds.y + expandedBounds.height) {
                 return; // 完全在可见区域外，不绘制
             }
-            // 否则继续绘制（部分可见或接近可见区域）
+            // 否则继续绘制（部分可见或接近可见区域�?
         }
         
-        // 转换到屏幕坐标
+        // 转换到屏幕坐�?
         const screenPos = this.worldToScreen(position.x, position.y);
         const screenWidth = width * this.zoom;
         const screenHeight = height * this.zoom;
@@ -2832,9 +2903,9 @@ export default class NodeGraphEditorController {
         }
     }
     
-    // LOD0: 高精度（完整细节）
+    // LOD0: 高精度（完整细节�?
     drawTextContentLOD0(ctx, textContent, screenPos, width, height) {
-        // 手动保存状态
+        // 手动保存状�?
         const originalFillStyle = ctx.fillStyle;
         const originalStrokeStyle = ctx.strokeStyle;
         const originalFont = ctx.font;
@@ -2845,7 +2916,7 @@ export default class NodeGraphEditorController {
         // 检查是否被选中
         const isSelected = this.selectedElements.some(el => el.id === textContent.id);
         
-        // 设置透明度
+        // 设置透明�?
         ctx.globalAlpha = textContent.opacity;
         
         // 绘制背景（如果有背景色）
@@ -2859,7 +2930,7 @@ export default class NodeGraphEditorController {
             }
         }
         
-        // 绘制边框（如果有边框）
+        // 绘制边框（如果有边框�?
         if (textContent.borderColor) {
             ctx.strokeStyle = textContent.borderColor;
             ctx.lineWidth = textContent.borderWidth * this.zoom;
@@ -2905,7 +2976,7 @@ export default class NodeGraphEditorController {
             ctx.fillText(line, textX, lineY);
         });
         
-        // 如果被选中，绘制选择框
+        // 如果被选中，绘制选择�?
         if (isSelected) {
             ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
             ctx.lineWidth = 2;
@@ -2914,7 +2985,7 @@ export default class NodeGraphEditorController {
             ctx.setLineDash([]);
         }
         
-        // 恢复状态
+        // 恢复状�?
         ctx.fillStyle = originalFillStyle;
         ctx.strokeStyle = originalStrokeStyle;
         ctx.font = originalFont;
@@ -2934,16 +3005,16 @@ export default class NodeGraphEditorController {
         
         const isSelected = this.selectedElements.some(el => el.id === textContent.id);
         
-        // 设置透明度
+        // 设置透明�?
         ctx.globalAlpha = textContent.opacity;
         
-        // 简化绘制背景（纯色填充）
+        // 简化绘制背景（纯色填充�?
         if (textContent.backgroundColor) {
             ctx.fillStyle = textContent.backgroundColor;
             ctx.fillRect(screenPos.x, screenPos.y, width, height);
         }
         
-        // 简化绘制边框（细线）
+        // 简化绘制边框（细线�?
         if (textContent.borderColor) {
             ctx.strokeStyle = textContent.borderColor;
             ctx.lineWidth = 0.5; // 细线
@@ -2951,13 +3022,13 @@ export default class NodeGraphEditorController {
         }
         
         // 绘制文本（简化，只显示第一行）
-        const fontSize = Math.max(6, textContent.fontSize * this.zoom); // 最小字体6px
-        ctx.font = `normal normal ${fontSize}px sans-serif`; // 简化字体设置
+        const fontSize = Math.max(6, textContent.fontSize * this.zoom); // 最小字�?px
+        ctx.font = `normal normal ${fontSize}px sans-serif`; // 简化字体设�?
         ctx.fillStyle = textContent.fontColor || '#000000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // 获取文本内容（限制6字符）
+        // 获取文本内容（限�?字符�?
         let displayText = textContent.text;
         if (displayText.length > 6) {
             displayText = displayText.substring(0, 6) + '...';
@@ -2966,7 +3037,7 @@ export default class NodeGraphEditorController {
         // 居中显示
         ctx.fillText(displayText, screenPos.x + width / 2, screenPos.y + height / 2);
         
-        // 如果被选中，绘制简化选择框
+        // 如果被选中，绘制简化选择�?
         if (isSelected) {
             ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
             ctx.lineWidth = 1;
@@ -2975,7 +3046,7 @@ export default class NodeGraphEditorController {
             ctx.setLineDash([]);
         }
         
-        // 恢复状态
+        // 恢复状�?
         ctx.fillStyle = originalFillStyle;
         ctx.strokeStyle = originalStrokeStyle;
         ctx.font = originalFont;
@@ -2984,7 +3055,7 @@ export default class NodeGraphEditorController {
         ctx.globalAlpha = originalGlobalAlpha;
     }
     
-    // LOD2: 低精度（纯色矩形+文字占位）
+    // LOD2: 低精度（纯色矩形+文字占位�?
     drawTextContentLOD2(ctx, textContent, screenPos, width, height) {
         const originalFillStyle = ctx.fillStyle;
         const originalStrokeStyle = ctx.strokeStyle;
@@ -3012,14 +3083,14 @@ export default class NodeGraphEditorController {
             textBarHeight
         );
         
-        // 如果被选中，绘制简化选择框
+        // 如果被选中，绘制简化选择�?
         if (isSelected) {
             ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
             ctx.lineWidth = 1;
             ctx.strokeRect(screenPos.x, screenPos.y, width, height);
         }
         
-        // 恢复状态
+        // 恢复状�?
         ctx.fillStyle = originalFillStyle;
         ctx.strokeStyle = originalStrokeStyle;
         ctx.lineWidth = originalLineWidth;
@@ -3044,7 +3115,7 @@ export default class NodeGraphEditorController {
             ctx.strokeRect(screenPos.x, screenPos.y, width, height);
         }
         
-        // 恢复状态
+        // 恢复状�?
         ctx.fillStyle = originalFillStyle;
         ctx.strokeStyle = originalStrokeStyle;
         ctx.lineWidth = originalLineWidth;
@@ -3061,7 +3132,7 @@ export default class NodeGraphEditorController {
         
         const isSelected = this.selectedElements.some(el => el.id === node.id);
         
-        // 矩形（无圆角）+ 细线边框
+        // 矩形（无圆角�? 细线边框
         if (node.color) {
             ctx.fillStyle = node.color;
             const rgb = hexToRgb(node.color);
@@ -3077,10 +3148,10 @@ export default class NodeGraphEditorController {
         }
         
         ctx.lineWidth = 0.5; // 细线
-        ctx.fillRect(screenPos.x, screenPos.y, width, height); // 无圆角
+        ctx.fillRect(screenPos.x, screenPos.y, width, height); // 无圆�?
         ctx.strokeRect(screenPos.x, screenPos.y, width, height);
         
-        // 如果节点被选中，绘制外框
+        // 如果节点被选中，绘制外�?
         if (isSelected) {
             ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
             ctx.lineWidth = 2;
@@ -3100,7 +3171,7 @@ export default class NodeGraphEditorController {
         }
         ctx.fillText(displayName, screenPos.x + width / 2, screenPos.y + height / 2);
         
-        // 恢复状态
+        // 恢复状�?
         ctx.fillStyle = originalFillStyle;
         ctx.strokeStyle = originalStrokeStyle;
         ctx.lineWidth = originalLineWidth;
@@ -3109,13 +3180,13 @@ export default class NodeGraphEditorController {
         ctx.textBaseline = originalTextBaseline;
     }
     
-    // LOD2：低精度（纯色矩形 + 文字占位长条）
+    // LOD2：低精度（纯色矩�?+ 文字占位长条�?
     drawNodeLOD2(ctx, node, screenPos, width, height) {
         const originalFillStyle = ctx.fillStyle;
         const isSelected = this.selectedElements.some(el => el.id === node.id);
         
         // 1. 绘制节点背景（纯色矩形）
-        // 如果节点被选中，使用选中线框的颜色填充整个矩形
+        // 如果节点被选中，使用选中线框的颜色填充整个矩�?
         if (isSelected) {
             ctx.fillStyle = isLightMode() ? '#000000' : '#ffffff'; // 选中时的线框颜色
         } else {
@@ -3126,16 +3197,16 @@ export default class NodeGraphEditorController {
         // 2. 在原本显示文字的位置绘制一个长条矩形（文字占位符）
         // 如果节点被选中，文字占位符使用与背景对比的颜色
         const fontSize = 12 * this.zoom;
-        const rectHeight = fontSize; // 高度保持原本字体的高度
+        const rectHeight = fontSize; // 高度保持原本字体的高�?
         const rectWidth = width * 0.5; // 统一宽度，不考虑真实文字宽度
         
-        // 文字占位符颜色：选中时使用对比色，未选中时使用文字颜色
+        // 文字占位符颜色：选中时使用对比色，未选中时使用文字颜�?
         let textColor;
         if (isSelected) {
-            // 选中时，文字占位符使用与背景对比的颜色（反转）
+            // 选中时，文字占位符使用与背景对比的颜色（反转�?
             textColor = isLightMode() ? '#ffffff' : '#000000';
         } else {
-            // 未选中时，使用正常的文字颜色
+            // 未选中时，使用正常的文字颜�?
             textColor = isLightMode() ? '#333333' : '#e0e0e0';
         }
         
@@ -3148,13 +3219,13 @@ export default class NodeGraphEditorController {
         ctx.fillStyle = originalFillStyle;
     }
     
-    // LOD3：占位符（保持矩形尺寸比例的纯色矩形）
+    // LOD3：占位符（保持矩形尺寸比例的纯色矩形�?
     drawNodeLOD3(ctx, node, screenPos, width, height) {
         const originalFillStyle = ctx.fillStyle;
         const isSelected = this.selectedElements.some(el => el.id === node.id);
         
-        // 保持节点原本的矩形尺寸比例，仅绘制纯色矩形（无圆角、无边框、无文字）
-        // 如果节点被选中，使用选中线框的颜色填充整个矩形
+        // 保持节点原本的矩形尺寸比例，仅绘制纯色矩形（无圆角、无边框、无文字�?
+        // 如果节点被选中，使用选中线框的颜色填充整个矩�?
         if (isSelected) {
             ctx.fillStyle = isLightMode() ? '#000000' : '#ffffff'; // 选中时的线框颜色
         } else {
@@ -3176,7 +3247,7 @@ export default class NodeGraphEditorController {
             
             if (!sourceNode || !targetNode) return;
             
-            // 创建节点对的唯一键（较小的ID在前，确保双向连线使用同一个键）
+            // 创建节点对的唯一键（较小的ID在前，确保双向连线使用同一个键�?
             const nodePairKey = [connection.sourceNodeId, connection.targetNodeId]
                 .sort()
                 .join('|');
@@ -3189,8 +3260,8 @@ export default class NodeGraphEditorController {
                     nodeB: connection.sourceNodeId < connection.targetNodeId 
                         ? connection.targetNodeId 
                         : connection.sourceNodeId,
-                    forward: [],  // A -> B 方向的连线
-                    backward: []   // B -> A 方向的连线
+                    forward: [],  // A -> B 方向的连�?
+                    backward: []   // B -> A 方向的连�?
                 });
             }
             
@@ -3211,7 +3282,7 @@ export default class NodeGraphEditorController {
         // 使用默认箭头尺寸（回退到上一个版本）
         const baseArrowSize = arrowSize || 10;
         
-        // 最多绘制两个箭头：1条连线=1个箭头，多条连线=2个箭头
+        // 最多绘制两个箭头：1条连�?1个箭头，多条连线=2个箭�?
         const arrowCount = connectionCount > 1 ? 2 : 1;
         
         // 箭头之间的间距（平行于连线方向）
@@ -3223,20 +3294,20 @@ export default class NodeGraphEditorController {
         // 计算第一个箭头的中心位置（使整个箭头组中心对齐）
         const startOffset = -totalLength / 2;
         
-        // 保存箭头位置用于点击检测
+        // 保存箭头位置用于点击检�?
         const arrowPositions = [];
         
-        // 如果选中，先绘制所有箭头的外发光
+        // 如果选中，先绘制所有箭头的外发�?
         if (isSelected) {
-            // 保存一次状态
+            // 保存一次状�?
             ctx.save();
             ctx.strokeStyle = isLightMode()?'#0066cc':'#ffffff';
-            ctx.lineWidth = baseArrowSize + 2; // 10像素外发光 / 2
+            ctx.lineWidth = baseArrowSize + 2; // 10像素外发�?/ 2
             ctx.globalAlpha = 1;
             ctx.setLineDash([]); // 确保外发光始终使用实线绘制，不受连线类型影响
             
             for (let i = 0; i < arrowCount; i++) {
-                // 箭头中心位置（平行于连线方向排列）
+                // 箭头中心位置（平行于连线方向排列�?
                 const arrowCenterX = centerX + (startOffset + i * spacing) * Math.cos(angle);
                 const arrowCenterY = centerY + (startOffset + i * spacing) * Math.sin(angle);
                 
@@ -3251,14 +3322,14 @@ export default class NodeGraphEditorController {
                 const base2X = arrowCenterX - baseArrowSize * Math.cos(arrowAngle + Math.PI / 3);
                 const base2Y = arrowCenterY - baseArrowSize * Math.sin(arrowAngle + Math.PI / 3);
                 
-                // 保存箭头位置用于点击检测
+                // 保存箭头位置用于点击检�?
                 arrowPositions.push({
                     tip: { x: tipX, y: tipY },
                     base1: { x: base1X, y: base1Y },
                     base2: { x: base2X, y: base2Y }
                 });
                 
-                // 绘制外发光
+                // 绘制外发�?
                 ctx.beginPath();
                 ctx.moveTo(tipX, tipY);
                 ctx.lineTo(base1X, base1Y);
@@ -3267,10 +3338,10 @@ export default class NodeGraphEditorController {
                 ctx.stroke();
             }
             
-            // 恢复一次状态
+            // 恢复一次状�?
             ctx.restore();
         } else {
-            // 不选中时，只计算位置
+            // 不选中时，只计算位�?
             for (let i = 0; i < arrowCount; i++) {
                 const arrowCenterX = centerX + (startOffset + i * spacing) * Math.cos(angle);
                 const arrowCenterY = centerY + (startOffset + i * spacing) * Math.sin(angle);
@@ -3291,11 +3362,11 @@ export default class NodeGraphEditorController {
             }
         }
         
-        // 保存一次状态用于填充箭头
+        // 保存一次状态用于填充箭�?
         ctx.save();
         ctx.fillStyle = arrowColor;
         
-        // 绘制所有箭头
+        // 绘制所有箭�?
         for (let i = 0; i < arrowCount; i++) {
             const arrowPos = arrowPositions[i];
             ctx.beginPath();
@@ -3306,7 +3377,7 @@ export default class NodeGraphEditorController {
             ctx.fill();
         }
         
-        // 恢复一次状态
+        // 恢复一次状�?
         ctx.restore();
         
         // 返回箭头位置（屏幕坐标）
@@ -3320,11 +3391,11 @@ export default class NodeGraphEditorController {
         
         if (!nodeA || !nodeB) return;
         
-        // 可视性检测
+        // 可视性检�?
         const visibleBounds = this.visibilityCuller.getVisibleBounds();
         const representativeConnection = group.forward[0] || group.backward[0];
         if (!this.visibilityCuller.isConnectionVisible(representativeConnection, nodeA, nodeB, visibleBounds)) {
-            // 每100个连线组输出一次被过滤的日志（避免日志过多）
+            // �?00个连线组输出一次被过滤的日志（避免日志过多�?
             if (Math.random() < 0.01) {
                 perfLog(`[性能优化] 连线被可视性检测过滤`);
             }
@@ -3334,7 +3405,7 @@ export default class NodeGraphEditorController {
         // 根据LOD等级选择绘制方法
         const lodLevel = this.lodManager.getLODLevel(this.zoom);
         
-        // 计算连线的起点和终点（使用transform.position）
+        // 计算连线的起点和终点（使用transform.position�?
         const nodeAPos = (nodeA.transform && nodeA.transform.position) ? 
             nodeA.transform.position : { x: 0, y: 0 };
         const nodeBPos = (nodeB.transform && nodeB.transform.position) ? 
@@ -3344,7 +3415,7 @@ export default class NodeGraphEditorController {
         const endX = nodeBPos.x + nodeB.width / 2;
         const endY = nodeBPos.y + nodeB.height / 2;
         
-        // 转换为屏幕坐标
+        // 转换为屏幕坐�?
         const screenStart = this.worldToScreen(startX, startY);
         const screenEnd = this.worldToScreen(endX, endY);
         
@@ -3355,12 +3426,12 @@ export default class NodeGraphEditorController {
         const midScreenX = (screenStart.x + screenEnd.x) / 2;
         const midScreenY = (screenStart.y + screenEnd.y) / 2;
         
-        // 判断是否有双向连线
+        // 判断是否有双向连�?
         const hasForward = group.forward.length > 0;
         const hasBackward = group.backward.length > 0;
         const isBidirectional = hasForward && hasBackward;
         
-        // 获取连线属性（使用第一条连线的属性作为代表，已在上面声明）
+        // 获取连线属性（使用第一条连线的属性作为代表，已在上面声明�?
         const isSelected = this.selectedElements.some(el => 
             (hasForward && group.forward.some(c => c.id === el.id)) ||
             (hasBackward && group.backward.some(c => c.id === el.id))
@@ -3370,7 +3441,7 @@ export default class NodeGraphEditorController {
         
         // LOD3级别：简化绘制（纯粹的一根实线）
         if (lodLevel === 'LOD3') {
-            // 设置实线样式（不考虑lineType和lineWidth）
+            // 设置实线样式（不考虑lineType和lineWidth�?
             ctx.setLineDash([]);
             ctx.lineWidth = 1.0; // 固定线宽
             
@@ -3381,18 +3452,18 @@ export default class NodeGraphEditorController {
                 let highlightEnd = screenEnd;
                 
                 if (isBidirectional) {
-                    // 判断选中的是哪一侧
+                    // 判断选中的是哪一�?
                     const forwardSelected = group.forward.some(c => 
                         this.selectedElements.some(el => el.id === c.id));
                     const backwardSelected = group.backward.some(c => 
                         this.selectedElements.some(el => el.id === c.id));
                     
                     if (forwardSelected && !backwardSelected) {
-                        // 只高亮从A节点到中心点的线段
+                        // 只高亮从A节点到中心点的线�?
                         highlightStart = screenStart;
                         highlightEnd = { x: midScreenX, y: midScreenY };
                     } else if (backwardSelected && !forwardSelected) {
-                        // 只高亮从中心点到B节点的线段
+                        // 只高亮从中心点到B节点的线�?
                         highlightStart = { x: midScreenX, y: midScreenY };
                         highlightEnd = screenEnd;
                     }
@@ -3404,7 +3475,7 @@ export default class NodeGraphEditorController {
                 const originalLineWidth = ctx.lineWidth;
                 const originalGlobalAlpha = ctx.globalAlpha;
                 
-                // light-mode时为蓝色，非light-mode时为纯白色
+                // light-mode时为蓝色，非light-mode时为纯白�?
                 ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
                 ctx.lineWidth = 1.0; // 高亮线宽
                 ctx.globalAlpha = 1.0;
@@ -3413,7 +3484,7 @@ export default class NodeGraphEditorController {
                 ctx.lineTo(highlightEnd.x, highlightEnd.y);
                 ctx.stroke();
                 
-                // 恢复状态
+                // 恢复状�?
                 ctx.strokeStyle = originalStrokeStyle;
                 ctx.lineWidth = originalLineWidth;
                 ctx.globalAlpha = originalGlobalAlpha;
@@ -3434,7 +3505,7 @@ export default class NodeGraphEditorController {
         // 判断选中的是哪一侧（对向连线时）
         let selectedSide = null;
         if (isBidirectional && isSelected) {
-            // 检查选中的连线属于哪一侧
+            // 检查选中的连线属于哪一�?
             const forwardSelected = group.forward.some(c => 
                 this.selectedElements.some(el => el.id === c.id));
             const backwardSelected = group.backward.some(c => 
@@ -3459,48 +3530,48 @@ export default class NodeGraphEditorController {
             ctx.setLineDash([]);
         }
         
-        // 如果选中，先绘制外发光效果
+        // 如果选中，先绘制外发光效�?
         if (isSelected) {
             // 计算需要高亮的线段
             let highlightStart = screenStart;
             let highlightEnd = screenEnd;
             
             if (isBidirectional && selectedSide) {
-                // 对向连线：只高亮选中的一侧
+                // 对向连线：只高亮选中的一�?
                 const midScreenX = (screenStart.x + screenEnd.x) / 2;
                 const midScreenY = (screenStart.y + screenEnd.y) / 2;
                 
                 if (selectedSide === 'forward') {
-                    // 高亮从A节点到中心点的线段
+                    // 高亮从A节点到中心点的线�?
                     highlightStart = screenStart;
                     highlightEnd = { x: midScreenX, y: midScreenY };
                 } else {
-                    // 高亮从中心点到B节点的线段
+                    // 高亮从中心点到B节点的线�?
                     highlightStart = { x: midScreenX, y: midScreenY };
                     highlightEnd = screenEnd;
                 }
             }
             
-            // 绘制白色外发光（10像素宽度）- 手动保存和恢复状态
+            // 绘制白色外发光（10像素宽度�? 手动保存和恢复状�?
             const originalStrokeStyle = ctx.strokeStyle;
             const originalLineWidth = ctx.lineWidth;
             const originalGlobalAlpha = ctx.globalAlpha;
             
             ctx.strokeStyle = isLightMode()?'#0066cc':'#ffffff';
-            ctx.lineWidth = (representativeConnection.lineWidth || 1.5) + 5; // 10像素外发光 / 2
+            ctx.lineWidth = (representativeConnection.lineWidth || 1.5) + 5; // 10像素外发�?/ 2
             ctx.globalAlpha = 0.5;
             ctx.beginPath();
             ctx.moveTo(highlightStart.x, highlightStart.y);
             ctx.lineTo(highlightEnd.x, highlightEnd.y);
             ctx.stroke();
             
-            // 手动恢复状态
+            // 手动恢复状�?
             ctx.strokeStyle = originalStrokeStyle;
             ctx.lineWidth = originalLineWidth;
             ctx.globalAlpha = originalGlobalAlpha;
         }
         
-        // 所有LOD级别都使用直线绘制连线
+        // 所有LOD级别都使用直线绘制连�?
         ctx.beginPath();
         ctx.moveTo(screenStart.x, screenStart.y);
         ctx.lineTo(screenEnd.x, screenEnd.y);
@@ -3521,12 +3592,12 @@ export default class NodeGraphEditorController {
         
         // 根据LOD等级决定是否绘制箭头
         if (!this.lodManager.shouldDrawArrow(this.zoom)) {
-            // LOD2及以下不绘制箭头，直接返回
+            // LOD2及以下不绘制箭头，直接返�?
             ctx.restore();
             return;
         }
         
-        // 保存箭头信息用于点击检测
+        // 保存箭头信息用于点击检�?
         const arrowInfo = {
             centerX: midScreenX,
             centerY: midScreenY,
@@ -3544,7 +3615,7 @@ export default class NodeGraphEditorController {
             endY: endY
         };
         
-        // 双向连线：绘制双向箭头
+        // 双向连线：绘制双向箭�?
         if (isBidirectional) {
             // 绘制中心圆点
             const circleRadius = 4;
@@ -3553,25 +3624,25 @@ export default class NodeGraphEditorController {
             ctx.arc(midScreenX, midScreenY, circleRadius, 0, Math.PI * 2);
             ctx.fill();
             
-            // 计算箭头间距（平行于连线方向）
+            // 计算箭头间距（平行于连线方向�?
             const arrowSpacing = arrowSize * 1.5;
-            // 计算箭头组的整体长度（最多2个箭头）
+            // 计算箭头组的整体长度（最�?个箭头）
             const maxArrowCount = 2;
             const maxArrowGroupLength = (maxArrowCount - 1) * arrowSpacing;
             
-            // 中心点两侧的偏移 = 圆半径 + 箭头组长度的一半（确保箭头尖部与圆相切，且两个箭头组不重叠）
+            // 中心点两侧的偏移 = 圆半�?+ 箭头组长度的一半（确保箭头尖部与圆相切，且两个箭头组不重叠�?
             const centerOffset = circleRadius + maxArrowGroupLength / 2 + arrowSize;
             
-            // 绘制左侧箭头（A -> B方向）
+            // 绘制左侧箭头（A -> B方向�?
             const leftConnectionCount = group.forward.length;
             if (leftConnectionCount > 0) {
-                // 左侧箭头组的中心位置（在中心点左侧，平行于连线，向后偏移）
+                // 左侧箭头组的中心位置（在中心点左侧，平行于连线，向后偏移�?
                 const leftCenterX = midScreenX - centerOffset * Math.cos(angle);
                 const leftCenterY = midScreenY - centerOffset * Math.sin(angle);
                 const leftSelected = selectedSide === 'forward' || (selectedSide === null && isSelected);
                 const leftArrowPositions = this.drawArrow(ctx, leftCenterX, leftCenterY, angle, leftConnectionCount, arrowSize, arrowColor, false, leftSelected);
                 
-                // 转换为世界坐标并保存到连线对象
+                // 转换为世界坐标并保存到连线对�?
                 if (leftArrowPositions) {
                     const forwardArrowPositions = leftArrowPositions.map(pos => ({
                         tip: this.screenToWorld(pos.tip.x, pos.tip.y),
@@ -3584,16 +3655,16 @@ export default class NodeGraphEditorController {
                 }
             }
             
-            // 绘制右侧箭头（B -> A方向）
+            // 绘制右侧箭头（B -> A方向�?
             const rightConnectionCount = group.backward.length;
             if (rightConnectionCount > 0) {
-                // 右侧箭头组的中心位置（在中心点右侧，平行于连线，向后偏移）
+                // 右侧箭头组的中心位置（在中心点右侧，平行于连线，向后偏移�?
                 const rightCenterX = midScreenX + centerOffset * Math.cos(angle);
                 const rightCenterY = midScreenY + centerOffset * Math.sin(angle);
                 const rightSelected = selectedSide === 'backward' || (selectedSide === null && isSelected);
                 const rightArrowPositions = this.drawArrow(ctx, rightCenterX, rightCenterY, angle, rightConnectionCount, arrowSize, arrowColor, true, rightSelected);
                 
-                // 转换为世界坐标并保存到连线对象
+                // 转换为世界坐标并保存到连线对�?
                 if (rightArrowPositions) {
                     const backwardArrowPositions = rightArrowPositions.map(pos => ({
                         tip: this.screenToWorld(pos.tip.x, pos.tip.y),
@@ -3610,7 +3681,7 @@ export default class NodeGraphEditorController {
             const connectionCount = hasForward ? group.forward.length : group.backward.length;
             const arrowPositions = this.drawArrow(ctx, midScreenX, midScreenY, angle, connectionCount, arrowSize, arrowColor, hasBackward, isSelected);
             
-            // 转换为世界坐标并保存到连线对象
+            // 转换为世界坐标并保存到连线对�?
             if (arrowPositions) {
                 const worldArrowPositions = arrowPositions.map(pos => ({
                     tip: this.screenToWorld(pos.tip.x, pos.tip.y),
@@ -3633,7 +3704,7 @@ export default class NodeGraphEditorController {
         // 保存箭头信息到组中所有连线（用于点击检测）
         const midWorld = this.screenToWorld(midScreenX, midScreenY);
         
-        // 保存箭头信息（箭头位置已在绘制时保存）
+        // 保存箭头信息（箭头位置已在绘制时保存�?
         group.forward.forEach(conn => {
             conn._arrowInfo = { ...arrowInfo, side: 'forward' };
             conn._arrowCenter = { x: midWorld.x, y: midWorld.y };
@@ -3649,12 +3720,12 @@ export default class NodeGraphEditorController {
         // 按节点对分组可视连线
         const connectionGroups = this.groupConnectionsByNodePair(this.visibleConnections);
         
-        // 绘制每个连线组
+        // 绘制每个连线�?
         connectionGroups.forEach(group => {
             this.drawConnectionGroup(ctx, group);
         });
         
-        // 绘制正在创建的连线
+        // 绘制正在创建的连�?
         if (this.creatingConnection) {
             const sourceNode = this.nodes.find(n => n.id === this.creatingConnection.sourceNodeId);
             if (sourceNode) {
@@ -3669,7 +3740,7 @@ export default class NodeGraphEditorController {
                 const mouseX = this.lastMouseX - rect.left;
                 const mouseY = this.lastMouseY - rect.top;
                 
-                // 手动保存状态
+                // 手动保存状�?
                 const originalStrokeStyle = ctx.strokeStyle;
                 const originalLineWidth = ctx.lineWidth;
                 const originalLineDash = ctx.getLineDash();
@@ -3683,7 +3754,7 @@ export default class NodeGraphEditorController {
                 ctx.lineTo(mouseX, mouseY);
                 ctx.stroke();
                 
-                // 手动恢复状态
+                // 手动恢复状�?
                 ctx.strokeStyle = originalStrokeStyle;
                 ctx.lineWidth = originalLineWidth;
                 ctx.setLineDash(originalLineDash);
@@ -3691,9 +3762,9 @@ export default class NodeGraphEditorController {
         }
     }
     
-    // 渲染函数（优化版本 - 实现渲染批处理、可视性检测、LOD分级绘制）
+    // 渲染函数（优化版�?- 实现渲染批处理、可视性检测、LOD分级绘制�?
     render(timestamp) {
-        // 性能监控开始
+        // 性能监控开�?
         const startTime = performance.now();
         
         // 限制渲染频率
@@ -3710,20 +3781,20 @@ export default class NodeGraphEditorController {
         // 1. 首先清空画布
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 2. 绘制栅格（只需要一次状态保存/恢复）
+        // 2. 绘制栅格（只需要一次状态保�?恢复�?
         this.drawGrid(this.ctx);
         
-        // 3. 预计算可见节点的自动尺寸，避免在渲染循环中重复计算
+        // 3. 预计算可见节点的自动尺寸，避免在渲染循环中重复计�?
         this.visibleNodes.forEach(node => {
             NodeService.calculateAutoSize(node, this.ctx);
         });
         
-        // 4. 判断当前有无选中对象并进行分离
+        // 4. 判断当前有无选中对象并进行分�?
         const hasSelectedElements = this.selectedElements.length > 0;
         
         // 5. 可视性检测和空间索引优化
         const visibleBounds = this.visibilityCuller.getVisibleBounds();
-        // 每10帧输出一次可视区域信息（用于调试）
+        // �?0帧输出一次可视区域信息（用于调试�?
         if (this.renderCount % 10 === 0) {
             // 计算节点实际分布范围
             let nodeMinX = Infinity, nodeMinY = Infinity, nodeMaxX = -Infinity, nodeMaxY = -Infinity;
@@ -3742,9 +3813,9 @@ export default class NodeGraphEditorController {
                     `pan: (${this.pan.x.toFixed(0)}, ${this.pan.y.toFixed(0)}), zoom: ${this.zoom.toFixed(2)}`);
         }
         
-        // 如果节点数 > 500，使用四叉树加速查询
+        // 如果节点�?> 500，使用四叉树加速查�?
         if (this.nodes.length > 500 && !this.useQuadTree) {
-            perfLog(`[性能优化] 节点数 ${this.nodes.length} > 500，启用四叉树空间索引`);
+            perfLog(`[性能优化] 节点�?${this.nodes.length} > 500，启用四叉树空间索引`);
             this.useQuadTree = true;
             // 计算节点边界范围
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -3776,7 +3847,7 @@ export default class NodeGraphEditorController {
                 });
             });
         } else if (this.nodes.length <= 500 && this.useQuadTree) {
-            perfLog(`[性能优化] 节点数 ${this.nodes.length} <= 500，禁用四叉树空间索引`);
+            perfLog(`[性能优化] 节点�?${this.nodes.length} <= 500，禁用四叉树空间索引`);
             this.useQuadTree = false;
             this.quadTree = null;
         }
@@ -3814,7 +3885,7 @@ export default class NodeGraphEditorController {
                     data: node
                 });
             });
-            // 将visibleBounds转换为四叉树期望的格式 {x, y, width, height}
+            // 将visibleBounds转换为四叉树期望的格�?{x, y, width, height}
             const queryArea = {
                 x: visibleBounds.minX,
                 y: visibleBounds.minY,
@@ -3823,9 +3894,9 @@ export default class NodeGraphEditorController {
             };
             visibleNodes = this.quadTree.query(queryArea);
             const visibilityTime = performance.now() - visibilityStartTime;
-            // 每10帧输出一次查询信息
+            // �?0帧输出一次查询信�?
             if (this.renderCount % 10 === 0) {
-                // 手动验证几个节点的可见性
+                // 手动验证几个节点的可见�?
                 let manualVisibleCount = 0;
                 const sampleSize = Math.min(10, this.nodes.length);
                 for (let i = 0; i < sampleSize; i++) {
@@ -3833,9 +3904,9 @@ export default class NodeGraphEditorController {
                         manualVisibleCount++;
                     }
                 }
-                perfLog(`[性能优化] 四叉树查询: 总节点 ${this.nodes.length}, 可见节点 ${visibleNodes.length}, 耗时 ${visibilityTime.toFixed(2)}ms, ` +
+                perfLog(`[性能优化] 四叉树查�? 总节�?${this.nodes.length}, 可见节点 ${visibleNodes.length}, 耗时 ${visibilityTime.toFixed(2)}ms, ` +
                         `查询区域: (${queryArea.x.toFixed(0)}, ${queryArea.y.toFixed(0)}) 尺寸: (${queryArea.width.toFixed(0)}, ${queryArea.height.toFixed(0)}), ` +
-                        `手动验证前${sampleSize}个节点: ${manualVisibleCount}个可见`);
+                        `手动验证�?{sampleSize}个节�? ${manualVisibleCount}个可见`);
             }
         } else {
             // 全量遍历（节点数较少时）
@@ -3843,20 +3914,20 @@ export default class NodeGraphEditorController {
                 this.visibilityCuller.isNodeVisible(node, visibleBounds)
             );
             const visibilityTime = performance.now() - visibilityStartTime;
-            // 每10帧输出一次查询信息
+            // �?0帧输出一次查询信�?
             if (this.renderCount % 10 === 0) {
-                perfLog(`[性能优化] 全量遍历: 总节点 ${this.nodes.length}, 可见节点 ${visibleNodes.length}, 耗时 ${visibilityTime.toFixed(2)}ms`);
+                perfLog(`[性能优化] 全量遍历: 总节�?${this.nodes.length}, 可见节点 ${visibleNodes.length}, 耗时 ${visibilityTime.toFixed(2)}ms`);
             }
         }
         
         // 获取LOD等级
         const lodLevel = this.lodManager.getLODLevel(this.zoom);
-        // 每100帧输出一次LOD信息（避免日志过多）
+        // �?00帧输出一次LOD信息（避免日志过多）
         if (this.renderCount % 100 === 0) {
             perfLog(`[性能优化] LOD等级: ${lodLevel} (zoom: ${this.zoom.toFixed(2)})`);
         }
         
-        // 6. 使用分组方法来处理连线
+        // 6. 使用分组方法来处理连�?
         const connectionGroups = this.groupConnectionsByNodePair(this.visibleConnections);
         
         // 按选中状态和类型分组元素，以便批处理绘制
@@ -3877,7 +3948,7 @@ export default class NodeGraphEditorController {
             }
         });
         
-        // 分离连线组到不同组
+        // 分离连线组到不同�?
         connectionGroups.forEach(group => {
             const isSelected = group.forward.some(conn => this.selectedElements.includes(conn)) ||
                               group.backward.some(conn => this.selectedElements.includes(conn));
@@ -3888,7 +3959,7 @@ export default class NodeGraphEditorController {
             }
         });
         
-        // 6. 批量绘制元素，按照绘制顺序并减少状态切换
+        // 6. 批量绘制元素，按照绘制顺序并减少状态切�?
         // 6.1 批量绘制未选中的连接组
         if (groups.unselectedConnections.length > 0) {
             groups.unselectedConnections.forEach(group => {
@@ -3899,7 +3970,7 @@ export default class NodeGraphEditorController {
         // 统计实际绘制的节点数
         let drawnNodeCount = 0;
         
-        // 6.2 批量绘制未选中的节点
+        // 6.2 批量绘制未选中的节�?
         if (groups.unselectedNodes.length > 0) {
             // 只设置一次节点绘制的基本状态，避免重复设置
             groups.unselectedNodes.forEach(node => {
@@ -3915,15 +3986,15 @@ export default class NodeGraphEditorController {
             });
         }
         
-        // 6.4 处理选中节点和相关节点
+        // 6.4 处理选中节点和相关节�?
         if (groups.selectedNodes.length > 0) {
-            // 批量绘制选中的节点
+            // 批量绘制选中的节�?
             groups.selectedNodes.forEach(node => {
                 this.drawNode(this.ctx, node);
                 drawnNodeCount++;
             });
         } else if (groups.selectedConnections.length > 0 && hasSelectedElements) {
-            // 如果只有选中的连接，绘制这些连接两端的节点
+            // 如果只有选中的连接，绘制这些连接两端的节�?
             const connectedNodeIds = new Set();
             groups.selectedConnections.forEach(group => {
                 group.forward.forEach(conn => {
@@ -3936,7 +4007,7 @@ export default class NodeGraphEditorController {
                 });
             });
             
-            // 批量绘制连接的节点
+            // 批量绘制连接的节�?
             const connectedNodes = this.nodes.filter(node => connectedNodeIds.has(node.id));
             connectedNodes.forEach(node => {
                 this.drawNode(this.ctx, node);
@@ -3944,9 +4015,9 @@ export default class NodeGraphEditorController {
             });
         }
         
-        // 输出可视性检测结果日志（每10帧输出一次）
+        // 输出可视性检测结果日志（�?0帧输出一次）
         if (this.renderCount % 10 === 0) {
-            perfLog(`[可视性检测] 总节点数: ${this.nodes.length}, 可见节点数: ${visibleNodes.length}, 实际绘制节点数: ${drawnNodeCount}`);
+            perfLog(`[可视性检测] 总节点数: ${this.nodes.length}, 可见节点�? ${visibleNodes.length}, 实际绘制节点�? ${drawnNodeCount}`);
         }
 
         // 7. 绘制文字对象
@@ -3954,18 +4025,18 @@ export default class NodeGraphEditorController {
             this.drawTextContent(this.ctx, textContent);
         });
 
-        // 8. 绘制节点描述提示框（始终在最上层）
+        // 8. 绘制节点描述提示框（始终在最上层�?
         if (this.hoveredNode) {
             // 获取鼠标位置
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = this.lastMouseX - rect.left;
             const mouseY = this.lastMouseY - rect.top;
             
-            // 绘制Canvas提示框
+            // 绘制Canvas提示�?
             this.drawTooltip(this.ctx, this.hoveredNode, mouseX, mouseY);
         }
         
-        // 8. 绘制正在创建的连线（最顶层）- 使用手动状态保存/恢复代替ctx.save()/ctx.restore()
+        // 8. 绘制正在创建的连线（最顶层�? 使用手动状态保�?恢复代替ctx.save()/ctx.restore()
         if (this.creatingConnection) {
             const sourceNode = this.nodes.find(n => n.id === this.creatingConnection.sourceNodeId);
             if (sourceNode) {
@@ -3980,12 +4051,12 @@ export default class NodeGraphEditorController {
                 const mouseX = this.lastMouseX - rect.left;
                 const mouseY = this.lastMouseY - rect.top;
                 
-                // 手动保存状态
+                // 手动保存状�?
                 const originalStrokeStyle = this.ctx.strokeStyle;
                 const originalLineWidth = this.ctx.lineWidth;
                 const originalLineDash = this.ctx.getLineDash();
                 
-                // 设置状态
+                // 设置状�?
                 this.ctx.strokeStyle = '#007acc';
                 this.ctx.lineWidth = 1.5;
                 this.ctx.setLineDash([5, 5]);
@@ -3995,7 +4066,7 @@ export default class NodeGraphEditorController {
                 this.ctx.lineTo(mouseX, mouseY);
                 this.ctx.stroke();
                 
-                // 手动恢复状态
+                // 手动恢复状�?
                 this.ctx.strokeStyle = originalStrokeStyle;
                 this.ctx.lineWidth = originalLineWidth;
                 this.ctx.setLineDash(originalLineDash);
@@ -4005,15 +4076,15 @@ export default class NodeGraphEditorController {
         const endTime = performance.now();
         const renderTime = endTime - startTime;
         
-        // 使用性能监控器记录
+        // 使用性能监控器记�?
         this.performanceMonitor.recordFrame(renderTime);
         
-        // 每10帧输出一次详细性能日志
+        // �?0帧输出一次详细性能日志
         if (this.renderCount % 10 === 0) {
             const fps = 1000 / renderTime;
             perfLog(`[性能监控] 渲染时间: ${renderTime.toFixed(2)}ms, FPS: ${fps.toFixed(1)}, ` +
-                    `总节点: ${this.nodes.length}, 可见节点: ${visibleNodes.length}, ` +
-                    `总连接: ${this.connections.length}, LOD: ${lodLevel}`);
+                    `总节�? ${this.nodes.length}, 可见节点: ${visibleNodes.length}, ` +
+                    `总连�? ${this.connections.length}, LOD: ${lodLevel}`);
         }
         
         // 更新状态栏信息
@@ -4038,13 +4109,13 @@ export default class NodeGraphEditorController {
         }
         
         if (selectionInfoEl) {
-            // 准确判断节点和连接
+            // 准确判断节点和连�?
             const selectedNodes = this.selectedElements.filter(el => {
-                // 节点：有type='node'，或者没有sourceNodeId/targetNodeId属性
+                // 节点：有type='node'，或者没有sourceNodeId/targetNodeId属�?
                 return el.type === 'node' || (!el.sourceNodeId && !el.targetNodeId && el.id);
             });
             const selectedConnections = this.selectedElements.filter(el => {
-                // 连接：有type='connection'，或者有sourceNodeId/targetNodeId属性
+                // 连接：有type='connection'，或者有sourceNodeId/targetNodeId属�?
                 return el.type === 'connection' || (el.sourceNodeId && el.targetNodeId);
             });
             const totalSelected = this.selectedElements.length;
@@ -4064,7 +4135,7 @@ export default class NodeGraphEditorController {
             }
         }
         
-        // 更新力学模拟状态
+        // 更新力学模拟状�?
         if (forceStatusEl) {
             if (this.isRealTimeArrangeActive) {
                 forceStatusEl.classList.remove('hidden');
@@ -4074,7 +4145,7 @@ export default class NodeGraphEditorController {
         }
     }
     
-    // 检测节点悬浮
+    // 检测节点悬�?
     checkNodeHover(worldPos, screenX, screenY) {
         // 查找鼠标下方的节点（从后往前，优先检测最上层的节点）
         let hoveredNode = null;
@@ -4093,12 +4164,12 @@ export default class NodeGraphEditorController {
             }
         }
         
-        // 如果悬浮的节点发生变化
+        // 如果悬浮的节点发生变�?
         if (hoveredNode !== this.hoveredNode) {
-            // 重置状态
+            // 重置状�?
             this.resetTooltipState();
             
-            // 更新当前悬浮的节点
+            // 更新当前悬浮的节�?
             this.hoveredNode = hoveredNode;
             
             // 如果有新节点且节点有描述信息，设置定时器记录显示时间
@@ -4111,7 +4182,7 @@ export default class NodeGraphEditorController {
     
 
     
-    // 重置提示框状态
+    // 重置提示框状�?
     resetTooltipState() {
         if (this.hoverTimeout) {
             clearTimeout(this.hoverTimeout);
@@ -4120,22 +4191,22 @@ export default class NodeGraphEditorController {
         this.hoverStartTime = 0;
     }
     
-    // 使用Canvas绘制节点提示框
+    // 使用Canvas绘制节点提示�?
     drawTooltip(ctx, node, mouseX, mouseY) {
         if (!node || !node.description || !node.description.trim()) {
             return;
         }
         
-        // 检查悬浮时间是否超过1秒
+        // 检查悬浮时间是否超�?�?
         const currentTime = Date.now();
         if (currentTime - this.hoverStartTime < 1000) {
             return;
         }
         
-        // 配置项
+        // 配置�?
         const padding = 8;
         const borderRadius = 4;
-        const maxWidth = 300;
+        const maxWidth = 200;
         const fontSize = 12;
         
         // 获取主题颜色
@@ -4144,7 +4215,7 @@ export default class NodeGraphEditorController {
         const borderColor = isLight ? '#ccc' : '#3e3e42';
         const textColor = isLight ? '#333333' : '#e0e0e0';
         
-        // 手动保存所有会修改的状态属性
+        // 手动保存所有会修改的状态属�?
         const originalFillStyle = ctx.fillStyle;
         const originalStrokeStyle = ctx.strokeStyle;
         const originalLineWidth = ctx.lineWidth;
@@ -4160,7 +4231,7 @@ export default class NodeGraphEditorController {
         const lines = [];
         let currentLine = '';
         
-        // 按单词分割处理换行
+        // 按单词分割处理换�?
         const words = text.split(' ');
         for (let i = 0; i < words.length; i++) {
             const testLine = currentLine + (currentLine ? ' ' : '') + words[i];
@@ -4188,12 +4259,12 @@ export default class NodeGraphEditorController {
             lines.push(currentLine);
         }
         
-        // 计算提示框尺寸
+        // 计算提示框尺�?
         let textHeight = fontSize * lines.length;
         let boxWidth = maxWidth;
         let boxHeight = textHeight + (padding * 2);
         
-        // 调整位置，避免超出画布边界
+        // 调整位置，避免超出画布边�?
         let x = mouseX + 10;
         let y = mouseY + 10;
         
@@ -4204,11 +4275,11 @@ export default class NodeGraphEditorController {
             y = mouseY - boxHeight - 10;
         }
         
-        // 确保不小于画布边界
+        // 确保不小于画布边�?
         x = Math.max(0, x);
         y = Math.max(0, y);
         
-        // 绘制提示框背景
+        // 绘制提示框背�?
         ctx.fillStyle = bgColor;
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = 1;
@@ -4235,7 +4306,7 @@ export default class NodeGraphEditorController {
             ctx.fillText(lines[i], x + padding, y + padding + (i * fontSize));
         }
         
-        // 手动恢复所有状态属性
+        // 手动恢复所有状态属�?
         ctx.fillStyle = originalFillStyle;
         ctx.strokeStyle = originalStrokeStyle;
         ctx.lineWidth = originalLineWidth;
@@ -4259,7 +4330,7 @@ export default class NodeGraphEditorController {
      */
     arrangeNodesWithForceLayout() {
         try {
-            // 确定要排列的节点：如果有选中的节点，则只排列选中的节点，否则排列所有节点
+            // 确定要排列的节点：如果有选中的节点，则只排列选中的节点，否则排列所有节�?
             const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
             const nodesToArrange = selectedNodes.length > 0 ? selectedNodes : this.nodes;
             
@@ -4279,13 +4350,13 @@ export default class NodeGraphEditorController {
                 };
             });
             
-            // 实现互斥逻辑：如果实时排列正在运行，则先停止它
+            // 实现互斥逻辑：如果实时排列正在运行，则先停止�?
             if (this.isRealTimeArrangeActive) {
                 this.stopRealTimeArrange();
                 this.showNotification('已停止实时排列，开始树形自动排列');
             }
             
-            // 使用纯树形结构算法排列节点
+            // 使用纯树形结构算法排列节�?
             this.arrangeNodesInTreeLayout(nodesToArrange);
             
             // 保存历史记录
@@ -4304,7 +4375,7 @@ export default class NodeGraphEditorController {
     }
     
     /**
-     * 纯树形结构排列算法
+     * 纯树形结构排列算�?
      * @param {Node[]} nodesToArrange - 要排列的节点数组
      */
     arrangeNodesInTreeLayout(nodesToArrange) {
@@ -4324,7 +4395,7 @@ export default class NodeGraphEditorController {
             return;
         }
         
-        // 构建节点图结构（只包含可移动节点）
+        // 构建节点图结构（只包含可移动节点�?
         const nodeMap = new Map();
         movableNodes.forEach(node => nodeMap.set(node.id, node));
         
@@ -4332,7 +4403,7 @@ export default class NodeGraphEditorController {
         const rootNodes = [];
         const hasIncomingEdge = new Set();
         
-        // 标记有入边的节点（只考虑可移动节点之间的连接）
+        // 标记有入边的节点（只考虑可移动节点之间的连接�?
         this.connections.forEach(conn => {
             if (nodeMap.has(conn.targetNodeId) && nodeMap.has(conn.sourceNodeId)) {
                 hasIncomingEdge.add(conn.targetNodeId);
@@ -4351,8 +4422,8 @@ export default class NodeGraphEditorController {
             rootNodes.push(movableNodes[0]);
         }
         
-        // 按层级排列节点
-        const levels = []; // 每层包含的节点
+        // 按层级排列节�?
+        const levels = []; // 每层包含的节�?
         const visited = new Set();
         const queue = [];
         
@@ -4372,7 +4443,7 @@ export default class NodeGraphEditorController {
             }
             levels[level].push(node);
             
-            // 找到当前节点的所有子节点（通过出边）
+            // 找到当前节点的所有子节点（通过出边�?
             this.connections.forEach(conn => {
                 if (conn.sourceNodeId === node.id && 
                     nodeMap.has(conn.targetNodeId) && 
@@ -4389,7 +4460,7 @@ export default class NodeGraphEditorController {
         // 添加未被访问的节点（可能是孤立节点或环中的节点）
         movableNodes.forEach(node => {
             if (!visited.has(node.id)) {
-                // 放在最后一层
+                // 放在最后一�?
                 const lastLevel = levels.length;
                 if (!levels[lastLevel]) {
                     levels[lastLevel] = [];
@@ -4398,7 +4469,7 @@ export default class NodeGraphEditorController {
             }
         });
         
-        // 计算每个节点的位置
+        // 计算每个节点的位�?
         levels.forEach((levelNodes, levelIndex) => {
             const levelY = START_Y + levelIndex * (NODE_HEIGHT + VERTICAL_SPACING);
             
@@ -4421,12 +4492,12 @@ export default class NodeGraphEditorController {
         
         // 显示操作结果信息
         if (fixedNodes.length > 0) {
-            this.showNotification(`已排列 ${movableNodes.length} 个节点，${fixedNodes.length} 个固定位置节点未移动`);
+            this.showNotification(`已排�?${movableNodes.length} 个节点，${fixedNodes.length} 个固定位置节点未移动`);
         } else {
-            this.showNotification(`已排列 ${movableNodes.length} 个节点`);
+            this.showNotification(`已排�?${movableNodes.length} 个节点`);
         }
         
-        // 触发一次渲染
+        // 触发一次渲�?
         this.scheduleRender();
     }
     
@@ -4472,19 +4543,19 @@ export default class NodeGraphEditorController {
         
         // 显示操作结果信息
         if (fixedNodes.length > 0) {
-            this.showNotification(`已排列 ${movableNodes.length} 个节点，${fixedNodes.length} 个固定位置节点未移动`);
+            this.showNotification(`已排�?${movableNodes.length} 个节点，${fixedNodes.length} 个固定位置节点未移动`);
         } else {
-            this.showNotification(`已排列 ${movableNodes.length} 个节点`);
+            this.showNotification(`已排�?${movableNodes.length} 个节点`);
         }
     }
     
-    // 识别孤立节点和有连接的节点
+    // 识别孤立节点和有连接的节�?
     identifyNodeGroups(nodes = null) {
         // 如果没有提供nodes参数，则使用可视节点
         const targetNodes = nodes || this.visibleNodes;
         const connectedNodeIds = new Set();
         
-        // 收集有连接的节点ID（只考虑与目标节点相关的连接）
+        // 收集有连接的节点ID（只考虑与目标节点相关的连接�?
         this.visibleConnections.forEach(conn => {
             // 检查连接的源节点或目标节点是否在目标节点集合中
             if (targetNodes.some(node => node.id === conn.sourceNodeId || node.id === conn.targetNodeId)) {
@@ -4493,7 +4564,7 @@ export default class NodeGraphEditorController {
             }
         });
         
-        // 分离孤立节点和有连接的节点
+        // 分离孤立节点和有连接的节�?
         const isolatedNodes = [];
         const connectedNodes = [];
         
@@ -4508,7 +4579,7 @@ export default class NodeGraphEditorController {
         return { isolatedNodes, connectedNodes };
     }
     
-    // 排列孤立节点为矩阵
+    // 排列孤立节点为矩�?
     arrangeIsolatedNodes(isolatedNodes, startX, startY, nodeWidth) {
         const columns = Math.ceil(Math.sqrt(isolatedNodes.length));
         const rows = Math.ceil(isolatedNodes.length / columns);
@@ -4556,7 +4627,7 @@ export default class NodeGraphEditorController {
         return { left: minX, top: minY, right: maxX, bottom: maxY };
     }
     
-    // 查找连通分量（互相连接的节点组）
+    // 查找连通分量（互相连接的节点组�?
     findConnectedGroups(nodes) {
         const nodeMap = new Map();
         const adjacencyList = new Map();
@@ -4569,7 +4640,7 @@ export default class NodeGraphEditorController {
             adjacencyList.set(node.id, []);
         });
         
-        // 构建邻接表（忽略连接方向）
+        // 构建邻接表（忽略连接方向�?
         this.connections.forEach(conn => {
             if (nodeMap.has(conn.sourceNodeId) && nodeMap.has(conn.targetNodeId)) {
                 adjacencyList.get(conn.sourceNodeId).push(conn.targetNodeId);
@@ -4577,7 +4648,7 @@ export default class NodeGraphEditorController {
             }
         });
         
-        // DFS查找连通分量
+        // DFS查找连通分�?
         function dfs(nodeId, currentGroup) {
             visited.add(nodeId);
             currentGroup.push(nodeMap.get(nodeId));
@@ -4589,7 +4660,7 @@ export default class NodeGraphEditorController {
             });
         }
         
-        // 遍历所有节点，找出所有连通分量
+        // 遍历所有节点，找出所有连通分�?
         nodes.forEach(node => {
             if (!visited.has(node.id)) {
                 const group = [];
@@ -4638,10 +4709,10 @@ export default class NodeGraphEditorController {
         });
         
         if (clickedNode) {
-            // 查找所有连通分量
+            // 查找所有连通分�?
             const allGroups = this.findConnectedGroups(this.nodes);
             
-            // 找到包含点击节点的连通分量
+            // 找到包含点击节点的连通分�?
             const targetGroup = allGroups.find(group => 
                 group.some(node => node.id === clickedNode.id)
             );
@@ -4652,7 +4723,7 @@ export default class NodeGraphEditorController {
                     this.deselectAll();
                 }
                 
-                // 选中连通分量中的所有节点
+                // 选中连通分量中的所有节�?
                 targetGroup.forEach(node => {
                     // 检查节点是否已经被选中
                     const isAlreadySelected = this.selectedElements.some(el => el.id === node.id);
@@ -4664,8 +4735,8 @@ export default class NodeGraphEditorController {
                 // 应用筛选器
                 this.filterSelectedElements();
                 
-                // 更新属性面板
-                updatePropertyPanel(this);
+                // 更新属性面�?
+                this.propertyPanelAdapter.update(this.selectedElements, this.nodes, this.connections);
                 
                 // 重新渲染
                 this.scheduleRender();
@@ -4675,17 +4746,17 @@ export default class NodeGraphEditorController {
         return true;
     }
     
-    // 计算每个节点的连接数量
+    // 计算每个节点的连接数�?
     calculateNodeConnectionCounts(nodes) {
         const connectionCounts = new Map();
         const nodeIdSet = new Set(nodes.map(n => n.id));
         
-        // 初始化计数
+        // 初始化计�?
         nodes.forEach(node => {
             connectionCounts.set(node.id, 0);
         });
         
-        // 统计经过每个节点的连接数量
+        // 统计经过每个节点的连接数�?
         this.visibleConnections.forEach(conn => {
             if (nodeIdSet.has(conn.sourceNodeId)) {
                 connectionCounts.set(conn.sourceNodeId, connectionCounts.get(conn.sourceNodeId) + 1);
@@ -4702,7 +4773,7 @@ export default class NodeGraphEditorController {
     groupNodesByConnectionCount(nodes, connectionCounts) {
         const nodesByCount = new Map();
         
-        // 按连接数量分组
+        // 按连接数量分�?
         nodes.forEach(node => {
             const count = connectionCounts.get(node.id);
             if (!nodesByCount.has(count)) {
@@ -4716,7 +4787,7 @@ export default class NodeGraphEditorController {
             nodeList.sort((a, b) => a.id.localeCompare(b.id));
         });
         
-        // 获取降序排列的连接数量
+        // 获取降序排列的连接数�?
         const sortedCounts = Array.from(nodesByCount.keys()).sort((a, b) => b - a);
         
         return { nodesByCount, sortedCounts };
@@ -4728,11 +4799,11 @@ export default class NodeGraphEditorController {
             return { left: 0, top: 0, right: 0, bottom: 0 };
         }
         
-        // 找出连接数量最多的节点作为根节点
+        // 找出连接数量最多的节点作为根节�?
         const maxCount = nodesByConnectionCount.sortedCounts[0];
         const rootNode = nodesByConnectionCount.nodesByCount.get(maxCount)[0];
         
-        // 设置根节点位置
+        // 设置根节点位�?
         if (rootNode.transform && rootNode.transform.position) {
             rootNode.transform.position.x = startX;
             rootNode.transform.position.y = startY;
@@ -4768,7 +4839,7 @@ export default class NodeGraphEditorController {
         // 计算每个节点距离根节点的层级
         const nodeLevels = this.calculateNodeLevels(dependencyGraph, [rootNode]);
         
-        // 按层级分组节点
+        // 按层级分组节�?
         const nodesByLevel = {};
         group.forEach(node => {
             const level = nodeLevels[node.id] || 0;
@@ -4784,21 +4855,21 @@ export default class NodeGraphEditorController {
         // 层级半径设置
         const radiusPerLevel = minDistance * 1.5;
         
-        // 固定角度间隔（20度，转换为弧度）
+        // 固定角度间隔�?0度，转换为弧度）
         const angleInterval = (20 * Math.PI) / 180;
         
         // 为每一层的节点分配位置
         levels.forEach(level => {
-            if (level === 0) return; // 根节点已经放置
+            if (level === 0) return; // 根节点已经放�?
             
             const nodes = nodesByLevel[level];
             const radius = level * radiusPerLevel;
             
-            // 从根节点上方开始，顺时针排列
+            // 从根节点上方开始，顺时针排�?
             let currentAngle = -Math.PI / 2;
             
             nodes.forEach(node => {
-                // 只放置未放置的节点
+                // 只放置未放置的节�?
                 if (!placedNodes.has(node.id)) {
                     const rootPos = (rootNode.transform && rootNode.transform.position) ? 
                         rootNode.transform.position : { x: 0, y: 0 };
@@ -4822,7 +4893,7 @@ export default class NodeGraphEditorController {
                     
                     placedNodes.add(node.id);
                     
-                    // 顺时针增加固定角度
+                    // 顺时针增加固定角�?
                     currentAngle += angleInterval;
                 }
             });
@@ -4859,7 +4930,7 @@ export default class NodeGraphEditorController {
         return { left: minX, top: minY, right: maxX, bottom: maxY };
     }
     
-    // 计算每个节点的层级
+    // 计算每个节点的层�?
     /**
      * 注意：此函数是为真正的树形排列设计的，但目前未被使用
      * 当前系统使用力导向图算法进行排列，而非树形排列
@@ -4868,11 +4939,11 @@ export default class NodeGraphEditorController {
     calculateNodeLevels(dependencyGraph, roots) {
         const nodeLevels = {};
         const visited = new Set();
-        const recursionStack = new Set(); // 用于检测循环依赖
+        const recursionStack = new Set(); // 用于检测循环依�?
         
         // 使用DFS计算层级
         function dfs(nodeId, currentLevel) {
-            // 检测循环依赖
+            // 检测循环依�?
             if (recursionStack.has(nodeId)) {
                 console.warn(`检测到循环依赖: ${nodeId}，跳过以避免栈溢出`);
                 return;
@@ -4882,7 +4953,7 @@ export default class NodeGraphEditorController {
                 // 如果节点已访问，检查是否需要更新层级（取较大值）
                 if (nodeLevels[nodeId] < currentLevel) {
                     nodeLevels[nodeId] = currentLevel;
-                    // 递归更新子节点层级，但避免循环
+                    // 递归更新子节点层级，但避免循�?
                     dependencyGraph[nodeId].forEach(childId => {
                         if (!recursionStack.has(childId)) {
                             dfs(childId, currentLevel + 1);
@@ -4897,7 +4968,7 @@ export default class NodeGraphEditorController {
             visited.add(nodeId);
             nodeLevels[nodeId] = currentLevel;
             
-            // 递归处理子节点
+            // 递归处理子节�?
             dependencyGraph[nodeId].forEach(childId => {
                 dfs(childId, currentLevel + 1);
             });
@@ -5004,7 +5075,7 @@ export default class NodeGraphEditorController {
             throw new Error('连线不能为空');
         }
         
-        // 移除连接重复检查，允许节点间创建多个连接
+        // 移除连接重复检查，允许节点间创建多个连�?
         
         this.connections.push(connection);
         
@@ -5027,7 +5098,7 @@ export default class NodeGraphEditorController {
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
     
-    // 清空所有内容
+    // 清空所有内�?
     clearAll() {
         this.nodes = [];
         this.connections = [];
@@ -5084,7 +5155,7 @@ export default class NodeGraphEditorController {
         `;
         document.head.appendChild(style);
         
-        // 添加到文档
+        // 添加到文�?
         document.body.appendChild(notification);
         
         // 3秒后移除
@@ -5101,5 +5172,5 @@ export default class NodeGraphEditorController {
     }
 }
 
-// 导出NodeGraphEditorController类
+// 导出NodeGraphEditorController�?
 export { NodeGraphEditorController };

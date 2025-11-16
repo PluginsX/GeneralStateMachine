@@ -1,5 +1,11 @@
 class TypeRegistry {
+  static instance = null;
+
   constructor() {
+    if (TypeRegistry.instance) {
+      return TypeRegistry.instance;
+    }
+
     // 存储类型到组件的映射
     this.typeComponentMap = new Map();
     
@@ -20,6 +26,15 @@ class TypeRegistry {
     
     // 默认组件映射
     this._registerDefaultTypes();
+
+    TypeRegistry.instance = this;
+  }
+
+  static getInstance() {
+    if (!TypeRegistry.instance) {
+      TypeRegistry.instance = new TypeRegistry();
+    }
+    return TypeRegistry.instance;
   }
 
   // 注册默认类型
@@ -385,6 +400,42 @@ class TypeRegistry {
     };
   }
 
+  // 注册类型处理器（包含获取属性、验证、格式化等）
+  registerTypeHandler(type, handler) {
+    if (typeof type !== 'string' || typeof handler !== 'object') {
+      throw new Error('Type must be a string and handler must be an object');
+    }
+    
+    // 如果handler包含getProperties，注册为组件类型
+    if (handler.getProperties && typeof handler.getProperties === 'function') {
+      this.registerComponentType(type, handler.getProperties);
+    }
+    
+    // 如果handler包含validateProperty，注册为验证器
+    if (handler.validateProperty && typeof handler.validateProperty === 'function') {
+      this.registerTypeValidator(type, handler.validateProperty);
+    }
+    
+    // 如果handler包含formatProperty，注册为格式化器
+    if (handler.formatProperty && typeof handler.formatProperty === 'function') {
+      this.registerTypeFormatter(type, handler.formatProperty);
+    }
+    
+    // 存储完整的handler以备后用
+    this.typeHandlerMap = this.typeHandlerMap || new Map();
+    this.typeHandlerMap.set(type.toLowerCase(), handler);
+  }
+
+  // 获取类型处理器
+  getTypeHandler(type) {
+    if (typeof type !== 'string') {
+      return null;
+    }
+    
+    this.typeHandlerMap = this.typeHandlerMap || new Map();
+    return this.typeHandlerMap.get(type.toLowerCase()) || null;
+  }
+
   // 清除所有类型注册
   clear() {
     this.typeComponentMap.clear();
@@ -393,6 +444,10 @@ class TypeRegistry {
     this.typeValidatorMap.clear();
     this.typeFormatterMap.clear();
     this.typeParserMap.clear();
+    
+    if (this.typeHandlerMap) {
+      this.typeHandlerMap.clear();
+    }
     
     // 重新注册默认类型
     this._registerDefaultTypes();

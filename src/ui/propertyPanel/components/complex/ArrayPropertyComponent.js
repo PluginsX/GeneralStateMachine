@@ -1,5 +1,5 @@
-import PropertyComponentBase from '../PropertyComponentBase.js';
-import { createPropertyComponent } from '../../utils/ComponentFactory.js'; // 后续会创建这个工厂类
+import { PropertyComponentBase } from '../PropertyComponentBase.js';
+import ComponentFactory from '../../utils/ComponentFactory.js'; // 后续会创建这个工厂类
 
 class ArrayPropertyComponent extends PropertyComponentBase {
   constructor(propertyName, propertyValue, onChangeCallback, options = {}) {
@@ -126,16 +126,9 @@ class ArrayPropertyComponent extends PropertyComponentBase {
     indexLabel.textContent = `[${index}]`;
     itemContainer.appendChild(indexLabel);
     
-    // 尝试动态导入组件工厂
-    const createComponent = window.createPropertyComponent || (() => {
-      // 临时的降级处理，后续会被替换
-      const el = document.createElement('input');
-      el.value = String(value);
-      el.addEventListener('change', (e) => {
-        this.updateItem(index, e.target.value);
-      });
-      return { getElement: () => el, updateValue: (val) => { el.value = String(val); } };
-    });
+    // 创建组件工厂实例
+    const factory = new ComponentFactory();
+    const createComponent = factory.createPropertyComponent.bind(factory);
     
     // 创建数组项的属性组件
     const itemComponent = createComponent(

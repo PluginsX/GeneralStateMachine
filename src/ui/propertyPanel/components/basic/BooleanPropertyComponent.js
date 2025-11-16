@@ -1,4 +1,4 @@
-import PropertyComponentBase from '../PropertyComponentBase.js';
+import { PropertyComponentBase } from '../PropertyComponentBase.js';
 
 class BooleanPropertyComponent extends PropertyComponentBase {
   constructor(propertyName, propertyValue, onChangeCallback, options = {}) {

@@ -1,5 +1,5 @@
 // 属性组件基类，所有属性组件都必须继承此类
-class PropertyComponentBase {
+export class PropertyComponentBase {
   constructor(propertyName, propertyValue, onChangeCallback, options = {}) {
     this.propertyName = propertyName;
     this.propertyValue = propertyValue;
