@@ -3,6 +3,8 @@
 import Condition from '../core/condition.js';
 import ConnectionModel from '../models/ConnectionModel.js';
 import NodeModel from '../models/NodeModel.js';
+import { Vector2 } from '../math/GraphicsMath.js';
+import { Transform2D } from '../math/Transform.js';
 import { PopUp_Window } from '../utils/popup.js';
 
 export default class ImportService {
@@ -932,7 +934,10 @@ export default class ImportService {
                     
                     // 创建ConnectionModel类实例
                     const connectionId = this.generateUniqueId();
-                    const newConnection = new ConnectionModel(sourceId, targetId);
+                    const newConnection = new ConnectionModel({
+                sourceNodeId: sourceId,
+                targetNodeId: targetId
+            });
                     newConnection.id = connectionId;
                     
                     // 处理条件
@@ -992,12 +997,23 @@ export default class ImportService {
      * @returns {Object} - 节点对象
      */
     createNode(name, description, x, y) {
-        // 创建Node类的实例
-        const node = new NodeModel(name || '未命名节点', x || 100, y || 100);
-        node.description = description || '';
-        node.group = ''; // 初始化Group属性
-        node.width = 120;
-        node.height = 60;
+        // 创建Node类的实例，使用正确的options对象参数
+        const position = new Vector2(x || 100, y || 100);
+        const node = new NodeModel({
+            name: name || '未命名节点',
+            position: position,
+            description: description || '',
+            group: '', // 初始化Group属性
+            width: 120,
+            height: 60
+        });
+        
+        // 确保transform正确设置（关键修复：确保导入的节点可以拖拽）
+        if (!node.transform) {
+            node.transform = new Transform2D(position, 0, new Vector2(1, 1));
+        } else {
+            node.transform.position = position;
+        }
         
         return node;
     }
@@ -1011,7 +1027,10 @@ export default class ImportService {
      */
     createConnection(sourceId, targetId, condition) {
         // 创建ConnectionModel类的实例
-        const connection = new ConnectionModel(sourceId, targetId);
+        const connection = new ConnectionModel({
+                sourceNodeId: sourceId,
+                targetNodeId: targetId
+            });
         
         // 如果提供了条件，解析并添加到conditions数组
         if (condition) {
@@ -1102,7 +1121,10 @@ export default class ImportService {
             }
             
             // 创建节点
-            const node = new NodeModel(nodeName, x, y);
+            const node = new NodeModel({
+                    name: nodeName,
+                    position: { x: x, y: y }
+                });
             node.description = '';
             node.group = ''; // 初始化Group属性
             node.width = 150;
@@ -1143,7 +1165,10 @@ export default class ImportService {
             }
             
             // 创建ConnectionModel类的实例
-            const connection = new ConnectionModel(sourceNode.id, targetNode.id);
+            const connection = new ConnectionModel({
+                sourceNodeId: sourceNode.id,
+                targetNodeId: targetNode.id
+            });
             
             // 设置额外属性
             connection.name = transition.Name || '';

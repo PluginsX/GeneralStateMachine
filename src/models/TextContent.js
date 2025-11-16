@@ -55,6 +55,16 @@ export class TextContent extends ObjectBase {
         this.maxHeight = options.maxHeight || 0;
         this.padding = options.padding || 10;
         
+        // 背景属性
+        this.backgroundColor = options.backgroundColor ? new Color(options.backgroundColor) : null;
+        this.backgroundTransparent = options.backgroundTransparent !== false; // 默认为true
+        
+        // 边框属性
+        this.showBorder = options.showBorder || false;
+        this.borderColor = options.borderColor ? new Color(options.borderColor) : new Color('#000000');
+        this.borderWidth = options.borderWidth || 1;
+        this.borderStyle = options.borderStyle || 'solid'; // solid, dashed
+        
         // 文本状态
         this.isEditing = false;
         this.cursorPosition = 0;
@@ -128,6 +138,66 @@ export class TextContent extends ObjectBase {
      */
     setFontColor(fontColor) {
         this.fontColor = fontColor instanceof Color ? fontColor : new Color(fontColor);
+        return this.touch();
+    }
+    
+    /**
+     * 设置背景透明度
+     * @param {boolean} transparent - 是否透明
+     * @returns {TextContent}
+     */
+    setBackgroundTransparent(transparent) {
+        this.backgroundTransparent = transparent;
+        return this.touch();
+    }
+    
+    /**
+     * 设置背景颜色
+     * @param {Color|string} color - 背景颜色
+     * @returns {TextContent}
+     */
+    setBackgroundColor(color) {
+        this.backgroundColor = color instanceof Color ? color : new Color(color);
+        return this.touch();
+    }
+    
+    /**
+     * 设置边框显示状态
+     * @param {boolean} show - 是否显示边框
+     * @returns {TextContent}
+     */
+    setShowBorder(show) {
+        this.showBorder = show;
+        return this.touch();
+    }
+    
+    /**
+     * 设置边框颜色
+     * @param {Color|string} color - 边框颜色
+     * @returns {TextContent}
+     */
+    setBorderColor(color) {
+        this.borderColor = color instanceof Color ? color : new Color(color);
+        return this.touch();
+    }
+    
+    /**
+     * 设置边框宽度
+     * @param {number} width - 边框宽度
+     * @returns {TextContent}
+     */
+    setBorderWidth(width) {
+        this.borderWidth = Math.max(0, width);
+        return this.touch();
+    }
+    
+    /**
+     * 设置边框样式
+     * @param {string} style - 边框样式
+     * @returns {TextContent}
+     */
+    setBorderStyle(style) {
+        this.borderStyle = style;
         return this.touch();
     }
 
@@ -341,6 +411,10 @@ export class TextContent extends ObjectBase {
             this.errors.push('文本尺寸必须大于0');
         }
         
+        if (this.borderWidth < 0) {
+            this.errors.push('边框宽度不能为负数');
+        }
+        
         // 警告
         if (this.text.length > 1000) {
             this.warnings.push('文本内容过长，可能影响性能');
@@ -380,7 +454,13 @@ export class TextContent extends ObjectBase {
             wordWrap: data.wordWrap,
             maxWidth: data.maxWidth,
             maxHeight: data.maxHeight,
-            padding: data.padding
+            padding: data.padding,
+            backgroundTransparent: data.backgroundTransparent,
+            backgroundColor: data.backgroundColor,
+            showBorder: data.showBorder,
+            borderColor: data.borderColor,
+            borderWidth: data.borderWidth,
+            borderStyle: data.borderStyle
         });
         
         // 恢复基础属性
@@ -425,6 +505,12 @@ export class TextContent extends ObjectBase {
             maxWidth: this.maxWidth,
             maxHeight: this.maxHeight,
             padding: this.padding,
+            backgroundTransparent: this.backgroundTransparent,
+            backgroundColor: this.backgroundColor ? this.backgroundColor.toString() : null,
+            showBorder: this.showBorder,
+            borderColor: this.borderColor.toString(),
+            borderWidth: this.borderWidth,
+            borderStyle: this.borderStyle,
             visible: this.visible,
             selected: this.selected,
             locked: this.locked,

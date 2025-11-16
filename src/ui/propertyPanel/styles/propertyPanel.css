@@ -1,0 +1,558 @@
+/* 属性面板主样式文件 */
+
+/* 基础样式重置 */
+.property-panel * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* 属性面板容器 */
+.property-panel {
+  width: 100%;
+  height: 100%;
+  background-color: var(--property-panel-bg);
+  color: var(--property-panel-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid var(--property-panel-border);
+}
+
+/* 标题区域 */
+.property-panel-header {
+  padding: 8px 12px;
+  background-color: var(--property-panel-header-bg);
+  border-bottom: 1px solid var(--property-panel-border);
+  flex-shrink: 0;
+}
+
+.property-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--property-panel-title);
+  margin: 0;
+}
+
+/* 内容区域 */
+.property-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--property-panel-scrollbar-thumb) var(--property-panel-scrollbar-track);
+}
+
+/* 滚动条样式 */
+.property-panel-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.property-panel-content::-webkit-scrollbar-track {
+  background: var(--property-panel-scrollbar-track);
+  border-radius: 4px;
+}
+
+.property-panel-content::-webkit-scrollbar-thumb {
+  background: var(--property-panel-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.property-panel-content::-webkit-scrollbar-thumb:hover {
+  background: var(--property-panel-scrollbar-thumb-hover);
+}
+
+/* 空状态 */
+.property-panel-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--property-panel-muted);
+  font-style: italic;
+}
+
+/* 错误提示 */
+.property-panel-error {
+  background-color: var(--property-panel-error-bg);
+  color: var(--property-panel-error-text);
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 4px;
+  border-left: 3px solid var(--property-panel-error-border);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 属性项容器 */
+.property-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 4px;
+  margin-bottom: 2px;
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.property-item:hover {
+  background-color: var(--property-panel-hover);
+}
+
+/* 标签样式 */
+.property-label {
+  flex: 0 0 30%;
+  font-weight: 500;
+  color: var(--property-panel-label);
+  padding-right: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.property-label[data-tooltip] {
+  cursor: help;
+  position: relative;
+}
+
+/* 控件容器 */
+.property-control-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+/* 通用输入框样式 */
+.property-input,
+.property-textarea,
+.property-select {
+  width: 100%;
+  padding: 4px 6px;
+  background-color: var(--property-panel-input-bg);
+  color: var(--property-panel-input-text);
+  border: 1px solid var(--property-panel-input-border);
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.property-input:focus,
+.property-textarea:focus,
+.property-select:focus {
+  outline: none;
+  border-color: var(--property-panel-focus);
+  background-color: var(--property-panel-input-focus-bg);
+}
+
+.property-input:disabled,
+.property-textarea:disabled,
+.property-select:disabled {
+  background-color: var(--property-panel-disabled-bg);
+  color: var(--property-panel-disabled-text);
+  border-color: var(--property-panel-disabled-border);
+  cursor: not-allowed;
+}
+
+/* 多行文本框 */
+.property-textarea {
+  min-height: 60px;
+  resize: vertical;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* 复选框样式 */
+.property-checkbox {
+  margin-right: 6px;
+  cursor: pointer;
+}
+
+/* 开关样式 */
+.property-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.property-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.property-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--property-panel-toggle-off);
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.property-toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .property-toggle-slider {
+  background-color: var(--property-panel-toggle-on);
+}
+
+input:checked + .property-toggle-slider:before {
+  transform: translateX(20px);
+}
+
+/* 滑块样式 */
+.property-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--property-panel-slider-track);
+  border-radius: 2px;
+  outline: none;
+  margin: 8px 0;
+}
+
+.property-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--property-panel-slider-thumb);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.property-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  background: var(--property-panel-slider-thumb-hover);
+}
+
+.property-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--property-panel-slider-thumb);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.property-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  background: var(--property-panel-slider-thumb-hover);
+}
+
+/* 数值显示 */
+.property-number-display {
+  min-width: 60px;
+  text-align: right;
+  padding-left: 8px;
+  color: var(--property-panel-number-display);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* 颜色选择器 */
+.property-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.property-color-preview {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  border: 1px solid var(--property-panel-input-border);
+  cursor: pointer;
+  position: relative;
+}
+
+.property-color-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 复合组件样式 */
+.property-complex {
+  margin: 4px 0;
+  padding: 4px;
+  background-color: var(--property-panel-complex-bg);
+  border-radius: 3px;
+  border: 1px solid var(--property-panel-complex-border);
+}
+
+/* 数组项样式 */
+.property-array-item {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  margin: 2px 0;
+  background-color: var(--property-panel-array-item-bg);
+  border-radius: 2px;
+  border: 1px solid var(--property-panel-array-item-border);
+}
+
+.property-array-item-index {
+  width: 20px;
+  text-align: center;
+  color: var(--property-panel-array-index);
+  font-size: 11px;
+  font-weight: 500;
+  margin-right: 6px;
+  user-select: none;
+}
+
+/* 操作按钮 */
+.property-action-btn {
+  background: none;
+  border: none;
+  color: var(--property-panel-action-btn);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  transition: background-color 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.property-action-btn:hover {
+  background-color: var(--property-panel-action-hover);
+  color: var(--property-panel-action-btn-hover);
+}
+
+.property-action-btn:disabled {
+  color: var(--property-panel-disabled-text);
+  cursor: not-allowed;
+}
+
+.property-action-btn:disabled:hover {
+  background-color: transparent;
+}
+
+/* 按钮组 */
+.property-btn-group {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* 折叠面板 */
+.property-collapsible-panel {
+  margin-bottom: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--property-panel-border);
+}
+
+.property-panel-header {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: var(--property-panel-group-header);
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.property-panel-header:hover {
+  background-color: var(--property-panel-group-header-hover);
+}
+
+.property-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--property-panel-group-title);
+  margin: 0;
+  flex: 1;
+}
+
+.property-panel-toggle {
+  transition: transform 0.2s;
+  color: var(--property-panel-group-toggle);
+}
+
+.property-panel-toggle.collapsed {
+  transform: rotate(-90deg);
+}
+
+.property-panel-content {
+  padding: 8px;
+  background-color: var(--property-panel-group-content);
+}
+
+/* 属性组样式 */
+.property-group-panel {
+  margin-bottom: 12px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: var(--property-panel-group-bg);
+  border: 1px solid var(--property-panel-border);
+}
+
+/* 验证错误样式 */
+.property-validation-error {
+  color: var(--property-panel-error-text);
+  font-size: 11px;
+  margin-top: 2px;
+  display: block;
+}
+
+.property-input.validation-error {
+  border-color: var(--property-panel-error-border);
+  background-color: var(--property-panel-error-input-bg);
+}
+
+/* 工具提示样式 */
+.tooltip-container {
+  position: relative;
+}
+
+.tooltip {
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--property-panel-tooltip-bg);
+  color: var(--property-panel-tooltip-text);
+  padding: 6px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tooltip-container:hover .tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: var(--property-panel-tooltip-bg) transparent transparent transparent;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .property-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  
+  .property-label {
+    flex: 0 0 auto;
+    padding-right: 0;
+  }
+  
+  .property-control-container {
+    width: 100%;
+  }
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.property-item {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* 加载状态 */
+.property-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--property-panel-muted);
+}
+
+.property-loading::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--property-panel-loading-border);
+  border-top: 2px solid var(--property-panel-loading-spinner);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 只读属性样式 */
+.property-readonly {
+  background-color: var(--property-panel-readonly-bg);
+  color: var(--property-panel-readonly-text);
+  border-color: var(--property-panel-readonly-border);
+  cursor: default;
+}
+
+/* 继承属性样式 */
+.property-inherited {
+  font-style: italic;
+  color: var(--property-panel-inherited-text);
+}
+
+/* 高级属性指示器 */
+.property-advanced-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--property-panel-advanced-indicator);
+  margin-left: 4px;
+  opacity: 0.6;
+}

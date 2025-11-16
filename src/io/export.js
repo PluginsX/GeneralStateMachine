@@ -253,31 +253,97 @@ export const saveProject = async (editor) => {
             return {
                 id: node.id,
                 name: node.name,
-                description: node.description,
-                x: nodePos.x,
-                y: nodePos.y,
-                width: node.width,
-                height: node.height,
-                autoSize: node.autoSize,
-                color: node.color || null
+                description: node.description || '',
+                // 兼容新旧格式：同时导出transform和x/y
+                transform: node.transform ? {
+                    position: {
+                        x: nodePos.x,
+                        y: nodePos.y
+                    },
+                    rotation: node.transform.rotation || 0,
+                    scale: node.transform.scale ? {
+                        x: node.transform.scale.x || 1,
+                        y: node.transform.scale.y || 1
+                    } : { x: 1, y: 1 }
+                } : {
+                    position: { x: nodePos.x, y: nodePos.y },
+                    rotation: 0,
+                    scale: { x: 1, y: 1 }
+                },
+                x: nodePos.x, // 向后兼容
+                y: nodePos.y, // 向后兼容
+                width: node.width || 150,
+                height: node.height || 50,
+                autoSize: node.autoSize !== undefined ? node.autoSize : false,
+                color: node.color || null,
+                group: node.group || '',
+                fixedPosition: node.fixedPosition || false
             };
         }),
         connections: editor.connections.map(conn => ({
             id: conn.id,
             sourceNodeId: conn.sourceNodeId,
             targetNodeId: conn.targetNodeId,
-            conditions: conn.conditions.map(cond => ({
-                type: cond.type,
-                key: cond.key,
-                operator: cond.operator,
-                value: cond.value
+            sourcePortId: conn.sourcePortId || '',
+            targetPortId: conn.targetPortId || '',
+            type: conn.type || 'default',
+            conditions: (conn.conditions || []).map(cond => ({
+                type: cond.type || 'none',
+                key: cond.key || '',
+                operator: cond.operator || 'equals',
+                value: cond.value !== undefined ? cond.value : null
             })),
+            // 兼容新旧格式：同时导出transform和样式
+            transform: conn.transform ? {
+                position: conn.transform.position ? {
+                    x: conn.transform.position.x || 0,
+                    y: conn.transform.position.y || 0
+                } : { x: 0, y: 0 },
+                rotation: conn.transform.rotation || 0,
+                scale: conn.transform.scale ? {
+                    x: conn.transform.scale.x || 1,
+                    y: conn.transform.scale.y || 1
+                } : { x: 1, y: 1 }
+            } : null,
+            style: conn.style || {},
             color: conn.color || null,
             lineWidth: conn.lineWidth || null,
             lineType: conn.lineType || 'solid',
             arrowSize: conn.arrowSize || null,
             arrowColor: conn.arrowColor || null
-        }))
+        })),
+        // 导出文字内容对象
+        textContents: (editor.textContents || []).map(text => {
+            const textPos = (text.transform && text.transform.position) ? text.transform.position : { x: 0, y: 0 };
+            return {
+                id: text.id,
+                type: 'text',
+                text: text.text || '',
+                transform: {
+                    position: {
+                        x: textPos.x,
+                        y: textPos.y
+                    },
+                    rotation: text.transform?.rotation || 0,
+                    scale: text.transform?.scale ? {
+                        x: text.transform.scale.x || 1,
+                        y: text.transform.scale.y || 1
+                    } : { x: 1, y: 1 }
+                },
+                width: text.width || 200,
+                height: text.height || 100,
+                autoSize: text.autoSize !== undefined ? text.autoSize : true,
+                fontSize: text.fontSize || 14,
+                fontColor: text.fontColor ? (typeof text.fontColor === 'string' ? text.fontColor : text.fontColor.toString()) : '#000000',
+                fontFamily: text.fontFamily || 'Arial, sans-serif',
+                fontWeight: text.fontWeight || 'normal',
+                fontStyle: text.fontStyle || 'normal',
+                textAlign: text.textAlign || 'left',
+                textVerticalAlign: text.textVerticalAlign || 'top',
+                wordWrap: text.wordWrap !== undefined ? text.wordWrap : true,
+                padding: text.padding || 10
+            };
+        })
     };
     
     const json = JSON.stringify(projectData, null, 2);

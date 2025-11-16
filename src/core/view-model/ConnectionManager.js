@@ -17,13 +17,18 @@ export default class ConnectionManager {
     }
     
     // 添加连线
-    addConnection(sourceNodeId, targetNodeId, fromSide, toSide) {
+    addConnection(sourceNodeId, targetNodeId, fromSide = 'right', toSide = 'left') {
         // 检查是否存在相同的连线
         if (this.hasConnection(sourceNodeId, targetNodeId)) {
             return null;
         }
         
-        const connection = new ConnectionModel(sourceNodeId, targetNodeId, fromSide, toSide);
+        const connection = new ConnectionModel({
+            sourceNodeId: sourceNodeId,
+            targetNodeId: targetNodeId,
+            fromSide: fromSide,
+            toSide: toSide
+        });
         this.connections.set(connection.id, connection);
         
         // 记录历史

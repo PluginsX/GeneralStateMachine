@@ -244,7 +244,10 @@ export async function mergeConditions(editor) {
             const newNodeName = `${node.name}_${nodeCounter++}`;
             const nodePos = (node.transform && node.transform.position) ? 
                 node.transform.position : { x: 0, y: 0 };
-            const newNode = new NodeModel(newNodeName, nodePos.x + 200, nodePos.y);
+            const newNode = new NodeModel({
+            name: newNodeName,
+            position: { x: nodePos.x + 200, y: nodePos.y }
+        });
             newNode.description = `由合并条件自动创建的节点`;
             newNode.group = ''; // 初始化Group属性
             newNode.width = 150;
@@ -253,7 +256,10 @@ export async function mergeConditions(editor) {
             editor.nodes.push(newNode);
             
             // 创建从当前节点到新节点的连线（包含共同条件）
-            const newConnection = new ConnectionModel(node.id, newNode.id);
+            const newConnection = new ConnectionModel({
+                sourceNodeId: node.id,
+                targetNodeId: newNode.id
+            });
             newConnection.conditions = [JSON.parse(JSON.stringify(bestCommon.condition))];
             editor.connections.push(newConnection);
             
@@ -313,12 +319,13 @@ export async function removeDuplicateConnections(editor) {
     editor.connections.forEach((connection) => {
         // 创建连接的唯一标识：起始节点ID + 终止节点ID + 条件的JSON字符串
         // 首先确保条件数组的一致性，按相同顺序排序条件以正确比较
-        const sortedConditions = [...connection.conditions].sort((a, b) => {
+        const conditionsArray = Array.isArray(connection.conditions) ? connection.conditions : [];
+        const sortedConditions = [...conditionsArray].sort((a, b) => {
             // 按类型、参数、操作符和值排序
             if (a.type !== b.type) return a.type.localeCompare(b.type);
             if (a.parameter !== b.parameter) return a.parameter.localeCompare(b.parameter);
             if (a.operator !== b.operator) return a.operator.localeCompare(b.operator);
-            return a.value.localeCompare(b.value);
+            return (a.value || '').localeCompare(b.value || '');
         });
         
         // 创建连接标识
@@ -372,7 +379,7 @@ export async function concentrateArrange(editor) {
     let wasRealTimeActive = false;
     if (editor.isRealTimeArrangeActive) {
         wasRealTimeActive = true;
-        editor.stopForceLayout();
+        editor.stopRealTimeArrange();
         
         // 如果编辑器有showNotification方法，则显示通知
         if (editor.showNotification) {

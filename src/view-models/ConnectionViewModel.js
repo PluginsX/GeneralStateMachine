@@ -22,7 +22,12 @@ export default class ConnectionViewModel {
             return null;
         }
         
-        const connection = new ConnectionModel(sourceNodeId, targetNodeId, fromSide, toSide);
+        const connection = new ConnectionModel({
+            sourceNodeId: sourceNodeId,
+            targetNodeId: targetNodeId,
+            fromSide: fromSide,
+            toSide: toSide
+        });
         this.connections.set(connection.id, connection);
         
         if (this.historyManager) {

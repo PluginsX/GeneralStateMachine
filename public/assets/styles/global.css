@@ -505,26 +505,52 @@ body.light-mode .form-group select {
 
 .condition-item {
     background-color: #2d2d30;
-    padding: 8px;
+    padding: 10px;
     border-radius: 3px;
-    margin-bottom: 8px;
-    border-left: 3px solid #007acc;
+    margin-bottom: 10px;
+    border: 1px solid #3e3e42;
+    transition: background-color 0.2s;
 }
 
 body.light-mode .condition-item {
     background-color: #f0f0f0;
-    border-left: 3px solid #0066cc;
+    border: 1px solid #ddd;
+}
+
+.condition-item:hover {
+    background-color: #37373d;
+}
+
+body.light-mode .condition-item:hover {
+    background-color: #e5e5e5;
 }
 
 .condition-header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #3e3e42;
+}
+
+body.light-mode .condition-header {
+    border-bottom: 1px solid #ddd;
+}
+
+.condition-header span {
+    font-size: 12px;
+    font-weight: 500;
+    color: #e0e0e0;
+}
+
+body.light-mode .condition-header span {
+    color: #333;
 }
 
 .condition-controls {
     display: flex;
-    gap: 5px;
+    gap: 8px;
 }
 
 .condition-controls button {
@@ -533,17 +559,144 @@ body.light-mode .condition-item {
     color: #cccccc;
     cursor: pointer;
     font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    transition: background-color 0.2s;
+}
+
+.condition-controls button:hover {
+    background-color: #3e3e42;
 }
 
 body.light-mode .condition-controls button {
     color: #666;
 }
 
+body.light-mode .condition-controls button:hover {
+    background-color: #ddd;
+}
+
 .condition-fields {
     display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+}
+
+.condition-fields select,
+.condition-fields input {
+    padding: 6px 8px;
+    background-color: #3c3c3c;
+    border: 1px solid #464647;
+    border-radius: 3px;
+    color: #e0e0e0;
+    font-size: 13px;
+    width: 100%;
+}
+
+body.light-mode .condition-fields select,
+body.light-mode .condition-fields input {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    color: #333;
+}
+
+/* 连接列表样式 */
+.connection-list-empty {
+    color: #666666;
+    font-size: 11px;
+    padding: 10px 12px;
+    font-style: italic;
+}
+
+.connection-list-item {
+    margin-bottom: 5px;
+    background-color: #2d2d30;
+    border-radius: 3px;
+    border: 1px solid #3e3e42;
     overflow: hidden;
-    grid-template-columns: 1fr 1fr;
+}
+
+body.light-mode .connection-list-item {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+}
+
+/* 卷展栏头部 */
+.connection-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.connection-list-header:hover {
+    background-color: #37373d;
+}
+
+body.light-mode .connection-list-header:hover {
+    background-color: #e9e9e9;
+}
+
+/* 展开/折叠图标 */
+.connection-list-header .toggle-icon {
+    transition: transform 0.2s;
+    font-size: 10px;
+    margin-right: 8px;
+    width: 12px;
+    text-align: center;
+}
+
+.connection-list-header.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+/* 卷展栏内容 */
+.connection-list-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+    background-color: #252526;
+    border-top: 1px solid #3e3e42;
+}
+
+body.light-mode .connection-list-content {
+    background-color: #fafafa;
+    border-top-color: #e0e0e0;
+}
+
+.connection-list-content.expanded {
+    max-height: 1000px; /* 足够大的值以容纳所有内容 */
+}
+
+/* 连接内容容器 */
+.connection-content-container {
+    padding: 12px;
+    font-size: 12px;
+}
+
+.connection-content-container span {
+    font-size: 12px;
+    color: #e0e0e0;
+}
+
+body.light-mode .connection-content-container span {
+    color: #333;
+}
+
+/* 删除按钮容器 */
+.connection-controls {
+    display: flex;
     gap: 5px;
+    align-items: center;
+}
+
+.btn-small {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
 }
 
 .btn {

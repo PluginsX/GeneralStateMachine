@@ -18,9 +18,13 @@ export default class EditorController {
         this.keyboardHandler = new KeyboardHandler(this);
         // this.dragDropHandler = new DragDropHandler(this.canvasView, this.viewModel);
         
-        // 设置ViewModel变更回调，触发视图更新
+        // 设置ViewModel变更回调，触发视图更新和属性面板更新
         this.viewModel.setOnChangeCallback(() => {
             this.canvasView.scheduleRender();
+            // 动态导入updatePropertyPanel函数来更新属性面板
+            import('../ui/panel.js').then(({ updatePropertyPanel }) => {
+                updatePropertyPanel(this);
+            });
         });
         
         // 初始化事件监听

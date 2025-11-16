@@ -368,17 +368,60 @@ export default class PropertyPanel {
                 item.transform.position = { x: item.x || 0, y: item.y || 0 };
             }
             
+            // 确保位置值为整数
+            const integerValue = Math.round(value);
+            
             // 更新transform.position
-            item.transform.position[property] = value;
+            item.transform.position[property] = integerValue;
             
             // 触发更新回调
             if (type === 'node' && this.onNodeUpdate) {
                 this.onNodeUpdate(item.id, { 
-                    ['transform.position.' + property]: value
+                    ['transform.position.' + property]: integerValue
+                });
+            } else if (type === 'text' && this.onNodeUpdate) {
+                // 对于文本内容也使用相同的更新回调
+                this.onNodeUpdate(item.id, { 
+                    ['transform.position.' + property]: integerValue
                 });
             }
+            
+            // 同步更新input显示为整数
+            const input = document.querySelector(`input.position-input[name="${property}"]`);
+            if (input) {
+                input.value = integerValue;
+            }
+        } else if (type === 'text') {
+            // 处理文本内容的特殊属性
+            // 对于颜色属性，需要特殊处理
+            if (property === 'fontColor' || property === 'backgroundColor' || property === 'borderColor') {
+                // 假设Color类有一个fromString方法或构造函数接受颜色字符串
+                const Color = window.Color || require('../math/GraphicsMath.js').Color;
+                item[property] = new Color(value);
+            } else if (['width', 'height', 'fontSize', 'lineHeight', 'padding', 'borderWidth'].includes(property)) {
+                // 数字属性确保为有效值
+                item[property] = Math.max(0, parseFloat(value) || 0);
+                // 对于宽度和高度，如果开启了自动尺寸，则重新计算
+                if (property === 'width' || property === 'height') {
+                    if (item.autoSize) {
+                        item._needsRecalculation = true;
+                    }
+                }
+            } else if (['fontSize', 'lineHeight'].includes(property)) {
+                // 字体相关数字属性，更新后需要重新计算
+                item[property] = Math.max(0, parseFloat(value) || 0);
+                item._needsRecalculation = true;
+            } else {
+                // 其他属性直接赋值
+                item[property] = value;
+            }
+            
+            // 触发更新回调
+            if (this.onNodeUpdate) {
+                this.onNodeUpdate(item.id, { [property]: value });
+            }
         } else {
-            // 处理其他属性
+            // 处理其他类型属性
             item[property] = value;
             
             // 触发更新回调
@@ -438,11 +481,250 @@ export default class PropertyPanel {
                 const sourceNode = nodes.get(item.sourceNodeId);
                 const targetNode = nodes.get(item.targetNodeId);
                 this.showConnectionProperties(item, sourceNode, targetNode);
+            } else if (item.type === 'text') {
+                this.showTextContentProperties(item);
             }
         } else {
             // 多个选中项时显示统计信息
             this.showMultipleSelectionInfo(selectedItems);
         }
+    }
+    
+    // 显示文本内容属性
+    showTextContentProperties(textContent) {
+        if (!textContent || !this.container) return;
+        
+        this.container.innerHTML = '';
+        
+        // 创建标题
+        const title = document.createElement('h3');
+        title.textContent = '文字内容属性';
+        this.container.appendChild(title);
+        
+        // 创建表单
+        const form = document.createElement('form');
+        form.className = 'property-form';
+        
+        // 文本内容
+        const textGroup = document.createElement('div');
+        textGroup.className = 'property-group';
+        
+        const textLabel = document.createElement('label');
+        textLabel.textContent = '文本内容';
+        textGroup.appendChild(textLabel);
+        
+        const textarea = document.createElement('textarea');
+        textarea.id = 'prop-text';
+        textarea.name = 'text';
+        textarea.value = textContent.text || '';
+        textarea.rows = 5;
+        textGroup.appendChild(textarea);
+        
+        form.appendChild(textGroup);
+        
+        // 文本位置
+        const positionContainer = document.createElement('div');
+        positionContainer.className = 'property-group position-group';
+        
+        const positionLabel = document.createElement('label');
+        positionLabel.textContent = '位置';
+        positionContainer.appendChild(positionLabel);
+        
+        const positionRow = document.createElement('div');
+        positionRow.className = 'position-row';
+        
+        const nodePos = (textContent.transform && textContent.transform.position) ? textContent.transform.position : { x: 0, y: 0 };
+        positionRow.appendChild(this.createPositionInput('x', nodePos.x));
+        positionRow.appendChild(this.createPositionInput('y', nodePos.y));
+        
+        positionContainer.appendChild(positionRow);
+        form.appendChild(positionContainer);
+        
+        // 尺寸设置
+        const sizeGroup = document.createElement('div');
+        sizeGroup.className = 'property-group';
+        sizeGroup.innerHTML = '<label>尺寸设置</label>';
+        
+        // 自动尺寸
+        sizeGroup.appendChild(this.createCheckbox('自动调整大小', 'autoSize', textContent.autoSize));
+        
+        // 宽度和高度
+        const sizeRow = document.createElement('div');
+        sizeRow.className = 'size-row';
+        
+        const widthInput = document.createElement('input');
+        widthInput.type = 'number';
+        widthInput.name = 'width';
+        widthInput.value = textContent.width || 200;
+        widthInput.className = 'size-input';
+        widthInput.placeholder = '宽度';
+        sizeRow.appendChild(widthInput);
+        
+        const heightInput = document.createElement('input');
+        heightInput.type = 'number';
+        heightInput.name = 'height';
+        heightInput.value = textContent.height || 100;
+        heightInput.className = 'size-input';
+        heightInput.placeholder = '高度';
+        sizeRow.appendChild(heightInput);
+        
+        sizeGroup.appendChild(sizeRow);
+        form.appendChild(sizeGroup);
+        
+        // 字体设置
+        const fontGroup = document.createElement('div');
+        fontGroup.className = 'property-group';
+        fontGroup.innerHTML = '<label>字体设置</label>';
+        
+        // 字体大小
+        fontGroup.appendChild(this.createFormGroup('字体大小', 'fontSize', textContent.fontSize, 'number'));
+        
+        // 行高
+        fontGroup.appendChild(this.createFormGroup('行高', 'lineHeight', textContent.lineHeight, 'number'));
+        
+        // 字体颜色
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.name = 'fontColor';
+        colorInput.value = textContent.fontColor ? textContent.fontColor.toString() : '#000000';
+        colorInput.className = 'color-input';
+        
+        const colorGroup = document.createElement('div');
+        colorGroup.className = 'property-group';
+        colorGroup.innerHTML = '<label>字体颜色</label>';
+        colorGroup.appendChild(colorInput);
+        fontGroup.appendChild(colorGroup);
+        
+        // 字体族
+        fontGroup.appendChild(this.createFormGroup('字体族', 'fontFamily', textContent.fontFamily, 'text'));
+        
+        // 字体粗细
+        fontGroup.appendChild(this.createSelect('字体粗细', 'fontWeight', textContent.fontWeight, [
+            { value: 'normal', label: '正常' },
+            { value: 'bold', label: '粗体' },
+            { value: 'lighter', label: '细体' }
+        ]));
+        
+        // 字体样式
+        fontGroup.appendChild(this.createSelect('字体样式', 'fontStyle', textContent.fontStyle, [
+            { value: 'normal', label: '正常' },
+            { value: 'italic', label: '斜体' },
+            { value: 'oblique', label: '倾斜' }
+        ]));
+        
+        form.appendChild(fontGroup);
+        
+        // 文本对齐
+        const alignGroup = document.createElement('div');
+        alignGroup.className = 'property-group';
+        alignGroup.innerHTML = '<label>文本对齐</label>';
+        
+        // 水平对齐
+        alignGroup.appendChild(this.createSelect('水平对齐', 'textAlign', textContent.textAlign, [
+            { value: 'left', label: '左对齐' },
+            { value: 'center', label: '居中' },
+            { value: 'right', label: '右对齐' },
+            { value: 'justify', label: '两端对齐' }
+        ]));
+        
+        // 垂直对齐
+        alignGroup.appendChild(this.createSelect('垂直对齐', 'textVerticalAlign', textContent.textVerticalAlign, [
+            { value: 'top', label: '顶部' },
+            { value: 'middle', label: '中间' },
+            { value: 'bottom', label: '底部' }
+        ]));
+        
+        form.appendChild(alignGroup);
+        
+        // 文本处理
+        const textProcessGroup = document.createElement('div');
+        textProcessGroup.className = 'property-group';
+        textProcessGroup.innerHTML = '<label>文本处理</label>';
+        
+        // 自动换行
+        textProcessGroup.appendChild(this.createCheckbox('自动换行', 'wordWrap', textContent.wordWrap));
+        
+        // 最大宽度
+        textProcessGroup.appendChild(this.createFormGroup('最大宽度', 'maxWidth', textContent.maxWidth, 'number'));
+        
+        // 最大高度
+        textProcessGroup.appendChild(this.createFormGroup('最大高度', 'maxHeight', textContent.maxHeight, 'number'));
+        
+        // 内边距
+        textProcessGroup.appendChild(this.createFormGroup('内边距', 'padding', textContent.padding, 'number'));
+        
+        form.appendChild(textProcessGroup);
+        
+        // 背景设置
+        const backgroundGroup = document.createElement('div');
+        backgroundGroup.className = 'property-group';
+        backgroundGroup.innerHTML = '<label>背景设置</label>';
+        
+        // 背景透明
+        backgroundGroup.appendChild(this.createCheckbox('背景透明', 'backgroundTransparent', textContent.backgroundTransparent));
+        
+        // 背景颜色
+        const bgColorInput = document.createElement('input');
+        bgColorInput.type = 'color';
+        bgColorInput.name = 'backgroundColor';
+        bgColorInput.value = textContent.backgroundColor ? textContent.backgroundColor.toString() : '#ffffff';
+        bgColorInput.className = 'color-input';
+        
+        const bgColorGroup = document.createElement('div');
+        bgColorGroup.className = 'property-group';
+        bgColorGroup.innerHTML = '<label>背景颜色</label>';
+        bgColorGroup.appendChild(bgColorInput);
+        backgroundGroup.appendChild(bgColorGroup);
+        
+        form.appendChild(backgroundGroup);
+        
+        // 边框设置
+        const borderGroup = document.createElement('div');
+        borderGroup.className = 'property-group';
+        borderGroup.innerHTML = '<label>边框设置</label>';
+        
+        // 显示边框
+        borderGroup.appendChild(this.createCheckbox('显示边框', 'showBorder', textContent.showBorder));
+        
+        // 边框颜色
+        const borderColorInput = document.createElement('input');
+        borderColorInput.type = 'color';
+        borderColorInput.name = 'borderColor';
+        borderColorInput.value = textContent.borderColor ? textContent.borderColor.toString() : '#000000';
+        borderColorInput.className = 'color-input';
+        
+        const borderColorGroup = document.createElement('div');
+        borderColorGroup.className = 'property-group';
+        borderColorGroup.innerHTML = '<label>边框颜色</label>';
+        borderColorGroup.appendChild(borderColorInput);
+        borderGroup.appendChild(borderColorGroup);
+        
+        // 边框宽度
+        borderGroup.appendChild(this.createFormGroup('边框宽度', 'borderWidth', textContent.borderWidth, 'number'));
+        
+        // 边框样式
+        borderGroup.appendChild(this.createSelect('边框样式', 'borderStyle', textContent.borderStyle, [
+            { value: 'solid', label: '实线' },
+            { value: 'dashed', label: '虚线' }
+        ]));
+        
+        form.appendChild(borderGroup);
+        
+        // 删除按钮
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = '删除';
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.addEventListener('click', () => {
+            this.onDelete();
+        });
+        form.appendChild(deleteBtn);
+        
+        // 添加表单到容器
+        this.container.appendChild(form);
+        
+        // 添加事件监听器
+        this.setupFormListeners(form, textContent, 'text');
     }
     
     // 显示多个选中项的信息

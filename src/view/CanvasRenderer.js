@@ -108,14 +108,17 @@ export default class CanvasRenderer {
         // 获取节点位置
         const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
         
-        if (nodePos.x === undefined || nodePos.y === undefined || 
-            node.width === undefined || node.height === undefined) {
+        // 获取节点尺寸和视觉属性
+        const nodeSize = (node.size && node.size.width !== undefined && node.size.height !== undefined) ? node.size : { width: 100, height: 60 };
+        const nodeVisual = (node.visual && node.visual.color !== undefined) ? node.visual : { color: this.colors.node };
+        
+        if (nodePos.x === undefined || nodePos.y === undefined) {
             return;
         }
         
         // 计算节点颜色
         const isSelected = this.editorState.selectedNodeIds.has(node.id);
-        const nodeColor = node.color || this.colors.node;
+        const nodeColor = nodeVisual.color || this.colors.node;
         const borderColor = isSelected ? this.colors.nodeSelected : this.colors.nodeBorder;
         
         // 绘制节点背景
@@ -125,7 +128,7 @@ export default class CanvasRenderer {
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = isSelected ? 3 : 2;
         ctx.beginPath();
-        ctx.roundRect(nodePos.x, nodePos.y, node.width, node.height, 5);
+        ctx.roundRect(nodePos.x, nodePos.y, nodeSize.width, nodeSize.height, 5);
         ctx.fill();
         ctx.stroke();
         
@@ -164,15 +167,21 @@ export default class CanvasRenderer {
         // 计算连线颜色和样式
         const isSelected = this.editorState.selectedConnectionIds.has(connection.id);
         
+        // 获取连线样式属性
+        const connectionStyle = (connection.style && typeof connection.style === 'object') ? connection.style : {};
+        const lineType = connectionStyle.lineType || 'solid';
+        const color = connectionStyle.color;
+        const width = connectionStyle.width || 1.5;
+        
         // 根据连线类型设置线条样式
-        if (connection.lineType === 'dashed') {
+        if (lineType === 'dashed') {
             ctx.setLineDash([5, 5]);
         } else {
             ctx.setLineDash([]);
         }
         
-        ctx.strokeStyle = connection.color || (isSelected ? this.colors.connectionSelected : this.colors.connection);
-        ctx.lineWidth = connection.lineWidth || (isSelected ? 3 : 1.5);
+        ctx.strokeStyle = color || (isSelected ? this.colors.connectionSelected : this.colors.connection);
+        ctx.lineWidth = isSelected ? 3 : width;
         ctx.lineCap = 'round';
         
         // 绘制连线
@@ -196,7 +205,7 @@ export default class CanvasRenderer {
         this.drawArrow(ctx, startX, startY, endX, endY);
     }
     
-    // 计算连线端点
+    // 计算连线端点 - 总是返回节点的中心点
     calculateConnectionPoint(node, side) {
         // 防御性检查：确保节点存在
         if (!node) {
@@ -206,22 +215,20 @@ export default class CanvasRenderer {
         // 获取节点位置
         const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
         
-        if (nodePos.x === undefined || nodePos.y === undefined || 
-            node.width === undefined || node.height === undefined) {
+        // 获取节点尺寸（优先使用直接定义的width和height属性）
+        const width = node.width || 150; // 默认值与NodeModel构造函数一致
+        const height = node.height || 50; // 默认值与NodeModel构造函数一致
+        
+        if (nodePos.x === undefined || nodePos.y === undefined) {
             return { x: 0, y: 0 };
         }
         
-        switch (side) {
-            case 'top':
-                return { x: nodePos.x + node.width / 2, y: nodePos.y };
-            case 'right':
-                return { x: nodePos.x + node.width, y: nodePos.y + node.height / 2 };
-            case 'bottom':
-                return { x: nodePos.x + node.width / 2, y: nodePos.y + node.height };
-            case 'left':
-            default:
-                return { x: nodePos.x, y: nodePos.y + node.height / 2 };
-        }
+        // 计算并返回节点中心点坐标
+        // 中心点 = 位置 + 尺寸的一半
+        return {
+            x: nodePos.x + width / 2,
+            y: nodePos.y + height / 2
+        };
     }
     
     // 绘制箭头

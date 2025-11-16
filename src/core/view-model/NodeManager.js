@@ -1,6 +1,7 @@
 // 节点管理器 - 视图模型层
 // 负责节点的业务逻辑：添加、删除、合并、复制等
 import NodeModel from '../../../models/NodeModel.js';
+import { Vector2 } from '../../math/GraphicsMath.js';
 import { deepClone } from '../../../utils/common.js';
 
 export default class NodeManager {
@@ -18,7 +19,10 @@ export default class NodeManager {
     
     // 添加节点
     addNode(name, x, y) {
-        const node = new NodeModel(name, x, y);
+        const node = new NodeModel({
+            name: name,
+            position: { x: x, y: y }
+        });
         node.group = ''; // 初始化Group属性
         this.nodes.set(node.id, node);
         
@@ -207,8 +211,11 @@ export default class NodeManager {
         this.nodes.clear();
         if (data.nodes && Array.isArray(data.nodes)) {
             data.nodes.forEach(nodeData => {
-                const node = new NodeModel(nodeData.name, nodeData.x, nodeData.y);
-                node.group = nodeData.group || ''; // 设置Group属性
+                const node = new NodeModel({
+                name: nodeData.name,
+                position: { x: nodeData.x, y: nodeData.y },
+                group: nodeData.group || '' // 设置Group属性
+            });
                 Object.assign(node, nodeData);
                 this.nodes.set(node.id, node);
             });

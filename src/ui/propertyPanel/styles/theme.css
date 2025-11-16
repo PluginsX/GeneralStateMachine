@@ -1,0 +1,329 @@
+/* 属性面板主题样式文件 */
+
+/* 默认明主题变量 */
+:root {
+  /* 基础面板颜色 */
+  --property-panel-bg: #ffffff;
+  --property-panel-text: #202020;
+  --property-panel-border: #d0d0d0;
+  --property-panel-header-bg: #f5f5f5;
+  --property-panel-title: #202020;
+  --property-panel-hover: #f0f0f0;
+  --property-panel-muted: #808080;
+  
+  /* 滚动条样式 */
+  --property-panel-scrollbar-track: #f1f1f1;
+  --property-panel-scrollbar-thumb: #c1c1c1;
+  --property-panel-scrollbar-thumb-hover: #a8a8a8;
+  
+  /* 输入控件样式 */
+  --property-panel-input-bg: #ffffff;
+  --property-panel-input-text: #202020;
+  --property-panel-input-border: #d0d0d0;
+  --property-panel-input-focus-bg: #ffffff;
+  --property-panel-focus: #0078d7;
+  
+  /* 标签样式 */
+  --property-panel-label: #444444;
+  
+  /* 禁用状态 */
+  --property-panel-disabled-bg: #f5f5f5;
+  --property-panel-disabled-text: #999999;
+  --property-panel-disabled-border: #e0e0e0;
+  
+  /* 开关样式 */
+  --property-panel-toggle-off: #ccc;
+  --property-panel-toggle-on: #0078d7;
+  
+  /* 滑块样式 */
+  --property-panel-slider-track: #e0e0e0;
+  --property-panel-slider-thumb: #666666;
+  --property-panel-slider-thumb-hover: #444444;
+  
+  /* 数值显示 */
+  --property-panel-number-display: #202020;
+  
+  /* 复合组件 */
+  --property-panel-complex-bg: #fafafa;
+  --property-panel-complex-border: #e0e0e0;
+  
+  /* 数组项 */
+  --property-panel-array-item-bg: #ffffff;
+  --property-panel-array-item-border: #e0e0e0;
+  --property-panel-array-index: #808080;
+  
+  /* 操作按钮 */
+  --property-panel-action-btn: #666666;
+  --property-panel-action-btn-hover: #202020;
+  --property-panel-action-hover: #f0f0f0;
+  
+  /* 折叠面板/分组 */
+  --property-panel-group-bg: #fafafa;
+  --property-panel-group-header: #f0f0f0;
+  --property-panel-group-header-hover: #e8e8e8;
+  --property-panel-group-title: #444444;
+  --property-panel-group-toggle: #666666;
+  --property-panel-group-content: #ffffff;
+  
+  /* 错误状态 */
+  --property-panel-error-bg: #fff5f5;
+  --property-panel-error-text: #e51400;
+  --property-panel-error-border: #e51400;
+  --property-panel-error-input-bg: #fff5f5;
+  
+  /* 工具提示 */
+  --property-panel-tooltip-bg: #333333;
+  --property-panel-tooltip-text: #ffffff;
+  
+  /* 加载状态 */
+  --property-panel-loading-border: #e0e0e0;
+  --property-panel-loading-spinner: #0078d7;
+  
+  /* 只读属性 */
+  --property-panel-readonly-bg: #f5f5f5;
+  --property-panel-readonly-text: #666666;
+  --property-panel-readonly-border: #e0e0e0;
+  
+  /* 继承属性 */
+  --property-panel-inherited-text: #808080;
+  
+  /* 高级属性指示器 */
+  --property-panel-advanced-indicator: #0078d7;
+}
+
+/* 暗主题变量 */
+[data-theme="dark"] {
+  /* 基础面板颜色 */
+  --property-panel-bg: #1e1e1e;
+  --property-panel-text: #e0e0e0;
+  --property-panel-border: #404040;
+  --property-panel-header-bg: #252526;
+  --property-panel-title: #cccccc;
+  --property-panel-hover: #353535;
+  --property-panel-muted: #808080;
+  
+  /* 滚动条样式 */
+  --property-panel-scrollbar-track: #1e1e1e;
+  --property-panel-scrollbar-thumb: #404040;
+  --property-panel-scrollbar-thumb-hover: #555555;
+  
+  /* 输入控件样式 */
+  --property-panel-input-bg: #3c3c3c;
+  --property-panel-input-text: #e0e0e0;
+  --property-panel-input-border: #404040;
+  --property-panel-input-focus-bg: #3c3c3c;
+  --property-panel-focus: #0078d7;
+  
+  /* 标签样式 */
+  --property-panel-label: #cccccc;
+  
+  /* 禁用状态 */
+  --property-panel-disabled-bg: #252526;
+  --property-panel-disabled-text: #666666;
+  --property-panel-disabled-border: #404040;
+  
+  /* 开关样式 */
+  --property-panel-toggle-off: #555555;
+  --property-panel-toggle-on: #0078d7;
+  
+  /* 滑块样式 */
+  --property-panel-slider-track: #3c3c3c;
+  --property-panel-slider-thumb: #808080;
+  --property-panel-slider-thumb-hover: #999999;
+  
+  /* 数值显示 */
+  --property-panel-number-display: #e0e0e0;
+  
+  /* 复合组件 */
+  --property-panel-complex-bg: #252526;
+  --property-panel-complex-border: #404040;
+  
+  /* 数组项 */
+  --property-panel-array-item-bg: #2d2d30;
+  --property-panel-array-item-border: #404040;
+  --property-panel-array-index: #808080;
+  
+  /* 操作按钮 */
+  --property-panel-action-btn: #cccccc;
+  --property-panel-action-btn-hover: #ffffff;
+  --property-panel-action-hover: #353535;
+  
+  /* 折叠面板/分组 */
+  --property-panel-group-bg: #252526;
+  --property-panel-group-header: #2d2d30;
+  --property-panel-group-header-hover: #353535;
+  --property-panel-group-title: #cccccc;
+  --property-panel-group-toggle: #cccccc;
+  --property-panel-group-content: #252526;
+  
+  /* 错误状态 */
+  --property-panel-error-bg: #3f2d2d;
+  --property-panel-error-text: #f14c4c;
+  --property-panel-error-border: #f14c4c;
+  --property-panel-error-input-bg: #3f2d2d;
+  
+  /* 工具提示 */
+  --property-panel-tooltip-bg: #404040;
+  --property-panel-tooltip-text: #ffffff;
+  
+  /* 加载状态 */
+  --property-panel-loading-border: #404040;
+  --property-panel-loading-spinner: #0078d7;
+  
+  /* 只读属性 */
+  --property-panel-readonly-bg: #252526;
+  --property-panel-readonly-text: #999999;
+  --property-panel-readonly-border: #404040;
+  
+  /* 继承属性 */
+  --property-panel-inherited-text: #999999;
+  
+  /* 高级属性指示器 */
+  --property-panel-advanced-indicator: #0078d7;
+}
+
+/* 主题切换辅助类 */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--property-panel-border);
+  color: var(--property-panel-text);
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.theme-toggle:hover {
+  background-color: var(--property-panel-hover);
+  border-color: var(--property-panel-focus);
+}
+
+/* 响应式主题调整 */
+@media (prefers-color-scheme: dark) {
+  /* 当用户系统设置为暗色时的默认样式（如果未明确设置主题） */
+  :root:not([data-theme="light"]) {
+    /* 暗主题变量 - 与上面的data-theme="dark"相同 */
+    --property-panel-bg: #1e1e1e;
+    --property-panel-text: #e0e0e0;
+    --property-panel-border: #404040;
+    --property-panel-header-bg: #252526;
+    --property-panel-title: #cccccc;
+    --property-panel-hover: #353535;
+    --property-panel-muted: #808080;
+    
+    /* 滚动条样式 */
+    --property-panel-scrollbar-track: #1e1e1e;
+    --property-panel-scrollbar-thumb: #404040;
+    --property-panel-scrollbar-thumb-hover: #555555;
+    
+    /* 输入控件样式 */
+    --property-panel-input-bg: #3c3c3c;
+    --property-panel-input-text: #e0e0e0;
+    --property-panel-input-border: #404040;
+    --property-panel-input-focus-bg: #3c3c3c;
+    --property-panel-focus: #0078d7;
+    
+    /* 标签样式 */
+    --property-panel-label: #cccccc;
+    
+    /* 禁用状态 */
+    --property-panel-disabled-bg: #252526;
+    --property-panel-disabled-text: #666666;
+    --property-panel-disabled-border: #404040;
+    
+    /* 开关样式 */
+    --property-panel-toggle-off: #555555;
+    --property-panel-toggle-on: #0078d7;
+    
+    /* 滑块样式 */
+    --property-panel-slider-track: #3c3c3c;
+    --property-panel-slider-thumb: #808080;
+    --property-panel-slider-thumb-hover: #999999;
+    
+    /* 数值显示 */
+    --property-panel-number-display: #e0e0e0;
+    
+    /* 复合组件 */
+    --property-panel-complex-bg: #252526;
+    --property-panel-complex-border: #404040;
+    
+    /* 数组项 */
+    --property-panel-array-item-bg: #2d2d30;
+    --property-panel-array-item-border: #404040;
+    --property-panel-array-index: #808080;
+    
+    /* 操作按钮 */
+    --property-panel-action-btn: #cccccc;
+    --property-panel-action-btn-hover: #ffffff;
+    --property-panel-action-hover: #353535;
+    
+    /* 折叠面板/分组 */
+    --property-panel-group-bg: #252526;
+    --property-panel-group-header: #2d2d30;
+    --property-panel-group-header-hover: #353535;
+    --property-panel-group-title: #cccccc;
+    --property-panel-group-toggle: #cccccc;
+    --property-panel-group-content: #252526;
+    
+    /* 错误状态 */
+    --property-panel-error-bg: #3f2d2d;
+    --property-panel-error-text: #f14c4c;
+    --property-panel-error-border: #f14c4c;
+    --property-panel-error-input-bg: #3f2d2d;
+    
+    /* 工具提示 */
+    --property-panel-tooltip-bg: #404040;
+    --property-panel-tooltip-text: #ffffff;
+    
+    /* 加载状态 */
+    --property-panel-loading-border: #404040;
+    --property-panel-loading-spinner: #0078d7;
+    
+    /* 只读属性 */
+    --property-panel-readonly-bg: #252526;
+    --property-panel-readonly-text: #999999;
+    --property-panel-readonly-border: #404040;
+    
+    /* 继承属性 */
+    --property-panel-inherited-text: #999999;
+    
+    /* 高级属性指示器 */
+    --property-panel-advanced-indicator: #0078d7;
+  }
+}
+
+/* 主题管理器样式类 */
+.property-theme-manager {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px;
+  background-color: var(--property-panel-header-bg);
+  border-bottom: 1px solid var(--property-panel-border);
+}
+
+/* 可访问性支持 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  :root {
+    --property-panel-border: #000000;
+    --property-panel-focus: #0000ff;
+    --property-panel-error-border: #ff0000;
+  }
+  
+  [data-theme="dark"] {
+    --property-panel-border: #ffffff;
+    --property-panel-focus: #ffff00;
+    --property-panel-error-border: #ff0000;
+  }
+}

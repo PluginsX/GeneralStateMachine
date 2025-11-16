@@ -1,6 +1,9 @@
 import ConnectionModel from '../models/ConnectionModel.js';
 import Condition from '../core/condition.js';
 import NodeModel from '../models/NodeModel.js';
+import TextContent from '../models/TextContent.js';
+import { Vector2 } from '../math/GraphicsMath.js';
+import { Transform2D } from '../math/Transform.js';
 import { extractMermaidCharts, parseMermaidChart, parseMarkdownList } from '../utils/mermaidParser.js';
 import { AlertDialog, ConfirmDialog, PopUp_Window } from '../utils/popup.js';
 import ImportService from './ImportService.js';
@@ -23,17 +26,27 @@ export const importMarkdown = (content, editor) => {
         const nodeMap = new Map();
         
         nodes.forEach(nodeData => {
-            const node = new NodeModel(nodeData.name, nodeData.x, nodeData.y);
+            const position = new Vector2(nodeData.x || 0, nodeData.y || 0);
+            const node = new NodeModel({
+                name: nodeData.name,
+                position: position
+            });
             node.group = nodeData.group || ''; // 设置Group属性
+            // 确保transform正确设置
+            if (!node.transform) {
+                node.transform = new Transform2D(position, 0, new Vector2(1, 1));
+            } else {
+                node.transform.position = position;
+            }
             nodeMap.set(nodeData.id, node.id);
             editor.nodes.push(node);
         });
         
         connections.forEach(connData => {
-                const connection = new ConnectionModel(
-                    nodeMap.get(connData.sourceNodeId),
-                    nodeMap.get(connData.targetNodeId)
-                );
+                const connection = new ConnectionModel({
+                    sourceNodeId: nodeMap.get(connData.sourceNodeId),
+                    targetNodeId: nodeMap.get(connData.targetNodeId)
+                });
                 editor.connections.push(connection);
             });
     } 
@@ -46,17 +59,27 @@ export const importMarkdown = (content, editor) => {
             const nodeMap = new Map();
             
             nodes.forEach(nodeData => {
-                const node = new NodeModel(nodeData.name, nodeData.x, nodeData.y);
+                const position = new Vector2(nodeData.x || 0, nodeData.y || 0);
+                const node = new NodeModel({
+                    name: nodeData.name,
+                    position: position
+                });
                 node.group = nodeData.group || ''; // 设置Group属性
+                // 确保transform正确设置
+                if (!node.transform) {
+                    node.transform = new Transform2D(position, 0, new Vector2(1, 1));
+                } else {
+                    node.transform.position = position;
+                }
                 nodeMap.set(nodeData.id, node.id);
                 editor.nodes.push(node);
             });
             
             connections.forEach(connData => {
-                const connection = new ConnectionModel(
-                    nodeMap.get(connData.sourceNodeId),
-                    nodeMap.get(connData.targetNodeId)
-                );
+                const connection = new ConnectionModel({
+                    sourceNodeId: nodeMap.get(connData.sourceNodeId),
+                    targetNodeId: nodeMap.get(connData.targetNodeId)
+                });
                 editor.connections.push(connection);
             });
         }
@@ -90,12 +113,21 @@ const importMarkdownLegacy = (content, editor) => {
             const title = line.substring(level).trim();
             
             // 创建新节点
-            currentNode = new NodeModel(
-                title,
+            const position = new Vector2(
                 100 + (nodeCounter % 5) * 200,
                 100 + Math.floor(nodeCounter / 5) * 150
             );
+            currentNode = new NodeModel({
+                name: title,
+                position: position
+            });
             currentNode.group = ''; // 初始化Group属性
+            // 确保transform正确设置
+            if (!currentNode.transform) {
+                currentNode.transform = new Transform2D(position, 0, new Vector2(1, 1));
+            } else {
+                currentNode.transform.position = position;
+            }
             
             editor.nodes.push(currentNode);
             nodesMap.set(title, currentNode.id);
@@ -106,7 +138,10 @@ const importMarkdownLegacy = (content, editor) => {
             const text = line.substring(1).trim();
             if (nodesMap.has(text)) {
                 editor.connections.push(
-                    new ConnectionModel(currentNode.id, nodesMap.get(text))
+                    new ConnectionModel({
+                        sourceNodeId: currentNode.id,
+                        targetNodeId: nodesMap.get(text)
+                    })
                 );
             }
         }
@@ -161,35 +196,85 @@ export const loadProjectData = async (projectData, editor) => {
     editor.connections = [];
     editor.selectedElements = [];
     
-    // 导入节点
+    // 导入节点（兼容新旧格式）
     if (projectData.nodes && Array.isArray(projectData.nodes)) {
         projectData.nodes.forEach((nodeData) => {
-            const node = new NodeModel(nodeData.name, nodeData.x, nodeData.y);
-            node.id = nodeData.id;
+            // 兼容新旧格式：优先使用transform，如果没有则使用x/y
+            let position;
+            if (nodeData.transform && nodeData.transform.position) {
+                position = new Vector2(
+                    nodeData.transform.position.x || 0,
+                    nodeData.transform.position.y || 0
+                );
+            } else if (nodeData.x !== undefined && nodeData.y !== undefined) {
+                position = new Vector2(nodeData.x, nodeData.y);
+            } else {
+                position = new Vector2(0, 0);
+            }
+            
+            const node = new NodeModel({
+                name: nodeData.name || '未命名节点',
+                position: position
+            });
+            
+            // 设置ID（如果存在）
+            if (nodeData.id) {
+                node.id = nodeData.id;
+            }
+            
+            // 设置其他属性
             node.description = nodeData.description || '';
-            node.group = nodeData.group || ''; // 设置Group属性
+            node.group = nodeData.group || '';
             node.width = nodeData.width || 150;
             node.height = nodeData.height || 50;
-            node.autoSize = nodeData.autoSize || false;
+            node.autoSize = nodeData.autoSize !== undefined ? nodeData.autoSize : false;
             node.color = nodeData.color || null;
+            node.fixedPosition = nodeData.fixedPosition || false;
+            
+            // 确保transform正确设置
+            if (!node.transform) {
+                node.transform = new Transform2D(position, 0, new Vector2(1, 1));
+            } else {
+                node.transform.position = position;
+                if (nodeData.transform) {
+                    node.transform.rotation = nodeData.transform.rotation || 0;
+                    if (nodeData.transform.scale) {
+                        node.transform.scale = new Vector2(
+                            nodeData.transform.scale.x || 1,
+                            nodeData.transform.scale.y || 1
+                        );
+                    }
+                }
+            }
+            
             editor.nodes.push(node);
         });
     }
     
-    // 导入连接
+    // 导入连接（兼容新旧格式）
     if (projectData.connections && Array.isArray(projectData.connections)) {
         projectData.connections.forEach((connData) => {
-            const connection = new ConnectionModel(connData.sourceNodeId, connData.targetNodeId);
-            connection.id = connData.id;
+            const connection = new ConnectionModel({
+                sourceNodeId: connData.sourceNodeId,
+                targetNodeId: connData.targetNodeId,
+                sourcePortId: connData.sourcePortId || '',
+                targetPortId: connData.targetPortId || '',
+                type: connData.type || 'default'
+            });
+            
+            // 设置ID（如果存在）
+            if (connData.id) {
+                connection.id = connData.id;
+            }
             
             // 导入条件
             if (connData.conditions && Array.isArray(connData.conditions)) {
                 connData.conditions.forEach(condData => {
                     const condition = new Condition();
-                    condition.type = condData.type;
-                    condition.key = condData.key;
-                    condition.operator = condData.operator;
-                    condition.value = condData.value;
+                    condition.type = condData.type || 'none';
+                    condition.key = condData.key || '';
+                    condition.operator = condData.operator || 'equals';
+                    condition.value = condData.value !== undefined ? condData.value : null;
                     connection.conditions.push(condition);
                 });
             }
@@ -201,7 +286,92 @@ export const loadProjectData = async (projectData, editor) => {
             connection.arrowSize = connData.arrowSize || null;
             connection.arrowColor = connData.arrowColor || null;
             
+            // 导入transform（如果存在）
+            if (connData.transform) {
+                if (!connection.transform) {
+                    connection.transform = new Transform2D(new Vector2(), 0, new Vector2(1, 1));
+                }
+                if (connData.transform.position) {
+                    connection.transform.position = new Vector2(
+                        connData.transform.position.x || 0,
+                        connData.transform.position.y || 0
+                    );
+                }
+                if (connData.transform.rotation !== undefined) {
+                    connection.transform.rotation = connData.transform.rotation;
+                }
+                if (connData.transform.scale) {
+                    connection.transform.scale = new Vector2(
+                        connData.transform.scale.x || 1,
+                        connData.transform.scale.y || 1
+                    );
+                }
+            }
+            
+            // 导入样式（如果存在）
+            if (connData.style) {
+                connection.style = { ...connection.style, ...connData.style };
+            }
+            
             editor.connections.push(connection);
+        });
+    }
+    
+    // 导入文字内容对象（兼容新旧格式）
+    if (projectData.textContents && Array.isArray(projectData.textContents)) {
+        projectData.textContents.forEach((textData) => {
+            // 兼容新旧格式：优先使用transform，如果没有则使用x/y
+            let position;
+            if (textData.transform && textData.transform.position) {
+                position = new Vector2(
+                    textData.transform.position.x || 0,
+                    textData.transform.position.y || 0
+                );
+            } else if (textData.x !== undefined && textData.y !== undefined) {
+                position = new Vector2(textData.x, textData.y);
+            } else {
+                position = new Vector2(0, 0);
+            }
+            
+            const textContent = new TextContent({
+                text: textData.text || '',
+                width: textData.width || 200,
+                height: textData.height || 100,
+                autoSize: textData.autoSize !== undefined ? textData.autoSize : true,
+                fontSize: textData.fontSize || 14,
+                fontColor: textData.fontColor || '#000000',
+                fontFamily: textData.fontFamily || 'Arial, sans-serif',
+                fontWeight: textData.fontWeight || 'normal',
+                fontStyle: textData.fontStyle || 'normal',
+                textAlign: textData.textAlign || 'left',
+                textVerticalAlign: textData.textVerticalAlign || 'top',
+                wordWrap: textData.wordWrap !== undefined ? textData.wordWrap : true,
+                padding: textData.padding || 10,
+                transform: new Transform2D(position, 0, new Vector2(1, 1))
+            });
+            
+            // 设置ID（如果存在）
+            if (textData.id) {
+                textContent.id = textData.id;
+            }
+            
+            // 确保transform正确设置
+            if (textData.transform) {
+                textContent.transform.position = position;
+                textContent.transform.rotation = textData.transform.rotation || 0;
+                if (textData.transform.scale) {
+                    textContent.transform.scale = new Vector2(
+                        textData.transform.scale.x || 1,
+                        textData.transform.scale.y || 1
+                    );
+                }
+            }
+            
+            // 确保textContents数组存在
+            if (!editor.textContents) {
+                editor.textContents = [];
+            }
+            editor.textContents.push(textContent);
         });
     }
     

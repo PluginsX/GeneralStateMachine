@@ -18,8 +18,34 @@ export default class NodeViewModel {
     
     // 添加节点
     addNode(name, x, y) {
-        const node = new NodeModel(name, x, y);
+        // 创建正确的options对象传递给NodeModel构造函数
+        const nodeOptions = {
+            name: name,
+            position: { x: x || 100, y: y || 100 },
+            group: '' // 初始化Group属性为空字符串
+        };
+        
+        // 创建节点
+        const node = new NodeModel(nodeOptions);
+        
+        // 确保transform和position对象正确初始化（与右键菜单逻辑一致）
+        if (!node.transform) {
+            node.transform = {};
+        }
+        if (!node.transform.position) {
+            node.transform.position = { x: x || 100, y: y || 100 };
+        }
+        
+        // 设置初始位置
+        node.transform.position.x = x || 100;
+        node.transform.position.y = y || 100;
+        
+        // 添加到节点映射
         this.nodes.set(node.id, node);
+        
+        // 将新节点设置为选中状态
+        this.editorState.selectedNodeIds.clear();
+        this.editorState.selectedNodeIds.add(node.id);
         
         // 记录历史
         if (this.historyManager) {

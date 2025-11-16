@@ -8,15 +8,15 @@ import { showContextMenu } from '../utils/dom.js';
 import { doRectsOverlap, isPointInRect, isPointNearLine } from '../utils/math.js';
 import { ConfirmDialog } from '../utils/popup.js';
 import { VisibilityCuller, LODManager, QuadTree, PerformanceMonitor, perfLog } from '../utils/performance.js';
-import { Vector2 } from '../math/GraphicsMath.js';
+import { Vector2, Color } from '../math/GraphicsMath.js';
 import { Transform2D } from '../math/Transform.js';
-import LegacyShortcutManager from './LegacyShortcutManager.js';
-import Condition from './condition.js';
+import LegacyShortcutManager from '../core/LegacyShortcutManager.js';
+import Condition from '../core/condition.js';
 import ConnectionModel from '../models/ConnectionModel.js';
 import NodeModel from '../models/NodeModel.js';
-import Node from './model/Node.js';
+// 已经使用NodeModel，不需要导入Node
 import NodeService from '../services/NodeService.js';
-import TextContent from '../models/TextContent.js';
+import { TextContent } from '../models/TextContent.js';
 
 // 辅助函数：将十六进制颜色转换为RGB
 function hexToRgb(hex) {
@@ -29,7 +29,7 @@ function hexToRgb(hex) {
 }
 
 // 编辑器主类
-export default class NodeGraphEditor {
+export default class NodeGraphEditorController {
     constructor(canvasId) {
         // 获取DOM元素
         this.canvas = document.getElementById(canvasId);
@@ -468,7 +468,8 @@ export default class NodeGraphEditor {
         const worldX = (x - panX) / zoomLevel;
         const worldY = (y - panY) / zoomLevel;
         
-        return { x: worldX, y: worldY };
+        // 返回Vector2实例，确保与NodeModel和Transform2D兼容
+        return new Vector2(worldX, worldY);
     }
     
     // 世界坐标转屏幕坐标
@@ -828,6 +829,25 @@ export default class NodeGraphEditor {
             }
             
             // 正常情况下的左键处理（非连接创建状态）
+            // 首先检查是否点击了文字内容对象（优先检测，因为文字内容可能在节点上方）
+            if (this.textContents && this.textContents.length > 0) {
+                const clickedText = this.textContents.find(text => {
+                    const position = (text.transform && text.transform.position) ? 
+                        text.transform.position : { x: 0, y: 0 };
+                    return isPointInRect(worldPos.x, worldPos.y, {
+                        x: position.x,
+                        y: position.y,
+                        width: text.width || 200,
+                        height: text.height || 100
+                    });
+                });
+                
+                if (clickedText) {
+                    this.handleTextContentClick(clickedText, worldPos, e);
+                    return;
+                }
+            }
+            
             // 检查是否点击了节点
             const clickedNode = this.visibleNodes.find(node => 
                 node.transform && node.transform.position &&
@@ -907,6 +927,10 @@ export default class NodeGraphEditor {
             const index = this.selectedElements.findIndex(el => el.id === node.id);
             if (index !== -1) {
                 this.selectedElements.splice(index, 1);
+                // 同步更新viewModel中的选中状态
+                if (this.viewModel && this.viewModel.getNodeViewModel()) {
+                    this.viewModel.getNodeViewModel().deselectNode(node.id);
+                }
                 updatePropertyPanel(this);
                 this.scheduleRender();
             }
@@ -927,48 +951,45 @@ export default class NodeGraphEditor {
             return;
         }
         
-        // 如果节点未被选中，先选中节点（但延迟到鼠标松开时确认，如果是拖动则不改变选择）
-        // 选择逻辑
-        if (!e.ctrlKey && !e.metaKey) {
-            // 如果节点已经被选中且当前有多选，保持多选状态
-            if (this.selectedElements.filter(el => el.type === 'node').length <= 1) {
-                this.deselectAll();
+        // 新选择节点的情况
+        if (!isAlreadySelected) {
+            // 清空之前的选择（除非按住Ctrl键）
+            if (!(e.ctrlKey || e.metaKey)) {
+                this.selectedElements = [];
             }
-        }
-        
-        // 切换节点选择状态（只有在按住Ctrl键时才切换）
-        if (e.ctrlKey || e.metaKey) {
-            const index = this.selectedElements.findIndex(el => el.id === node.id);
-            if (index === -1) {
-                this.selectedElements.push(node);
-            } else {
-                this.selectedElements.splice(index, 1);
+            
+            // 确保节点有type属性（关键修复：确保节点可以被正确识别）
+            if (!node.type) {
+                node.type = 'node';
             }
-        } else {
-            // 如果没有按住Ctrl键，确保节点被选中
-            if (!isAlreadySelected) {
-                this.selectedElements.push(node);
+            
+            // 添加新节点到选择列表
+            this.selectedElements.push(node);
+            
+            // 同步更新viewModel中的选中状态
+            if (this.viewModel && this.viewModel.getNodeViewModel()) {
+                this.viewModel.getNodeViewModel().selectNode(node.id, e.ctrlKey || e.metaKey);
             }
-        }
-        
-        // 应用筛选器
-        this.filterSelectedElements();
-        
-        // 将点击的节点移到最上层（显示层次优化）
-        this.bringNodeToFront(node);
-        
-        // 准备拖动（使用第一个选中的节点作为拖动元素）
-        const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
-        if (selectedNodes.length > 0) {
-            this.draggingElement = node; // 使用点击的节点作为拖动参考
+            
+            updatePropertyPanel(this);
+            this.scheduleRender();
+            
+            // 将点击的节点移到最上层（显示层次优化）
+            this.bringNodeToFront(node);
+            
+            // 准备拖动
+            this.draggingElement = node;
             const nodePos = (node.transform && node.transform.position) ? 
                 node.transform.position : { x: 0, y: 0 };
             this.draggingOffset.x = worldPos.x - nodePos.x;
             this.draggingOffset.y = worldPos.y - nodePos.y;
         }
         
-        updatePropertyPanel(this);
-        this.scheduleRender();
+        // 选择逻辑已经在前面的条件分支中处理完成
+        // 新的实现确保了selectedElements和viewModel的selectedNodeIds同步
+        
+        // 应用筛选器
+        this.filterSelectedElements();
     }
     
     // 将节点移到最上层（显示层次优化）
@@ -980,6 +1001,64 @@ export default class NodeGraphEditor {
             // 添加到数组末尾（最后绘制的在最上层）
             this.nodes.push(node);
         }
+    }
+    
+    // 处理文字内容点击（参考handleNodeClick的实现）
+    handleTextContentClick(textContent, worldPos, e) {
+        // 根据筛选器判断是否可以选择文字内容
+        if (this.selectionFilter === 'nodes' || this.selectionFilter === 'connections') {
+            // 如果筛选器设置为仅选择节点或连线，则忽略文字内容点击
+            return;
+        }
+        
+        // 检查文字内容是否已经被选中
+        const isAlreadySelected = this.selectedElements.some(el => el.id === textContent.id);
+        
+        // 如果文字内容已经被选中且按住Ctrl键，取消选择
+        if (isAlreadySelected && (e.ctrlKey || e.metaKey)) {
+            const index = this.selectedElements.findIndex(el => el.id === textContent.id);
+            if (index !== -1) {
+                this.selectedElements.splice(index, 1);
+                updatePropertyPanel(this);
+                this.scheduleRender();
+            }
+            return;
+        }
+        
+        // 如果文字内容已经被选中（且没有按住Ctrl键），准备拖动
+        if (isAlreadySelected) {
+            // 准备拖动
+            this.draggingElement = textContent;
+            const textPos = (textContent.transform && textContent.transform.position) ? 
+                textContent.transform.position : { x: 0, y: 0 };
+            this.draggingOffset.x = worldPos.x - textPos.x;
+            this.draggingOffset.y = worldPos.y - textPos.y;
+            return;
+        }
+        
+        // 新选择文字内容的情况
+        if (!isAlreadySelected) {
+            // 清空之前的选择（除非按住Ctrl键）
+            if (!(e.ctrlKey || e.metaKey)) {
+                this.selectedElements = [];
+            }
+            
+            // 添加新文字内容到选择列表
+            this.selectedElements.push(textContent);
+            
+            updatePropertyPanel(this);
+            this.scheduleRender();
+            
+            // 准备拖动
+            this.draggingElement = textContent;
+            const textPos = (textContent.transform && textContent.transform.position) ? 
+                textContent.transform.position : { x: 0, y: 0 };
+            this.draggingOffset.x = worldPos.x - textPos.x;
+            this.draggingOffset.y = worldPos.y - textPos.y;
+        }
+        
+        // 应用筛选器
+        this.filterSelectedElements();
     }
     
     // 处理连线点击（支持多条连线）
@@ -999,6 +1078,11 @@ export default class NodeGraphEditor {
         
         // 如果点击的是多条连线，选择所有连线
         connectionArray.forEach(connection => {
+            // 确保连接有type属性（关键修复：确保连接可以被正确识别）
+            if (!connection.type) {
+                connection.type = 'connection';
+            }
+            
             const index = this.selectedElements.findIndex(el => el.id === connection.id);
             if (index === -1) {
                 this.selectedElements.push(connection);
@@ -1050,6 +1134,61 @@ export default class NodeGraphEditor {
             return;
         }
         
+        // 拖动文字内容对象处理（支持多选拖动）
+        if (this.draggingElement && this.draggingElement.type === 'text') {
+            // 确保transform对象存在，并获取当前位置（统一使用transform.position）
+            if (!this.draggingElement.transform) {
+                this.draggingElement.transform = {};
+            }
+            if (!this.draggingElement.transform.position) {
+                this.draggingElement.transform.position = { x: 0, y: 0 };
+            }
+            
+            // 计算拖动偏移量（使用transform.position而不是x/y属性）
+            const deltaX = worldPos.x - this.draggingElement.transform.position.x - this.draggingOffset.x;
+            const deltaY = worldPos.y - this.draggingElement.transform.position.y - this.draggingOffset.y;
+            
+            // 获取所有选中的文字内容对象
+            const selectedTexts = this.selectedElements.filter(el => el.type === 'text');
+            
+            // 如果只有一个文字对象被选中，直接移动它
+            if (selectedTexts.length === 1) {
+                // 计算新位置
+                const newX = worldPos.x - this.draggingOffset.x;
+                const newY = worldPos.y - this.draggingOffset.y;
+                
+                // 更新transform.position
+                this.draggingElement.transform.position.x = newX;
+                this.draggingElement.transform.position.y = newY;
+            } else {
+                // 如果有多个文字对象被选中，移动所有选中的文字对象
+                selectedTexts.forEach(text => {
+                    const textPos = (text.transform && text.transform.position) ? 
+                        text.transform.position : { x: 0, y: 0 };
+                    
+                    // 确保transform对象存在
+                    if (!text.transform) {
+                        text.transform = {};
+                    }
+                    if (!text.transform.position) {
+                        text.transform.position = { x: 0, y: 0 };
+                    }
+                    
+                    // 更新transform.position中的坐标
+                    text.transform.position.x = textPos.x + deltaX;
+                    text.transform.position.y = textPos.y + deltaY;
+                });
+                // 更新拖动偏移量，以便下次移动时使用正确的偏移
+                const dragTextPos = (this.draggingElement.transform && this.draggingElement.transform.position) ? 
+                    this.draggingElement.transform.position : { x: 0, y: 0 };
+                this.draggingOffset.x = worldPos.x - dragTextPos.x;
+                this.draggingOffset.y = worldPos.y - dragTextPos.y;
+            }
+            
+            this.scheduleRender();
+            return;
+        }
+        
         // 拖动节点处理（支持多选拖动）
         if (this.draggingElement && this.draggingElement.type === 'node') {
             // 确保transform对象存在，并获取当前位置（统一使用transform.position）
@@ -1076,10 +1215,6 @@ export default class NodeGraphEditor {
                 // 更新transform.position（参考集中排列代码的做法）
                 this.draggingElement.transform.position.x = newX;
                 this.draggingElement.transform.position.y = newY;
-                
-                // 保持向后兼容性，也更新x和y属性
-                this.draggingElement.x = newX;
-                this.draggingElement.y = newY;
                 
                 // 注意：在新的树形排列系统中，不再操作D3模拟中的节点位置
                 // 因为树形排列是一次性计算，没有实时力导向模拟
@@ -1167,15 +1302,25 @@ export default class NodeGraphEditor {
         // 计算选中元素的边界框
         let minX = Infinity, minY = Infinity;
         const selectedNodes = this.selectedElements.filter(el => el.type === 'node');
+        const selectedTexts = this.selectedElements.filter(el => el.type === 'text');
         
-        if (selectedNodes.length === 0) return;
-        
+        // 计算节点边界
         selectedNodes.forEach(node => {
             if (node.transform && node.transform.position) {
                 minX = Math.min(minX, node.transform.position.x);
                 minY = Math.min(minY, node.transform.position.y);
             }
         });
+        
+        // 计算文字内容对象边界
+        selectedTexts.forEach(text => {
+            if (text.transform && text.transform.position) {
+                minX = Math.min(minX, text.transform.position.x);
+                minY = Math.min(minY, text.transform.position.y);
+            }
+        });
+        
+        if (selectedNodes.length === 0 && selectedTexts.length === 0) return;
         
         // 计算偏移量
         const offsetX = worldPos.x - minX;
@@ -1185,15 +1330,15 @@ export default class NodeGraphEditor {
         const nodeMap = new Map();
         const newNodes = [];
         const newConnections = [];
+        const newTexts = [];
         
         // 复制节点
         selectedNodes.forEach(node => {
+            const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+            const newPosition = new Vector2(nodePos.x + offsetX, nodePos.y + offsetY);
             const newNode = new NodeModel({
                 name: node.name,
-                position: { 
-                    x: (node.transform && node.transform.position ? node.transform.position.x : 0) + offsetX, 
-                    y: (node.transform && node.transform.position ? node.transform.position.y : 0) + offsetY 
-                },
+                position: newPosition,
                 description: node.description,
                 width: node.width,
                 height: node.height,
@@ -1201,23 +1346,54 @@ export default class NodeGraphEditor {
                 color: node.color,
                 group: node.group || ''
             });
+            // 确保transform正确设置
+            if (!newNode.transform) {
+                newNode.transform = new Transform2D(newPosition, 0, new Vector2(1, 1));
+            } else {
+                newNode.transform.position = newPosition;
+            }
             nodeMap.set(node.id, newNode);
             newNodes.push(newNode);
+        });
+        
+        // 复制文字内容对象
+        selectedTexts.forEach(text => {
+            const textPos = (text.transform && text.transform.position) ? text.transform.position : { x: 0, y: 0 };
+            const newPosition = new Vector2(textPos.x + offsetX, textPos.y + offsetY);
+            const newText = new TextContent({
+                text: text.text || '',
+                width: text.width || 200,
+                height: text.height || 100,
+                autoSize: text.autoSize !== undefined ? text.autoSize : true,
+                fontSize: text.fontSize || 14,
+                fontColor: text.fontColor || '#000000',
+                fontFamily: text.fontFamily || 'Arial, sans-serif',
+                fontWeight: text.fontWeight || 'normal',
+                fontStyle: text.fontStyle || 'normal',
+                textAlign: text.textAlign || 'left',
+                textVerticalAlign: text.textVerticalAlign || 'top',
+                wordWrap: text.wordWrap !== undefined ? text.wordWrap : true,
+                padding: text.padding || 10,
+                transform: new Transform2D(newPosition, 0, new Vector2(1, 1))
+            });
+            newTexts.push(newText);
         });
         
         // 复制连线（只复制选中节点之间的连线）
         const selectedNodeIds = new Set(selectedNodes.map(n => n.id));
         this.connections.forEach(conn => {
             if (selectedNodeIds.has(conn.sourceNodeId) && selectedNodeIds.has(conn.targetNodeId)) {
-                const newConnection = new ConnectionModel(
-                    nodeMap.get(conn.sourceNodeId).id,
-                    nodeMap.get(conn.targetNodeId).id
-                );
-                // 复制条件
-                conn.conditions.forEach(cond => {
-                    const newCond = new Condition(cond.type, cond.key, cond.operator, cond.value);
-                    newConnection.conditions.push(newCond);
+                const newConnection = new ConnectionModel({
+                    sourceNodeId: nodeMap.get(conn.sourceNodeId).id,
+                    targetNodeId: nodeMap.get(conn.targetNodeId).id
                 });
+                // 复制条件
+                if (conn.conditions && Array.isArray(conn.conditions)) {
+                    conn.conditions.forEach(cond => {
+                        const newCond = new Condition(cond.type, cond.key, cond.operator, cond.value);
+                        newConnection.conditions.push(newCond);
+                    });
+                }
                 // 复制连线属性
                 newConnection.color = conn.color;
                 newConnection.lineWidth = conn.lineWidth;
@@ -1231,15 +1407,22 @@ export default class NodeGraphEditor {
         // 记录历史
         this.historyManager.addHistory('duplicate-elements', {
             nodes: newNodes.map(n => n.clone()),
-            connections: newConnections.map(c => c.clone())
+            connections: newConnections.map(c => c.clone()),
+            textContents: newTexts.map(t => t.clone())
         });
         
-        // 添加新节点和连线
+        // 添加新节点、连线和文字内容对象
         newNodes.forEach(node => this.nodes.push(node));
         newConnections.forEach(conn => this.connections.push(conn));
+        newTexts.forEach(text => {
+            if (!this.textContents) {
+                this.textContents = [];
+            }
+            this.textContents.push(text);
+        });
         
         // 选中新创建的元素
-        this.selectedElements = [...newNodes];
+        this.selectedElements = [...newNodes, ...newTexts];
         
         // 强制更新可见对象列表，确保导入的对象可以被鼠标事件检测到
         this.updateVisibleObjects(true);
@@ -1382,8 +1565,26 @@ export default class NodeGraphEditor {
         const worldPos = this.screenToWorld(x, y);
         
         if (type === 'node') {
-            const newNode = new NodeModel('新节点', worldPos.x, worldPos.y);
+            // 确保worldPos是Vector2对象或包含x和y属性的对象
+            const position = (worldPos instanceof Vector2) ? worldPos : new Vector2(worldPos.x || 0, worldPos.y || 0);
+            const newNode = new NodeModel({
+                name: '新节点',
+                position: position
+            });
             newNode.group = ''; // 初始化Group属性
+            
+            // 确保transform和position正确设置（关键修复：确保新节点可以拖拽）
+            if (!newNode.transform) {
+                newNode.transform = new Transform2D(new Vector2(), 0, new Vector2(1, 1));
+            }
+            if (!newNode.transform.position) {
+                newNode.transform.position = new Vector2(position.x, position.y);
+            } else {
+                // 如果position已存在，确保它被正确设置
+                newNode.transform.position.x = position.x;
+                newNode.transform.position.y = position.y;
+            }
+            
             this.addNode(newNode);
         } else if (type === 'connection') {
             // 开始创建连线
@@ -1429,10 +1630,12 @@ export default class NodeGraphEditor {
         if (this.creatingConnection && 
             this.creatingConnection.sourceNodeId !== targetNodeId) {
             
-            const newConnection = new ConnectionModel(
-                this.creatingConnection.sourceNodeId,
-                targetNodeId
-            );
+            // 创建连接对象（使用对象参数格式）
+            const newConnection = new ConnectionModel({
+                sourceNodeId: this.creatingConnection.sourceNodeId,
+                targetNodeId: targetNodeId,
+                conditions: [] // 初始化conditions数组
+            });
             
             this.addConnection(newConnection);
         }
@@ -1444,16 +1647,30 @@ export default class NodeGraphEditor {
     // 处理右键点击
     handleRightClick(worldPos, screenX, screenY, clientX, clientY) {
         this.updateUserInputStatus();
-        // 检查是否点击了节点
-        const clickedNode = this.nodes.find(node => 
-            node.transform && node.transform.position &&
-            isPointInRect(worldPos.x, worldPos.y, {
-                x: node.transform.position.x,
-                y: node.transform.position.y,
-                width: node.width,
-                height: node.height
-            })
-        );
+        // 检查是否点击了节点 - 更健壮的节点查找逻辑
+        const clickedNode = this.nodes.find(node => {
+            // 尝试从节点中获取位置信息，处理不同的节点结构
+            let nodeX, nodeY;
+            if (node.transform && node.transform.position) {
+                nodeX = node.transform.position.x;
+                nodeY = node.transform.position.y;
+            } else {
+                // 如果既没有transform.position也没有x/y，使用默认值
+                nodeX = 0;
+                nodeY = 0;
+            }
+            
+            // 确保宽度和高度有默认值
+            const width = node.width || 100; // 默认宽度
+            const height = node.height || 50; // 默认高度
+            
+            return isPointInRect(worldPos.x, worldPos.y, {
+                x: nodeX,
+                y: nodeY,
+                width: width,
+                height: height
+            });
+        });
         
         // 检查是否点击了连线
         const clickedConnections = this.getConnectionAtPosition(worldPos);
@@ -1461,7 +1678,17 @@ export default class NodeGraphEditor {
         
         // 显示上下文菜单（无论是否点击到元素都显示）
         // 使用 clientX, clientY 作为页面坐标（相对于视口）
-        const element = clickedNode || clickedConnection || null;
+        let element = clickedNode || clickedConnection || null;
+        
+        // 为节点和连线添加类型标识，确保右键菜单正确识别
+        if (element) {
+            if (clickedNode) {
+                element.type = 'node';
+            } else if (clickedConnection) {
+                element.type = 'connection';
+            }
+        }
+        
         showContextMenu(clientX, clientY, element, this, worldPos);
     }
     
@@ -1485,9 +1712,11 @@ export default class NodeGraphEditor {
             
             if (!nodeA || !nodeB) continue;
             
-            // 计算连线的起点和终点
-            const startPos = nodeA.transform && nodeA.transform.position ? nodeA.transform.position : { x: nodeA.x || 0, y: nodeA.y || 0 };
-            const endPos = nodeB.transform && nodeB.transform.position ? nodeB.transform.position : { x: nodeB.x || 0, y: nodeB.y || 0 };
+            // 计算连线的起点和终点（使用transform.position）
+            const startPos = (nodeA.transform && nodeA.transform.position) ? 
+                nodeA.transform.position : { x: 0, y: 0 };
+            const endPos = (nodeB.transform && nodeB.transform.position) ? 
+                nodeB.transform.position : { x: 0, y: 0 };
             
             const startX = startPos.x + nodeA.width / 2;
             const startY = startPos.y + nodeA.height / 2;
@@ -1580,6 +1809,24 @@ export default class NodeGraphEditor {
     
     // 处理框选
     processSelection(minX, minY, maxX, maxY) {
+        // 框选文字内容对象
+        this.visibleTextContents.forEach(text => {
+            const position = (text.transform && text.transform.position) ? 
+                text.transform.position : { x: 0, y: 0 };
+            const textCenterX = position.x + (text.width || 200) / 2;
+            const textCenterY = position.y + (text.height || 30) / 2;
+            
+            if (textCenterX >= minX && textCenterX <= maxX && 
+                textCenterY >= minY && textCenterY <= maxY) {
+                // 检查是否已经被选中
+                const isAlreadySelected = this.selectedElements.some(el => el.id === text.id);
+                if (!isAlreadySelected) {
+                    this.selectedElements.push(text);
+                }
+            }
+        });
+        
+        // 框选节点（原有逻辑）
         const selectionRect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
         
         // 根据筛选器类型选择元素
@@ -1734,6 +1981,15 @@ export default class NodeGraphEditor {
             });
         }
         
+        // 添加所有文字内容对象（完善文字内容对象的交互操作）
+        if (this.selectionFilter === 'all' || this.selectionFilter === 'texts') {
+            if (this.textContents && Array.isArray(this.textContents)) {
+                this.textContents.forEach(text => {
+                    this.selectedElements.push(text);
+                });
+            }
+        }
+        
         updatePropertyPanel(this);
         this.scheduleRender();
     }
@@ -1746,12 +2002,46 @@ export default class NodeGraphEditor {
         node.autoSize = false; // 确保不是自适应尺寸
         node.group = node.group || ''; // 初始化Group属性
         
-        // 确保transform和position正确设置
+        // 确保transform和position正确设置（关键修复：确保新节点可以拖拽）
         if (!node.transform) {
             node.transform = new Transform2D(new Vector2(), 0, new Vector2(1, 1));
         }
         if (!node.transform.position) {
-            node.transform.position = new Vector2(0, 0);
+            // 如果position不存在，从options.position或默认值创建
+            const initialPos = (node.position && (node.position instanceof Vector2 || (node.position.x !== undefined && node.position.y !== undefined))) ?
+                new Vector2(node.position.x || 0, node.position.y || 0) : new Vector2(0, 0);
+            node.transform.position = initialPos;
+        } else {
+            // 如果position已存在，确保它是Vector2对象或至少包含x和y属性
+            if (!(node.transform.position instanceof Vector2)) {
+                const pos = node.transform.position;
+                node.transform.position = new Vector2(pos.x || 0, pos.y || 0);
+            }
+        }
+        
+        // 确保节点有type属性（关键修复：确保节点可以被正确识别和选择）
+        if (!node.type) {
+            node.type = 'node';
+        }
+        
+        // 确保节点有所有必需的属性（参考右键设置固定位置时的操作）
+        // 初始化D3力导向图相关参数（如果未设置）
+        if (node.forceCharge === undefined) {
+            node.forceCharge = -300;
+        }
+        if (node.forceCollideRadius === undefined) {
+            node.forceCollideRadius = null;
+        }
+        if (node.forceStrength === undefined) {
+            node.forceStrength = 1;
+        }
+        if (node.fixedPosition === undefined) {
+            node.fixedPosition = false;
+        }
+        
+        // 确保节点有id（如果缺失）
+        if (!node.id) {
+            node.id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         }
         
         this.nodes.push(node);
@@ -1798,6 +2088,29 @@ export default class NodeGraphEditor {
     
     // 添加连线
     addConnection(connection) {
+        // 确保连接有type属性（关键修复：确保连接可以被正确识别）
+        if (!connection.type || connection.type !== 'connection') {
+            connection.type = 'connection';
+        }
+        
+        // 确保连接有id（如果缺失）
+        if (!connection.id) {
+            connection.id = `connection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+        
+        // 确保连接有conditions数组（关键修复：防止undefined错误）
+        if (!connection.conditions || !Array.isArray(connection.conditions)) {
+            connection.conditions = [];
+        }
+        
+        // 确保连接有linkDistance和linkStrength属性（力导向图参数）
+        if (connection.linkDistance === undefined) {
+            connection.linkDistance = 150;
+        }
+        if (connection.linkStrength === undefined) {
+            connection.linkStrength = 1;
+        }
+        
         this.connections.push(connection);
         this.historyManager.addHistory('add-connection', connection.clone());
         this.selectedElements = [connection];
@@ -2052,7 +2365,12 @@ export default class NodeGraphEditor {
         const worldPos = this.screenToWorld(centerX, centerY);
         
         const defaultText = '双击编辑文字';
-        this.addTextContent(defaultText, worldPos.x, worldPos.y);
+        const position = new Vector2(worldPos.x, worldPos.y);
+        const textContent = new TextContent({
+            text: defaultText,
+            transform: new Transform2D(position, 0, new Vector2(1, 1))
+        });
+        this.addTextContent(textContent);
     }
     
     // 根据ID获取文字对象
@@ -2084,7 +2402,9 @@ export default class NodeGraphEditor {
         document.body.appendChild(input);
         
         // 将文字对象的屏幕坐标计算出来
-        const screenPos = this.worldToScreen(textContent.x, textContent.y);
+        const textPos = (textContent.transform && textContent.transform.position) ? 
+            textContent.transform.position : { x: 0, y: 0 };
+        const screenPos = this.worldToScreen(textPos.x, textPos.y);
         
         // 设置输入框位置
         const canvasRect = this.canvas.getBoundingClientRect();
@@ -2276,8 +2596,10 @@ export default class NodeGraphEditor {
         const nodePos = (node.transform && node.transform.position) ? 
             node.transform.position : { x: 0, y: 0 };
         const screenPos = this.worldToScreen(nodePos.x, nodePos.y);
-        const width = (node.width || 100) * this.zoom;
-        const height = (node.height || 60) * this.zoom;
+        // 获取节点尺寸
+        const nodeSize = (node.size && node.size.width !== undefined && node.size.height !== undefined) ? node.size : { width: 100, height: 60 };
+        const width = nodeSize.width * this.zoom;
+        const height = nodeSize.height * this.zoom;
         
         // 检查节点是否可见（使用可视性检测器）
         const visibleBounds = this.visibilityCuller.getVisibleBounds();
@@ -2445,24 +2767,73 @@ export default class NodeGraphEditor {
     
     // 绘制文字对象
     drawTextContent(ctx, textContent) {
-        // 检查文字对象是否在可见区域内
+        // 获取正确的位置和尺寸属性
+        const position = (textContent.transform && textContent.transform.position) ? 
+            textContent.transform.position : { x: 0, y: 0 };
+        const width = textContent.width || 100;
+        const height = textContent.height || 60;
+        
+        // 检查文字对象是否在可见区域内（修复：确保正确检测可见性）
         const visibleBounds = this.visibilityCuller.getVisibleBounds();
         const textBounds = {
-            x: textContent.x,
-            y: textContent.y,
-            width: textContent.width,
-            height: textContent.height
+            x: position.x,
+            y: position.y,
+            width: width,
+            height: height
         };
         
-        if (!this.visibilityCuller.isNodeVisible(textBounds, visibleBounds)) {
-            return;
+        // 使用正确的可见性检测方法（修复LOD0级别绘制问题）
+        // 确保即使缩放很小，文字内容也能被正确检测到
+        const isVisible = this.visibilityCuller.isNodeVisible(textBounds, visibleBounds);
+        if (!isVisible) {
+            // 对于文字内容，即使稍微超出可见区域也应该绘制（修复缩放后消失的问题）
+            // 只有当缩放非常小或完全不可见时才不绘制
+            if (this.zoom < 0.05) {
+                return; // 缩放太小，不绘制
+            }
+            // 检查是否完全在可见区域外（增加容差）
+            const padding = 100; // 增加容差，确保文字内容不会因为边界检测过于严格而消失
+            const expandedBounds = {
+                x: visibleBounds.x - padding,
+                y: visibleBounds.y - padding,
+                width: visibleBounds.width + padding * 2,
+                height: visibleBounds.height + padding * 2
+            };
+            if (textBounds.x + textBounds.width < expandedBounds.x ||
+                textBounds.x > expandedBounds.x + expandedBounds.width ||
+                textBounds.y + textBounds.height < expandedBounds.y ||
+                textBounds.y > expandedBounds.y + expandedBounds.height) {
+                return; // 完全在可见区域外，不绘制
+            }
+            // 否则继续绘制（部分可见或接近可见区域）
         }
         
         // 转换到屏幕坐标
-        const screenPos = this.worldToScreen(textContent.x, textContent.y);
-        const screenWidth = textContent.width * this.zoom;
-        const screenHeight = textContent.height * this.zoom;
+        const screenPos = this.worldToScreen(position.x, position.y);
+        const screenWidth = width * this.zoom;
+        const screenHeight = height * this.zoom;
         
+        // 根据LOD级别选择绘制方法
+        const lodLevel = this.lodManager.getLODLevel(this.zoom);
+        
+        switch (lodLevel) {
+            case 'LOD0':
+                this.drawTextContentLOD0(ctx, textContent, screenPos, screenWidth, screenHeight);
+                break;
+            case 'LOD1':
+                this.drawTextContentLOD1(ctx, textContent, screenPos, screenWidth, screenHeight);
+                break;
+            case 'LOD2':
+                this.drawTextContentLOD2(ctx, textContent, screenPos, screenWidth, screenHeight);
+                break;
+            case 'LOD3':
+                this.drawTextContentLOD3(ctx, textContent, screenPos, screenWidth, screenHeight);
+                break;
+        }
+    }
+    
+    // LOD0: 高精度（完整细节）
+    drawTextContentLOD0(ctx, textContent, screenPos, width, height) {
         // 手动保存状态
         const originalFillStyle = ctx.fillStyle;
         const originalStrokeStyle = ctx.strokeStyle;
@@ -2479,23 +2850,28 @@ export default class NodeGraphEditor {
         
         // 绘制背景（如果有背景色）
         if (textContent.backgroundColor) {
-            ctx.fillStyle = textContent.backgroundColor;
-            ctx.fillRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+            const bgColor = textContent.backgroundColor instanceof Color ? 
+                textContent.backgroundColor.toString() : 
+                (typeof textContent.backgroundColor === 'string' ? textContent.backgroundColor : null);
+            if (bgColor) {
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(screenPos.x, screenPos.y, width, height);
+            }
         }
         
         // 绘制边框（如果有边框）
         if (textContent.borderColor) {
             ctx.strokeStyle = textContent.borderColor;
             ctx.lineWidth = textContent.borderWidth * this.zoom;
-            ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+            ctx.strokeRect(screenPos.x, screenPos.y, width, height);
         }
         
         // 绘制文本
         const fontSize = textContent.fontSize * this.zoom;
         ctx.font = `${textContent.fontStyle} ${textContent.fontWeight} ${fontSize}px ${textContent.fontFamily}`;
-        ctx.fillStyle = textContent.color;
-        ctx.textAlign = textContent.textAlign;
-        ctx.textBaseline = textContent.textBaseline;
+        ctx.fillStyle = textContent.fontColor || '#000000';
+        ctx.textAlign = textContent.textAlign || 'left';
+        ctx.textBaseline = textContent.textBaseline || 'middle';
         
         // 计算文本位置
         let textX = screenPos.x;
@@ -2503,19 +2879,20 @@ export default class NodeGraphEditor {
         
         switch (textContent.textAlign) {
             case 'center':
-                textX += screenWidth / 2;
+                textX += width / 2;
                 break;
             case 'right':
-                textX += screenWidth;
+                textX += width;
                 break;
         }
         
-        switch (textContent.textBaseline) {
+        const currentTextBaseline = textContent.textBaseline || 'middle';
+        switch (currentTextBaseline) {
             case 'middle':
-                textY += screenHeight / 2;
+                textY += height / 2;
                 break;
             case 'bottom':
-                textY += screenHeight;
+                textY += height;
                 break;
         }
         
@@ -2533,7 +2910,7 @@ export default class NodeGraphEditor {
             ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
             ctx.lineWidth = 2;
             ctx.setLineDash([5, 5]);
-            ctx.strokeRect(screenPos.x - 2, screenPos.y - 2, screenWidth + 4, screenHeight + 4);
+            ctx.strokeRect(screenPos.x - 2, screenPos.y - 2, width + 4, height + 4);
             ctx.setLineDash([]);
         }
         
@@ -2544,6 +2921,133 @@ export default class NodeGraphEditor {
         ctx.textAlign = originalTextAlign;
         ctx.textBaseline = originalTextBaseline;
         ctx.globalAlpha = originalGlobalAlpha;
+    }
+    
+    // LOD1: 中精度（简化细节）
+    drawTextContentLOD1(ctx, textContent, screenPos, width, height) {
+        const originalFillStyle = ctx.fillStyle;
+        const originalStrokeStyle = ctx.strokeStyle;
+        const originalFont = ctx.font;
+        const originalTextAlign = ctx.textAlign;
+        const originalTextBaseline = ctx.textBaseline;
+        const originalGlobalAlpha = ctx.globalAlpha;
+        
+        const isSelected = this.selectedElements.some(el => el.id === textContent.id);
+        
+        // 设置透明度
+        ctx.globalAlpha = textContent.opacity;
+        
+        // 简化绘制背景（纯色填充）
+        if (textContent.backgroundColor) {
+            ctx.fillStyle = textContent.backgroundColor;
+            ctx.fillRect(screenPos.x, screenPos.y, width, height);
+        }
+        
+        // 简化绘制边框（细线）
+        if (textContent.borderColor) {
+            ctx.strokeStyle = textContent.borderColor;
+            ctx.lineWidth = 0.5; // 细线
+            ctx.strokeRect(screenPos.x, screenPos.y, width, height);
+        }
+        
+        // 绘制文本（简化，只显示第一行）
+        const fontSize = Math.max(6, textContent.fontSize * this.zoom); // 最小字体6px
+        ctx.font = `normal normal ${fontSize}px sans-serif`; // 简化字体设置
+        ctx.fillStyle = textContent.fontColor || '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // 获取文本内容（限制6字符）
+        let displayText = textContent.text;
+        if (displayText.length > 6) {
+            displayText = displayText.substring(0, 6) + '...';
+        }
+        
+        // 居中显示
+        ctx.fillText(displayText, screenPos.x + width / 2, screenPos.y + height / 2);
+        
+        // 如果被选中，绘制简化选择框
+        if (isSelected) {
+            ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.strokeRect(screenPos.x - 1, screenPos.y - 1, width + 2, height + 2);
+            ctx.setLineDash([]);
+        }
+        
+        // 恢复状态
+        ctx.fillStyle = originalFillStyle;
+        ctx.strokeStyle = originalStrokeStyle;
+        ctx.font = originalFont;
+        ctx.textAlign = originalTextAlign;
+        ctx.textBaseline = originalTextBaseline;
+        ctx.globalAlpha = originalGlobalAlpha;
+    }
+    
+    // LOD2: 低精度（纯色矩形+文字占位）
+    drawTextContentLOD2(ctx, textContent, screenPos, width, height) {
+        const originalFillStyle = ctx.fillStyle;
+        const originalStrokeStyle = ctx.strokeStyle;
+        const originalLineWidth = ctx.lineWidth;
+        
+        const isSelected = this.selectedElements.some(el => el.id === textContent.id);
+        
+        // 绘制纯色矩形
+        ctx.fillStyle = textContent.backgroundColor || (isLightMode() ? '#f0f0f0' : '#333333');
+        ctx.fillRect(screenPos.x, screenPos.y, width, height);
+        
+        // 绘制细线边框
+        ctx.strokeStyle = isLightMode() ? '#cccccc' : '#4a4a4a';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(screenPos.x, screenPos.y, width, height);
+        
+        // 绘制文字占位长条
+        const textBarHeight = Math.max(4, height * 0.3);
+        const textBarWidth = Math.max(10, width * 0.7);
+        ctx.fillStyle = isLightMode() ? '#aaaaaa' : '#666666';
+        ctx.fillRect(
+            screenPos.x + (width - textBarWidth) / 2,
+            screenPos.y + (height - textBarHeight) / 2,
+            textBarWidth,
+            textBarHeight
+        );
+        
+        // 如果被选中，绘制简化选择框
+        if (isSelected) {
+            ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(screenPos.x, screenPos.y, width, height);
+        }
+        
+        // 恢复状态
+        ctx.fillStyle = originalFillStyle;
+        ctx.strokeStyle = originalStrokeStyle;
+        ctx.lineWidth = originalLineWidth;
+    }
+    
+    // LOD3: 占位符（仅纯色矩形）
+    drawTextContentLOD3(ctx, textContent, screenPos, width, height) {
+        const originalFillStyle = ctx.fillStyle;
+        const originalStrokeStyle = ctx.strokeStyle;
+        const originalLineWidth = ctx.lineWidth;
+        
+        const isSelected = this.selectedElements.some(el => el.id === textContent.id);
+        
+        // 仅绘制纯色矩形占位符
+        ctx.fillStyle = textContent.backgroundColor || (isLightMode() ? '#f0f0f0' : '#333333');
+        ctx.fillRect(screenPos.x, screenPos.y, width, height);
+        
+        // 如果被选中，绘制选中矩形
+        if (isSelected) {
+            ctx.strokeStyle = isLightMode() ? '#000000' : '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(screenPos.x, screenPos.y, width, height);
+        }
+        
+        // 恢复状态
+        ctx.fillStyle = originalFillStyle;
+        ctx.strokeStyle = originalStrokeStyle;
+        ctx.lineWidth = originalLineWidth;
     }
     
     // LOD1：中精度（简化细节）
@@ -2830,11 +3334,15 @@ export default class NodeGraphEditor {
         // 根据LOD等级选择绘制方法
         const lodLevel = this.lodManager.getLODLevel(this.zoom);
         
-        // 计算连线的起点和终点
-        const startX = nodeA.x + nodeA.width / 2;
-        const startY = nodeA.y + nodeA.height / 2;
-        const endX = nodeB.x + nodeB.width / 2;
-        const endY = nodeB.y + nodeB.height / 2;
+        // 计算连线的起点和终点（使用transform.position）
+        const nodeAPos = (nodeA.transform && nodeA.transform.position) ? 
+            nodeA.transform.position : { x: 0, y: 0 };
+        const nodeBPos = (nodeB.transform && nodeB.transform.position) ? 
+            nodeB.transform.position : { x: 0, y: 0 };
+        const startX = nodeAPos.x + nodeA.width / 2;
+        const startY = nodeAPos.y + nodeA.height / 2;
+        const endX = nodeBPos.x + nodeB.width / 2;
+        const endY = nodeBPos.y + nodeB.height / 2;
         
         // 转换为屏幕坐标
         const screenStart = this.worldToScreen(startX, startY);
@@ -3349,7 +3857,7 @@ export default class NodeGraphEditor {
         }
         
         // 6. 使用分组方法来处理连线
-        const connectionGroups = this.groupConnectionsByNodePair();
+        const connectionGroups = this.groupConnectionsByNodePair(this.visibleConnections);
         
         // 按选中状态和类型分组元素，以便批处理绘制
         const groups = {
@@ -3773,7 +4281,7 @@ export default class NodeGraphEditor {
             
             // 实现互斥逻辑：如果实时排列正在运行，则先停止它
             if (this.isRealTimeArrangeActive) {
-                this.stopForceLayout();
+                this.stopRealTimeArrange();
                 this.showNotification('已停止实时排列，开始树形自动排列');
             }
             
@@ -4101,14 +4609,16 @@ export default class NodeGraphEditor {
         const worldPos = this.screenToWorld(x, y);
         
         // 首先检查是否双击了文字对象
-        const clickedText = this.textContents.find(text => 
-            isPointInRect(worldPos.x, worldPos.y, {
-                x: text.x,
-                y: text.y,
+        const clickedText = this.textContents.find(text => {
+            const position = (text.transform && text.transform.position) ? 
+                text.transform.position : { x: 0, y: 0 };
+            return isPointInRect(worldPos.x, worldPos.y, {
+                x: position.x,
+                y: position.y,
                 width: text.width || 200, // 默认宽度
                 height: text.height || 30  // 默认高度
-            })
-        );
+            });
+        });
         
         if (clickedText) {
             this.startEditTextContent(clickedText);
@@ -4408,7 +4918,10 @@ export default class NodeGraphEditor {
     
     // 创建节点
     createNode(x, y, name = '新节点', description = '') {
-        const node = new NodeModel(name, x || 100, y || 100);
+        const node = new NodeModel({
+            name: name,
+            position: { x: x || 100, y: y || 100 }
+        });
         node.description = description;
         node.group = '';
         node.width = 120;
@@ -4470,7 +4983,10 @@ export default class NodeGraphEditor {
             throw new Error('不能创建自连接');
         }
         
-        const connection = new ConnectionModel(sourceNode.id, targetNode.id);
+        const connection = new ConnectionModel({
+            sourceNodeId: sourceNode.id,
+            targetNodeId: targetNode.id
+        });
         
         // 添加条件
         if (Array.isArray(conditions)) {
@@ -4488,15 +5004,7 @@ export default class NodeGraphEditor {
             throw new Error('连线不能为空');
         }
         
-        // 检查是否已存在相同的连线
-        const exists = this.connections.some(conn => 
-            conn.sourceNodeId === connection.sourceNodeId && 
-            conn.targetNodeId === connection.targetNodeId
-        );
-        
-        if (exists) {
-            throw new Error('该连线已存在');
-        }
+        // 移除连接重复检查，允许节点间创建多个连接
         
         this.connections.push(connection);
         
@@ -4593,5 +5101,5 @@ export default class NodeGraphEditor {
     }
 }
 
-// 导出NodeGraphEditor类
-export { NodeGraphEditor };
+// 导出NodeGraphEditorController类
+export { NodeGraphEditorController };

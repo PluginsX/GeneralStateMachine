@@ -111,8 +111,20 @@ export default class CanvasMouseHandler {
     
     // 处理节点点击
     handleNodeClick(node, worldPos, e) {
+        // 添加调试信息：打印节点的所有属性
+        console.log('节点被点击:', node.id);
+        console.log('节点完整属性:', JSON.stringify(node, null, 2));
+        
         const editorState = this.editorViewModel.getEditorState();
         const nodeViewModel = this.editorViewModel.getNodeViewModel();
+        
+        // 确保节点有transform和position属性（这是修复拖拽问题的关键）
+        if (!node.transform) {
+            node.transform = {};
+        }
+        if (!node.transform.position) {
+            node.transform.position = { x: 0, y: 0 };
+        }
         
         // 检查是否已经被选中
         const isAlreadySelected = editorState.selectedNodeIds.has(node.id);
@@ -133,7 +145,7 @@ export default class CanvasMouseHandler {
             
             // 准备拖动
             this.draggingNodeId = node.id;
-            const nodePos = (node.transform && node.transform.position) ? node.transform.position : { x: 0, y: 0 };
+            const nodePos = node.transform.position;
             this.dragOffset.x = worldPos.x - nodePos.x;
             this.dragOffset.y = worldPos.y - nodePos.y;
         }

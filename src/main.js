@@ -1,4 +1,4 @@
-import NodeGraphEditor from './core/editor.js';
+import NodeGraphEditorController from './controllers/NodeGraphEditorController.js';
 import { mergeNodes, mergeConditions, removeDuplicateConnections, concentrateArrange } from './utils/automation.js';
 import WelcomeScreen from './ui/WelcomeScreen.js';
 import FileListManager from './ui/FileListManager.js';
@@ -7,10 +7,10 @@ import FileListManager from './ui/FileListManager.js';
 document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('contextmenu', e => e.preventDefault());
     
-    // 初始化编辑器
-    const editor = new NodeGraphEditor('editor-canvas');
-    // 将编辑器实例赋值给window，以便其他地方可以访问
-    window.editor = editor;
+    // 初始化编辑器控制器
+        const editor = new NodeGraphEditorController('editor-canvas');
+        // 将编辑器控制器实例赋值给window，以便其他地方可以访问
+        window.editor = editor;
     
     // 初始化欢迎页面
     const welcomeScreen = new WelcomeScreen();

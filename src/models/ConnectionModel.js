@@ -29,13 +29,16 @@ export class ConnectionModel extends ObjectBase {
         this.targetPortId = options.targetPortId || '';
         this.type = options.type || 'default';
         
-        // 连接条件
+        // 连接条件（兼容旧版本的单condition和新版本的conditions数组）
         this.condition = {
             type: 'none',
             value: null,
             operator: 'equals',
             ...options.condition
         };
+        
+        // 连接条件数组（新版本使用）
+        this.conditions = options.conditions || (options.condition ? [options.condition] : []);
         
         // 连接样式
         this.style = {

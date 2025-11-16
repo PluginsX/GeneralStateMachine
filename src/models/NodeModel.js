@@ -146,7 +146,7 @@ export default class NodeModel extends ObjectBase {
      */
     static fromData(data) {
         const node = new NodeModel({
-            type: data.type || 'default',
+            type: 'node',
             name: data.name,
             description: data.description,
             position: data.transform ? new Vector2(data.transform.position.x, data.transform.position.y) : new Vector2(data.x || 0, data.y || 0),
