@@ -585,8 +585,7 @@ export default class NodeGraphEditorController {
             deleteConnectionBtn.addEventListener('click', () => this.deleteSelectedConnections());
         }
         
-        // 添加文字按钮
-        document.getElementById('add-text').addEventListener('click', () => this.addTextAtCenter());
+
         
         // 自适应尺寸切换
         const nodeAutosizeEl = document.getElementById('node-autosize');
@@ -2430,20 +2429,7 @@ export default class NodeGraphEditorController {
         this.scheduleRender();
     }
     
-    // 在视图中心添加文字对�?
-    addTextAtCenter() {
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
-        const worldPos = this.screenToWorld(centerX, centerY);
-        
-        const defaultText = '双击编辑文字';
-        const position = new Vector2(worldPos.x, worldPos.y);
-        const textContent = new TextContent({
-            text: defaultText,
-            transform: new Transform2D(position, 0, new Vector2(1, 1))
-        });
-        this.addTextContent(textContent);
-    }
+
     
     // 根据ID获取文字对象
     getTextContentById(id) {
@@ -2559,8 +2545,13 @@ export default class NodeGraphEditorController {
     }
     
     // 新建项目
-    newProject() {
-        if (confirm('确定要新建项目吗？当前项目的更改将会丢失！')) {
+    /**
+     * 新建项目
+     * @param {boolean} skipConfirmation - 是否跳过确认提示框
+     */
+    newProject(skipConfirmation = false) {
+        // 如果不是从欢迎页面调用，显示确认提示框
+        if (skipConfirmation || confirm('确定要新建项目吗？当前项目的更改将会丢失！')) {
             this.nodes = [];
             this.connections = [];
             this.selectedElements = [];

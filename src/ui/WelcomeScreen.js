@@ -25,10 +25,14 @@ class WelcomeScreen {
         if (openProjectBtn) {
             openProjectBtn.addEventListener('click', () => {
                 console.log('打开工程按钮被点击');
-                // 触发打开工程的操作（模拟点击顶部菜单的打开工程按钮）
-                const menuOpenProject = document.getElementById('open-project');
-                if (menuOpenProject) {
-                    menuOpenProject.click();
+                // 直接调用打开工程函数，并跳过确认提示框
+                if (window.editor) {
+                    // 导入openProject函数
+                    import('../io/import.js').then(({ openProject }) => {
+                        openProject(window.editor, true); // skipConfirmation = true
+                    }).catch(error => {
+                        console.error('导入openProject函数失败:', error);
+                    });
                 }
                 // 隐藏欢迎页面
                 this.hide();
@@ -40,10 +44,9 @@ class WelcomeScreen {
         if (newProjectBtn) {
             newProjectBtn.addEventListener('click', () => {
                 console.log('新建工程按钮被点击');
-                // 触发新建工程的操作（模拟点击顶部菜单的新建工程按钮）
-                const menuNewProject = document.getElementById('new-project');
-                if (menuNewProject) {
-                    menuNewProject.click();
+                // 直接调用编辑器的newProject方法，并跳过确认提示框
+                if (window.editor) {
+                    window.editor.newProject(true); // skipConfirmation = true
                 }
                 // 隐藏欢迎页面
                 this.hide();

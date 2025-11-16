@@ -10,7 +10,7 @@ export default class UIToolbar {
         
         // 回调函数
         this.onNewNode = null;       // 新建节点回调
-        this.onAddText = null;       // 添加文字回调
+
         this.onDeleteSelected = null; // 删除选中回调
         this.onUndo = null;          // 撤销回调
         this.onRedo = null;          // 重做回调
@@ -29,7 +29,7 @@ export default class UIToolbar {
         // 工具可用性状态 - 默认所有工具都是可用的
         this.toolAvailability = {
             'new-node': true,
-            'add-text': true,
+
             'delete-selected': true,
             'zoom-in': true,
             'zoom-out': true,
@@ -81,7 +81,7 @@ export default class UIToolbar {
         const group = this.createButtonGroup('基础操作');
         
         this.addButton(group, 'new-node', '新建节点', '添加新节点', () => this.onNewNode?.());
-        this.addButton(group, 'add-text', '添加文字', '添加文字对象', () => this.onAddText?.());
+
         this.addButton(group, 'delete-selected', '删除选中', '删除选中的元素', () => this.onDeleteSelected?.());
         
         this.container.appendChild(group);
@@ -239,7 +239,7 @@ export default class UIToolbar {
     // 设置回调函数
     setCallbacks(callbacks) {
         this.onNewNode = callbacks.onNewNode;
-        this.onAddText = callbacks.onAddText;
+
         this.onDeleteSelected = callbacks.onDeleteSelected;
         this.onUndo = callbacks.onUndo;
         this.onRedo = callbacks.onRedo;

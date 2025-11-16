@@ -174,7 +174,15 @@ export const handleFileSelect = async (e, editor) => {
 };
 
 // 打开项目文件
-export const openProject = async (editor) => {
+/**
+ * 打开项目
+ * @param {Object} editor - 编辑器实例
+ * @param {boolean} skipConfirmation - 是否跳过确认提示框（用于欢迎页面）
+ */
+export const openProject = async (editor, skipConfirmation = false) => {
+    // 存储skipConfirmation状态到editor对象，供handleProjectFileSelect使用
+    editor._skipImportConfirmation = skipConfirmation;
+    
     const input = document.getElementById('project-input');
     if (!input) {
         await AlertDialog('项目文件输入元素不存在');
@@ -396,10 +404,23 @@ export const handleProjectFileSelect = async (e, editor) => {
             const jsonContent = event.target.result;
             const projectData = JSON.parse(jsonContent);
             
-            // 使用统一的加载项目数据函数
-            await loadProjectData(projectData, editor);
+            // 如果是从欢迎页面调用（skipConfirmation为true），直接加载
+            // 否则，检查是否需要显示确认提示框
+            if (editor._skipImportConfirmation) {
+                // 从欢迎页面调用，直接加载项目数据
+                await loadProjectData(projectData, editor);
+                // 重置标志
+                editor._skipImportConfirmation = false;
+            } else {
+                // 正常流程，使用统一的加载项目数据函数
+                await loadProjectData(projectData, editor);
+            }
             
         } catch (error) {
+            // 重置标志
+            if (editor) {
+                editor._skipImportConfirmation = false;
+            }
             await AlertDialog('打开项目失败: ' + error.message);
         }
     };
@@ -427,18 +448,23 @@ export const importJSON = async (content, editor) => {
         if (jsonData.type === 'node-graph-editor-project') {
             console.log('检测到项目工程文件格式');
             
-            // 显示弹窗提示用户并获取确认（与ImportService保持一致）
-            const confirmImport = await PopUp_Window(
-                'JSON导入信息',
-                '检测到该json文件为：编辑器标准工程文件',
-                '导入',
-                '取消'
-            );
-            
-            // 如果用户取消导入，抛出错误中断操作
-            if (!confirmImport) {
-                console.log('用户取消了JSON导入');
-                throw new Error('导入已取消');
+            // 如果是从欢迎页面调用，跳过确认提示
+            if (editor._skipImportConfirmation) {
+                console.log('从欢迎页面导入，跳过确认提示');
+            } else {
+                // 显示弹窗提示用户并获取确认（与ImportService保持一致）
+                const confirmImport = await PopUp_Window(
+                    'JSON导入信息',
+                    '检测到该json文件为：编辑器标准工程文件',
+                    '导入',
+                    '取消'
+                );
+                
+                // 如果用户取消导入，抛出错误中断操作
+                if (!confirmImport) {
+                    console.log('用户取消了JSON导入');
+                    throw new Error('导入已取消');
+                }
             }
             
             // 用户确认后，直接复用打开工程的逻辑，无需通过ImportService

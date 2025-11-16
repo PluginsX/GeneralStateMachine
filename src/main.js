@@ -64,54 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // 绑定测试属性面板按钮
-    const testPropertyPanelBtn = document.getElementById('test-property-panel');
-    if (testPropertyPanelBtn) {
-        testPropertyPanelBtn.addEventListener('click', () => {
-            testPropertyPanel(editor);
-        });
-    }
+
     
-    // 测试属性面板函数
-    function testPropertyPanel(editor) {
-        console.log('=== 开始测试属性面板 ===');
-        
-        // 创建一个测试节点
-        const testNode = {
-            id: 'test_node_' + Date.now(),
-            type: 'node',
-            name: '测试节点',
-            x: 100,
-            y: 100,
-            width: 120,
-            height: 60,
-            color: '#ff6b6b',
-            visible: true,
-            selected: false,
-            customProperty: '自定义值',
-            numberProperty: 42,
-            booleanProperty: true
-        };
-        
-        console.log('创建测试节点:', testNode);
-        
-        // 将测试节点添加到编辑器中
-        editor.nodes.push(testNode);
-        
-        // 选择这个测试节点
-        editor.selectedElements = [testNode];
-        
-        // 调用属性面板更新
-        console.log('调用属性面板更新...');
-        editor.propertyPanelAdapter.update([testNode], editor.nodes, editor.connections);
-        
-        // 3秒后测试空选择
-        setTimeout(() => {
-            console.log('测试空选择...');
-            editor.selectedElements = [];
-            editor.propertyPanelAdapter.update([], editor.nodes, editor.connections);
-        }, 3000);
-    }
     
     // 初始化设置菜单
     initSettingsMenu();
